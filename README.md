@@ -3,7 +3,7 @@
 A self-hosted store + dropshipping engine. No Shopify, no monthly platform fee, no
 app subscriptions, and no third party who can switch the storefront off.
 
-Built with Next.js 15 (App Router), TypeScript, Postgres via Prisma, and Tailwind.
+Built with Next.js 15 (App Router), TypeScript, MySQL via Prisma, and Tailwind.
 It runs anywhere that runs Node or Docker: a VPS, Railway, Render, Fly, or Vercel.
 
 ---
@@ -59,7 +59,10 @@ npm run dev                         # http://localhost:3400
 
 Generate an auth secret with `openssl rand -base64 48`.
 
-No Postgres locally? `docker compose up -d db` gives you one on :5432.
+No MySQL locally? `docker compose up -d db` gives you one on :3306.
+
+The database must be **utf8mb4**. Chinese supplier titles and emoji corrupt on
+`utf8mb3`, and the corruption is silent until a customer sees it.
 
 ### Verify the money logic at any time
 
@@ -76,7 +79,7 @@ Run it after touching anything in `src/lib/pricing.ts` or `src/lib/suppliers/`.
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `DATABASE_URL` | yes | Postgres connection string |
+| `DATABASE_URL` | yes | MySQL connection string (`mysql://user:pass@host:3306/db`) |
 | `AUTH_SECRET` | yes | Signs admin sessions, 32+ chars |
 | `NEXT_PUBLIC_SITE_URL` | yes | Public origin, no trailing slash |
 | `PAYSTACK_SECRET_KEY` / `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | for NGN | Cards, transfer, USSD |
@@ -140,7 +143,7 @@ docker compose up -d --build
 ```
 
 **Vercel/Netlify:** point at the repo, set the environment variables, and use a hosted
-Postgres (Neon or Supabase). Build command `npm run build`.
+MySQL (PlanetScale or Railway). Build command `npm run build`.
 
 Either way, after the first deploy:
 

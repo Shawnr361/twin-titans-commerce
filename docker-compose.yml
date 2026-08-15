@@ -1,23 +1,24 @@
-# Local development stack: Postgres + the app.
+# Local development stack: MySQL + the app.
 #   docker compose up -d db      # just the database, run the app with npm
 #   docker compose up            # everything
 services:
   db:
-    image: postgres:16-alpine
+    image: mysql:8
     restart: unless-stopped
+    # utf8mb4 throughout, so Chinese supplier titles and emoji store correctly.
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: twintitans
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: twintitans
     ports:
-      - '5432:5432'
+      - '3306:3306'
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mysqldata:/var/lib/mysql
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-proot']
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 15
 
   app:
     build: .
@@ -26,7 +27,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/twintitans?schema=public
+      DATABASE_URL: mysql://root:root@db:3306/twintitans
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3400}
       AUTH_SECRET: ${AUTH_SECRET}
       PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
@@ -38,4 +39,4 @@ services:
       - '3400:3400'
 
 volumes:
-  pgdata:
+  mysqldata:

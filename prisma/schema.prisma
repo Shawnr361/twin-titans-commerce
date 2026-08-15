@@ -14,7 +14,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -31,20 +31,20 @@ enum ProductStatus {
 model Product {
   id             String        @id @default(cuid())
   handle         String        @unique
-  title          String
-  descriptionHtml String       @default("")
+  title          String @db.VarChar(512)
+  descriptionHtml String       @default("") @db.Text
   status         ProductStatus @default(DRAFT)
   vendor         String?
   productType    String?
-  tags           String[]      @default([])
+  tags           Json      @default("[]")
 
   // Marketing landing page this product's cards should route to instead of the
   // plain product page. Mirrors the Shopify `custom.landing_page` metafield —
   // the funnel-integrity rule learned the hard way on the old store.
   landingPageHandle String?
 
-  seoTitle       String?
-  seoDescription String?
+  seoTitle       String? @db.VarChar(512)
+  seoDescription String? @db.Text
 
   images      ProductImage[]
   variants    Variant[]
@@ -63,8 +63,8 @@ model ProductImage {
   id        String  @id @default(cuid())
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  url       String
-  alt       String?
+  url       String @db.Text
+  alt       String? @db.Text
   position  Int     @default(0)
   // Set once the image has been copied off the supplier CDN onto our storage.
   rehosted  Boolean @default(false)
@@ -77,7 +77,7 @@ model Variant {
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  title    String
+  title    String @db.VarChar(512)
   sku      String? @unique
   position Int     @default(0)
 
@@ -94,7 +94,8 @@ model Variant {
   // null = unlimited (pure dropship, supplier holds stock)
   inventory Int?
 
-  imageUrl String?
+  // Supplier CDN URLs routinely exceed MySQL's default VARCHAR(191).
+  imageUrl String? @db.Text
 
   supplierVariantId String?
   supplierSku       String?
@@ -113,9 +114,9 @@ model Variant {
 model Collection {
   id             String  @id @default(cuid())
   handle         String  @unique
-  title          String
-  descriptionHtml String @default("")
-  imageUrl       String?
+  title          String @db.VarChar(512)
+  descriptionHtml String @default("") @db.Text
+  imageUrl       String? @db.Text
   position       Int     @default(0)
   published      Boolean @default(true)
 
@@ -140,12 +141,13 @@ model CollectionProduct {
 model Page {
   id        String  @id @default(cuid())
   handle    String  @unique
-  title     String
-  bodyHtml  String  @default("")
+  title     String @db.VarChar(512)
+  // Landing-page HTML is the largest thing this app stores.
+  bodyHtml  String  @default("") @db.LongText
   published Boolean @default(true)
 
-  seoTitle       String?
-  seoDescription String?
+  seoTitle       String? @db.VarChar(512)
+  seoDescription String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -155,8 +157,10 @@ model Page {
 // one silently kills the old URL and any ad linking to it.
 model UrlRedirect {
   id        String   @id @default(cuid())
-  fromPath  String   @unique
-  toPath    String
+  // Indexed, so it must stay VARCHAR — MySQL cannot index TEXT without a
+  // prefix length. 500 chars is comfortably under the 3072-byte index limit.
+  fromPath  String   @unique @db.VarChar(500)
+  toPath    String   @db.VarChar(500)
   createdAt DateTime @default(now())
 }
 
@@ -177,12 +181,12 @@ model Supplier {
   id       String           @id @default(cuid())
   name     String
   platform SupplierPlatform @default(MANUAL)
-  storeUrl String?
+  storeUrl String? @db.Text
 
   // How we place orders with them. See lib/suppliers/adapters.
   contactEmail String?
   contactPhone String?
-  notes        String?
+  notes        String? @db.Text
 
   // Typical door-to-door days, used for the delivery estimate shown to buyers.
   shipDaysMin Int @default(7)
@@ -208,7 +212,7 @@ model SupplierProduct {
 
   platform   SupplierPlatform
   externalId String
-  sourceUrl  String
+  sourceUrl  String @db.Text
 
   sourceCurrency     String @default("USD")
   sourcePriceMinor   Int    @default(0)
@@ -295,7 +299,7 @@ model Order {
   shippingAddress Json
   billingAddress  Json?
 
-  note String?
+  note String? @db.Text
 
   lineItems      OrderLineItem[]
   payments       Payment[]
@@ -319,10 +323,12 @@ model OrderLineItem {
 
   // Snapshotted so the order stays readable if the product is later edited or
   // deleted — the old store had landing pages pointing at deleted variant ids.
-  productTitle String
-  variantTitle String
+  // These mirror Product.title / Variant.title, so they need the same width —
+  // otherwise a long supplier title makes the whole order fail to insert.
+  productTitle String @db.VarChar(512)
+  variantTitle String @db.VarChar(512)
   sku          String?
-  imageUrl     String?
+  imageUrl     String? @db.Text
   productHandle String?
 
   quantity       Int
@@ -330,7 +336,7 @@ model OrderLineItem {
   unitCostMinor  Int @default(0)
 
   // Everything needed to re-place this item with the supplier, frozen at sale.
-  sourceUrl         String?
+  sourceUrl         String? @db.Text
   sourcePlatform    SupplierPlatform?
   supplierId        String?
   supplierVariantId String?
@@ -373,7 +379,7 @@ model OrderEvent {
   orderId String
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   kind    String
-  message String
+  message String @db.Text
   data    Json?
   createdAt DateTime @default(now())
 
@@ -407,7 +413,7 @@ model SupplierOrder {
   externalOrderNo String?
   trackingNumber  String?
   trackingCarrier String?
-  trackingUrl     String?
+  trackingUrl     String? @db.Text
 
   costMinor Int    @default(0)
   currency  String @default("USD")
@@ -419,7 +425,7 @@ model SupplierOrder {
   placedAt    DateTime?
   shippedAt   DateTime?
   deliveredAt DateTime?
-  notes       String?
+  notes       String? @db.Text
 
   items SupplierOrderItem[]
 
@@ -438,11 +444,11 @@ model SupplierOrderItem {
   orderLineItemId String
   orderLineItem   OrderLineItem @relation(fields: [orderLineItemId], references: [id])
 
-  sourceUrl         String
+  sourceUrl         String @db.Text
   externalVariantId String?
-  variantLabel      String?
+  variantLabel      String? @db.VarChar(512)
   quantity          Int
-  note              String?
+  note              String? @db.Text
 
   @@index([supplierOrderId])
 }
