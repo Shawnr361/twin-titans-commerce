@@ -13,6 +13,8 @@ RUN apk add --no-cache openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Standalone output is opt-in — see next.config.mjs.
+ENV NEXT_STANDALONE=1
 RUN npx prisma generate && npm run build
 
 FROM node:22-alpine AS runner
