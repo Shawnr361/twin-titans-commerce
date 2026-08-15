@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Design tokens. The old Shopify theme set colour directly on h1/h2/h3, which
+  beat inheritance and rendered headings invisible on dark cards. Here the dark
+  palette is the base, so nothing has to fight a theme for contrast.
+*/
+:root {
+  --bg: 8 10 18;
+  --panel: 16 19 32;
+  --line: 38 44 66;
+  --ink: 237 240 252;
+  --mut: 156 165 194;
+  --accent: 124 92 255;
+  --accent2: 34 211 238;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Inter', system-ui, sans-serif;
+}
+
+* {
+  border-color: rgb(var(--line));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  /* The page body must never scroll horizontally — wide content scrolls itself. */
+  overflow-x: hidden;
+}
+
+/* Ambient aurora behind everything, cheap enough to leave on mobile. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -20vh -10vw auto;
+  height: 70vh;
+  background:
+    radial-gradient(45vw 40vh at 20% 0%, rgb(var(--accent) / 0.22), transparent 70%),
+    radial-gradient(40vw 35vh at 80% 10%, rgb(var(--accent2) / 0.14), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+@layer components {
+  .container-x {
+    @apply mx-auto w-full max-w-[1200px] px-4 sm:px-6;
+  }
+
+  .panel {
+    @apply rounded-2xl border border-line bg-panel/70 backdrop-blur-xl;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold
+           transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn text-white;
+    background-image: linear-gradient(135deg, rgb(var(--accent)), rgb(var(--accent2)));
+    box-shadow: 0 10px 30px -12px rgb(var(--accent) / 0.9);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 40px -12px rgb(var(--accent) / 1);
+  }
+
+  .btn-ghost {
+    @apply btn border border-line bg-white/5 text-ink hover:bg-white/10;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-line bg-black/30 px-4 py-3 text-sm text-ink
+           placeholder:text-mut/60 outline-none transition
+           focus:border-accent focus:ring-2 focus:ring-accent/30;
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-mut;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-white/5
+           px-3 py-1 text-xs font-medium text-mut;
+  }
+
+  /* Wide content (tables, code) scrolls inside its own container. */
+  .scroll-x {
+    @apply -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0;
+  }
+}
+
+/* Cursor-follow 3D tilt on product cards, carried over from the old theme. */
+.tilt {
+  transform-style: preserve-3d;
+  transition: transform 260ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tilt {
+    transform: none !important;
+    transition: none;
+  }
+  .animate-float,
+  .animate-shimmer {
+    animation: none !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+.price-strike {
+  @apply text-mut/70 line-through;
+}

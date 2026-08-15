@@ -1,0 +1,124 @@
+import Link from 'next/link';
+import { ProductStatusToggle } from '@/components/admin/ProductStatusToggle';
+import { prisma } from '@/lib/db';
+import { formatMoney } from '@/lib/money';
+import { auditMargin } from '@/lib/pricing';
+import { getPricingRules, getStoreSettings } from '@/lib/settings';
+
+export const metadata = { title: 'Products' };
+export const dynamic = 'force-dynamic';
+
+export default async function AdminProductsPage() {
+  const [settings, rules] = await Promise.all([getStoreSettings(), getPricingRules()]);
+
+  const products = await prisma.product
+    .findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        images: { take: 1, orderBy: { position: 'asc' } },
+        variants: true,
+        source: { select: { sourceUrl: true, platform: true } },
+      },
+    })
+    .catch(() => []);
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight">Products</h2>
+          <p className="text-sm text-mut">{products.length} in catalog</p>
+        </div>
+        <Link href="/admin/import" className="btn-primary">
+          Import from link
+        </Link>
+      </header>
+
+      {products.length === 0 ? (
+        <div className="panel space-y-4 p-12 text-center">
+          <p className="text-sm text-mut">No products yet.</p>
+          <Link href="/admin/import" className="btn-primary">
+            Import your first product
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {products.map((product) => {
+            // Worst variant decides the product's health badge — an average
+            // would hide exactly the one SKU that is losing money.
+            const worst = product.variants
+              .map((v) => auditMargin(v.priceMinor, v.costMinor, rules))
+              .sort((a, b) => a.marginPct - b.marginPct)[0];
+
+            const cheapest = product.variants.reduce<number | null>(
+              (min, v) => (min === null || v.priceMinor < min ? v.priceMinor : min),
+              null
+            );
+
+            return (
+              <article key={product.id} className="panel flex flex-wrap items-center gap-4 p-4">
+                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-black/40">
+                  {product.images[0] && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={product.images[0].url}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+                </div>
+
+                <div className="min-w-[200px] flex-1 space-y-1">
+                  <Link
+                    href={`/products/${product.handle}`}
+                    className="line-clamp-1 text-sm font-semibold hover:text-accent2"
+                  >
+                    {product.title}
+                  </Link>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-mut">
+                    <span>{product.variants.length} variant(s)</span>
+                    {cheapest != null && (
+                      <span>· from {formatMoney(cheapest, settings.baseCurrency)}</span>
+                    )}
+                    {product.source && (
+                      <a
+                        href={product.source.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-accent2 hover:underline"
+                      >
+                        · {product.source.platform} source
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {worst && (
+                  <span
+                    className={`chip ${
+                      worst.severity === 'loss'
+                        ? 'border-red-500/50 text-red-300'
+                        : worst.severity === 'thin'
+                          ? 'border-amber-500/50 text-amber-300'
+                          : 'border-accent/50 text-accent2'
+                    }`}
+                    title={worst.message}
+                  >
+                    {worst.severity === 'loss' ? 'LOSS' : `${worst.marginPct.toFixed(0)}% margin`}
+                  </span>
+                )}
+
+                <ProductStatusToggle
+                  productId={product.id}
+                  status={product.status}
+                  blocked={worst?.severity === 'loss'}
+                />
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
