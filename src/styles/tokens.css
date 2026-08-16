@@ -1,0 +1,124 @@
+/*
+  ATELIER — the design system's single source of truth.
+  ---------------------------------------------------------------------------
+  Every colour, size and duration in the storefront resolves to a token here.
+  Nothing downstream is allowed to invent a value.
+
+  The palette is deliberately warm-neutral and LIGHT. Luxury retail
+  (SSENSE, Net-a-Porter, Aesop, Toteme) is bone-coloured, near-square and
+  serif-led. Dark backgrounds with saturated gradients read as crypto or as
+  generated-by-AI, which is the single thing this storefront must not look
+  like. There is exactly one accent, and metal appears only as a hairline.
+
+  Neutrals carry a green-brown undertone (not blue) so they read as paper and
+  stone rather than as "slate-900", the default of every generated template.
+*/
+
+:root {
+  /* --- Ground -------------------------------------------------------- */
+  --bone: 246 242 233; /* #F6F2E9  page */
+  --bone-2: 240 235 224; /* #F0EBE0  alternating band */
+  --paper: 252 250 246; /* #FCFAF6  cards, raised surfaces */
+
+  /* --- Ink ----------------------------------------------------------- */
+  --onyx: 22 21 15; /* #16150F  headings, warm near-black */
+  --ink: 38 36 30; /* #26241E  body */
+  --greige: 122 116 105; /* #7A7469  secondary text */
+  --quiet: 168 160 147; /* #A8A093  tertiary, captions */
+
+  /* --- Line ---------------------------------------------------------- */
+  --rule: 219 212 199; /* #DBD4C7  hairlines, borders */
+  --rule-strong: 196 187 172; /* #C4BBAC */
+
+  /* --- Accent (exactly one) ------------------------------------------ */
+  --verdigris: 36 80 63; /* #24503F  deep jade — CTAs, links */
+  --verdigris-deep: 26 58 46; /* #1A3A2E  hover */
+
+  /* --- Gold ----------------------------------------------------------
+     A four-stop metallic ramp, not a single yellow. Real gold reads as
+     metal because it has a highlight, a body and a shadow — a flat
+     #FFD700 fill is the giveaway of a cheap site. These stops drive a
+     gradient that is clipped to text and swept on hover.               */
+  --gold-hi: 244 228 190; /* #F4E4BE  champagne highlight */
+  --gold-lt: 224 197 133; /* #E0C585  light */
+  --gold: 184 145 47; /* #B8912F  body */
+  --gold-dk: 138 106 34; /* #8A6A22  shadow */
+  --brass: 168 131 78; /* #A8834E  hairlines */
+
+  /* --- Signal -------------------------------------------------------- */
+  --sale: 138 45 38; /* #8A2D26  oxblood, for reductions */
+  --positive: 47 92 62; /* #2F5C3E */
+  --warn: 141 106 34; /* #8D6A22 */
+  --danger: 150 42 34; /* #962A22 */
+
+  /* --- Type ---------------------------------------------------------- */
+  --font-display: var(--font-fraunces), 'Times New Roman', serif;
+  --font-sans: var(--font-hanken), system-ui, -apple-system, sans-serif;
+
+  /* Editorial scale. Display sizes are fluid; body is fixed for legibility. */
+  --step--1: 0.8125rem; /* 13px  captions, labels */
+  --step-0: 0.9375rem; /* 15px  body */
+  --step-1: 1.0625rem; /* 17px  lead */
+  --step-2: clamp(1.25rem, 1.05rem + 0.9vw, 1.625rem);
+  --step-3: clamp(1.5rem, 1.15rem + 1.6vw, 2.25rem);
+  --step-4: clamp(1.875rem, 1.2rem + 3vw, 3.25rem);
+  --step-5: clamp(2.25rem, 1.1rem + 5.2vw, 4.75rem);
+
+  /* Luxury typography is set tight at display sizes and open at label sizes. */
+  --tracking-display: -0.02em;
+  --tracking-body: 0;
+  --tracking-label: 0.14em;
+
+  /* --- Space (8px base, generous by default) ------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+
+  /* --- Measure ------------------------------------------------------- */
+  --measure: 1280px; /* editorial max width */
+  --measure-text: 66ch; /* prose */
+  --gutter: 1.25rem;
+
+  /* --- Radius: near-square. Rounded corners read as "app", not "atelier". */
+  --radius-0: 0px;
+  --radius-1: 2px;
+  --radius-2: 4px;
+  --radius-pill: 999px; /* reserved for tags only */
+
+  /* --- Elevation: luxury uses hairlines, not drop shadows. ----------- */
+  --shadow-none: none;
+  --shadow-lift: 0 1px 2px rgba(22, 21, 15, 0.04), 0 8px 24px rgba(22, 21, 15, 0.06);
+
+  /* --- Motion: short, linear-ish, almost imperceptible. -------------- */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-1: 140ms;
+  --dur-2: 240ms;
+  --dur-3: 420ms;
+}
+
+/*
+  A dark mode exists but is a warm charcoal, not the blue-black default.
+  Opt-in via data-theme so it can be a store setting rather than a guess at
+  what the visitor wants mid-purchase.
+*/
+:root[data-theme='dark'] {
+  --bone: 24 22 19;
+  --bone-2: 30 28 24;
+  --paper: 34 31 27;
+  --onyx: 244 240 232;
+  --ink: 232 227 217;
+  --greige: 166 158 146;
+  --quiet: 130 123 112;
+  --rule: 58 54 48;
+  --rule-strong: 78 72 64;
+  --verdigris: 122 176 148;
+  --verdigris-deep: 150 198 172;
+  --brass: 198 163 108;
+}

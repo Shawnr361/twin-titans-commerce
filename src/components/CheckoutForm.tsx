@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { HydratedCart } from '@/lib/cart';
-import { Price } from './Price';
+import { Price } from '@/components/commerce/Price';
 
 const COUNTRIES = [
   'Nigeria',

@@ -3,7 +3,7 @@ import { clearCart } from '@/lib/cart';
 import { prisma } from '@/lib/db';
 import { markOrderPaid } from '@/lib/orders';
 import { verifyTransaction } from '@/lib/payments/paystack';
-import { Price } from '@/components/Price';
+import { Price } from '@/components/commerce/Price';
 
 export const metadata = { title: 'Order confirmed' };
 export const dynamic = 'force-dynamic';

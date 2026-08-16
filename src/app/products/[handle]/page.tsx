@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ProductGallery } from '@/components/ProductGallery';
 import { ProductBuyBox } from '@/components/ProductBuyBox';
-import { ProductCard } from '@/components/ProductCard';
+import { ProductCard } from '@/components/commerce/ProductCard';
 import { prisma } from '@/lib/db';
 import { CARD_SELECT, toCard } from '@/lib/catalog';
 import { getStoreSettings } from '@/lib/settings';

@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Price } from './Price';
+import { Price } from '@/components/commerce/Price';
 
 export interface VariantOption {
   id: string;

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Twin Titans">
+  <!--
+    Monogram mark. Two serif "T" stems sharing a single crossbar — the "twin"
+    idea rendered as typography rather than as an icon, which is how heritage
+    retail marks are built. Flat onyx on bone; no gradient, no glow.
+  -->
+  <rect width="64" height="64" fill="#16150F"/>
+  <g fill="#F6F2E9">
+    <!-- shared crossbar -->
+    <rect x="10" y="18" width="44" height="4.4"/>
+    <!-- left stem with serif foot -->
+    <rect x="20.4" y="22.4" width="4.2" height="21"/>
+    <rect x="16.6" y="43.4" width="11.8" height="3"/>
+    <!-- right stem with serif foot -->
+    <rect x="39.4" y="22.4" width="4.2" height="21"/>
+    <rect x="35.6" y="43.4" width="11.8" height="3"/>
+  </g>
+  <!-- brass hairline, the single metallic note -->
+  <rect x="10" y="51.5" width="44" height="1" fill="#A8834E"/>
+</svg>

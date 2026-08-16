@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { HydratedCart } from '@/lib/cart';
-import { Price } from './Price';
+import { Price } from '@/components/commerce/Price';
 
 export function CartTable({ initial }: { initial: HydratedCart }) {
   const [cart, setCart] = useState(initial);
