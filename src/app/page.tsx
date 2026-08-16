@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { ProductCard } from '@/components/commerce/ProductCard';
 import { SectionHead } from '@/components/layout/SectionHead';
-import { Marquee } from '@/components/layout/Marquee';
 import { Reveal } from '@/components/motion/Reveal';
 import { Parallax } from '@/components/motion/Parallax';
 import { Magnetic } from '@/components/motion/Magnetic';
@@ -107,16 +106,6 @@ export default async function HomePage() {
           </Reveal>
         </div>
       </Spotlight>
-
-      {/* Running band — motion at the seam between sections. */}
-      <Marquee
-        items={[
-          'Shipped direct from source',
-          'Tracked on every order',
-          'Priced against true landed cost',
-          'Reachable by a person',
-        ]}
-      />
 
       {/* ---------------------------------------------------------------
           Departments

@@ -226,8 +226,9 @@ export function CheckoutForm({
                   <span className="block text-body font-medium text-onyx">
                     Card, bank transfer or USSD
                   </span>
-                  <span className="mt-1 block text-label text-greige">
-                    Secured by Paystack. Charged in {baseCurrency}.
+                  <span className="mt-1 block text-label !normal-case !tracking-normal text-greige">
+                    Secured by Paystack. Charged in {baseCurrency} — use this if you bank in
+                    Nigeria.
                   </span>
                 </span>
               </label>
@@ -244,10 +245,17 @@ export function CheckoutForm({
                   className="mt-1 accent-onyx"
                 />
                 <span>
-                  <span className="block text-body font-medium text-onyx">PayPal</span>
-                  {/* PayPal cannot process NGN — a platform limit, so say so plainly. */}
-                  <span className="mt-1 block text-label text-greige">
-                    Charged in USD at today&apos;s rate. Best for international orders.
+                  <span className="block text-body font-medium text-onyx">
+                    PayPal or international card
+                  </span>
+                  {/*
+                    PayPal cannot process NGN under any circumstance — a hard
+                    platform limit, not a configuration choice. So it always
+                    settles in USD, and the customer is told the exact figure
+                    before they are sent to approve it.
+                  */}
+                  <span className="mt-1 block text-label !normal-case !tracking-normal text-greige">
+                    Charged in USD at today&apos;s rate. Use this if you bank outside Nigeria.
                   </span>
                 </span>
               </label>

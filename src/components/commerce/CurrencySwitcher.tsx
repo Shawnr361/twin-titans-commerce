@@ -227,8 +227,15 @@ export function CurrencySwitcher({
             </button>
           ))}
 
+          {/*
+            Display currency and settlement currency are different things, and
+            saying "you are charged in NGN" is only true for the card route.
+            PayPal cannot process NGN at all, so it settles in USD. Stating
+            both here means no customer is surprised at the payment step.
+          */}
           <p className="border-t border-rule px-4 pb-1 pt-3 text-micro leading-relaxed text-quiet">
-            Shown for convenience. You are charged in {baseCurrency} at checkout.
+            Shown for convenience. At checkout you pay in {baseCurrency} by card, or in USD via
+            PayPal.
           </p>
         </div>
       )}
