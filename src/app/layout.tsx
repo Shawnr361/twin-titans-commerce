@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Fraunces, Hanken_Grotesk } from 'next/font/google';
 import { SiteHeader } from '@/components/layout/SiteHeader';
 import { SiteFooter } from '@/components/layout/SiteFooter';
+import { CartDrawer } from '@/components/commerce/CartDrawer';
 import { getStoreSettings } from '@/lib/settings';
 import './globals.css';
 
@@ -79,6 +80,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </main>
         <SiteFooter />
+
+        {/* Mounted once, opened from anywhere via openCartDrawer(). */}
+        <CartDrawer />
       </body>
     </html>
   );

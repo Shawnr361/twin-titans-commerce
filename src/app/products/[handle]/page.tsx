@@ -6,6 +6,7 @@ import { AddToCart } from '@/components/commerce/AddToCart';
 import { ProductCard } from '@/components/commerce/ProductCard';
 import { SectionHead } from '@/components/layout/SectionHead';
 import { Reveal } from '@/components/motion/Reveal';
+import { IconReturn, IconSearch, IconShield, IconSpark, IconTruck } from '@/components/icons';
 import { prisma } from '@/lib/db';
 import { CARD_SELECT, toCard } from '@/lib/catalog';
 import { formatMoney } from '@/lib/money';
@@ -146,29 +147,43 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
             />
           </div>
 
-          {/* Service facts — no invented guarantees or certifications. */}
+          {/* Service facts — only things we can actually stand behind. */}
           <dl className="mt-10 divide-y divide-rule border-y border-rule">
-            <div className="flex justify-between gap-6 py-4">
-              <dt className="label">Delivery</dt>
-              <dd className="text-body text-right text-greige">
+            <div className="flex items-center gap-4 py-4">
+              <IconTruck size={19} className="shrink-0 text-brass" />
+              <dt className="label shrink-0">Delivery</dt>
+              <dd className="ml-auto text-right text-body text-greige">
                 {shipMin}–{shipMax} days after dispatch
               </dd>
             </div>
-            <div className="flex justify-between gap-6 py-4">
-              <dt className="label">Tracking</dt>
-              <dd className="text-body text-right text-greige">Emailed when it ships</dd>
+            <div className="flex items-center gap-4 py-4">
+              <IconSearch size={19} className="shrink-0 text-brass" />
+              <dt className="label shrink-0">Tracking</dt>
+              <dd className="ml-auto text-right text-body text-greige">Emailed when it ships</dd>
             </div>
-            <div className="flex justify-between gap-6 py-4">
-              <dt className="label">Payment</dt>
-              <dd className="text-body text-right text-greige">
+            <div className="flex items-center gap-4 py-4">
+              <IconShield size={19} className="shrink-0 text-brass" />
+              <dt className="label shrink-0">Payment</dt>
+              <dd className="ml-auto text-right text-body text-greige">
                 Card, transfer or USSD in {settings.baseCurrency}
               </dd>
             </div>
+            <div className="flex items-center gap-4 py-4">
+              <IconReturn size={19} className="shrink-0 text-brass" />
+              <dt className="label shrink-0">Returns</dt>
+              <dd className="ml-auto text-right text-body text-greige">
+                <Link href="/pages/returns" className="link">
+                  See our policy
+                </Link>
+              </dd>
+            </div>
             {settings.freeShippingOverMinor > 0 && (
-              <div className="flex justify-between gap-6 py-4">
-                <dt className="label">Shipping</dt>
-                <dd className="text-body text-right text-greige">
-                  Free over {formatMoney(settings.freeShippingOverMinor, settings.baseCurrency)}
+              <div className="flex items-center gap-4 py-4">
+                <IconSpark size={19} className="shrink-0 text-brass" />
+                <dt className="label shrink-0">Shipping</dt>
+                <dd className="ml-auto text-right text-body text-greige">
+                  Complimentary over{' '}
+                  {formatMoney(settings.freeShippingOverMinor, settings.baseCurrency)}
                 </dd>
               </div>
             )}

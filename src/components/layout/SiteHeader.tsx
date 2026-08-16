@@ -1,18 +1,20 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { getStoreSettings } from '@/lib/settings';
-import { CartCount } from './CartCount';
+import { CurrencySwitcher, type CurrencyOption } from '@/components/commerce/CurrencySwitcher';
+import { HeaderActions } from './HeaderActions';
+import { MobileNav } from './MobileNav';
 import { Wordmark } from './Wordmark';
 
 /**
  * Header.
  *
- * Luxury retail navigation is quiet: a centred wordmark, a thin row of
- * categories, and utilities at the edge. No pills, no gradient CTA, no drop
- * shadow — the only division from the page is a single hairline.
+ * Quiet by design: a centred wordmark, a thin row of departments, and
+ * icon utilities at the edge. The only division from the page is a hairline —
+ * no shadow, no pills, no gradient CTA.
  */
 export async function SiteHeader() {
-  const [settings, collections] = await Promise.all([
+  const [settings, collections, rates] = await Promise.all([
     getStoreSettings(),
     prisma.collection
       .findMany({
@@ -22,10 +24,18 @@ export async function SiteHeader() {
         select: { handle: true, title: true },
       })
       .catch(() => []),
+    prisma.fxRate.findMany({ orderBy: { code: 'asc' } }).catch(() => []),
   ]);
 
+  // Only offer currencies the merchant has actually set a rate for.
+  const currencies: CurrencyOption[] = rates
+    .filter((r) => r.rate > 0)
+    .map((r) => ({ code: r.code, symbol: r.symbol, rate: r.rate }));
+
+  const links = collections.map((c) => ({ href: `/collections/${c.handle}`, label: c.title }));
+
   return (
-    <header className="sticky top-0 z-40 bg-bone/95 backdrop-blur">
+    <header className="sticky top-0 z-50 bg-bone/95 backdrop-blur">
       {settings.announcement && (
         <div className="bg-onyx py-2.5 text-center">
           <p className="label !text-bone/80 px-4">{settings.announcement}</p>
@@ -33,60 +43,44 @@ export async function SiteHeader() {
       )}
 
       <div className="shell">
-        <div className="flex h-16 items-center justify-between gap-3 sm:h-20 sm:gap-8">
-          {/* Left: catalogue */}
-          <nav aria-label="Categories" className="hidden flex-1 items-center gap-7 lg:flex">
-            <Link href="/collections/all" className="label hover:!text-onyx transition-colors">
-              Shop
-            </Link>
-            {collections.slice(0, 4).map((c) => (
-              <Link
-                key={c.handle}
-                href={`/collections/${c.handle}`}
-                className="label hover:!text-onyx transition-colors"
-              >
-                {c.title}
+        <div className="flex h-16 items-center justify-between gap-3 sm:h-20 sm:gap-6">
+          {/* Left: departments on desktop, menu button on mobile */}
+          <div className="flex flex-1 items-center gap-7">
+            <MobileNav links={links} storeName={settings.storeName} />
+            <nav aria-label="Departments" className="hidden items-center gap-7 lg:flex">
+              <Link href="/collections/all" className="label transition-colors hover:!text-onyx">
+                Shop
               </Link>
-            ))}
-          </nav>
+              {links.slice(0, 4).map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className="label transition-colors hover:!text-onyx"
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
 
           {/* Centre: wordmark */}
-          <Link href="/" className="min-w-0 lg:flex-none" aria-label={`${settings.storeName} home`}>
+          <Link href="/" className="min-w-0 shrink-0" aria-label={`${settings.storeName} home`}>
             <Wordmark name={settings.storeName} />
           </Link>
 
-          {/* Right: utilities. shrink-0 so the bag can never be pushed out. */}
-          <div className="flex shrink-0 items-center justify-end gap-5 lg:flex-1 lg:gap-6">
-            <Link
-              href="/orders/track"
-              className="label hover:!text-onyx hidden transition-colors sm:block"
-            >
-              Track
-            </Link>
-            <CartCount />
+          {/* Right: currency + icon utilities */}
+          <div className="flex flex-1 items-center justify-end gap-3 sm:gap-4">
+            {currencies.length > 1 && (
+              <div className="hidden sm:block">
+                <CurrencySwitcher options={currencies} baseCurrency={settings.baseCurrency} />
+              </div>
+            )}
+            <HeaderActions />
           </div>
         </div>
       </div>
 
       <hr className="rule" />
-
-      {/* Mobile category row — horizontally scrollable, never wrapping. */}
-      <div className="scroll-x border-b border-rule lg:hidden">
-        <nav aria-label="Categories" className="flex w-max gap-6 px-5 py-3">
-          <Link href="/collections/all" className="label whitespace-nowrap">
-            Shop
-          </Link>
-          {collections.map((c) => (
-            <Link
-              key={c.handle}
-              href={`/collections/${c.handle}`}
-              className="label whitespace-nowrap"
-            >
-              {c.title}
-            </Link>
-          ))}
-        </nav>
-      </div>
     </header>
   );
 }

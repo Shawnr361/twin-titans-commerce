@@ -1,0 +1,151 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+import { IconChevronRight, IconClose, IconMenu, IconTruck } from '@/components/icons';
+
+/**
+ * Mobile navigation drawer.
+ *
+ * A full-height slide-in rather than a horizontal scroll strip: on a phone,
+ * departments hidden off the right edge of a scroller are effectively
+ * invisible, and the strip competed with vertical page scroll.
+ *
+ * Same discipline as the bag drawer — focus trapped, Escape closes, background
+ * scroll locked, focus returned on close.
+ */
+export function MobileNav({
+  links,
+  storeName,
+}: {
+  links: { href: string; label: string }[];
+  storeName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const lastFocused = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    document.body.style.overflow = 'hidden';
+    closeRef.current?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        return;
+      }
+      if (e.key !== 'Tab' || !panelRef.current) return;
+
+      const focusables = panelRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled])'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = '';
+      document.removeEventListener('keydown', onKey);
+      lastFocused.current?.focus?.();
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          lastFocused.current = document.activeElement as HTMLElement;
+          setOpen(true);
+        }}
+        aria-label="Open menu"
+        aria-expanded={open}
+        className="-ml-2 p-2.5 text-greige transition-colors hover:text-onyx lg:hidden"
+      >
+        <IconMenu size={20} />
+      </button>
+
+      <div
+        onClick={() => setOpen(false)}
+        aria-hidden
+        className={`fixed inset-0 z-[60] bg-onyx/25 transition-opacity duration-2 ease-ease lg:hidden ${
+          open ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      />
+
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu"
+        className={`fixed left-0 top-0 z-[61] flex h-[100dvh] w-full max-w-[20rem] flex-col bg-bone transition-transform duration-3 ease-ease lg:hidden ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-rule px-6 py-5">
+          <span className="label">{storeName}</span>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close menu"
+            className="-mr-2 p-2.5 text-greige transition-colors hover:text-onyx"
+          >
+            <IconClose size={20} />
+          </button>
+        </div>
+
+        <nav aria-label="Departments" className="flex-1 overflow-y-auto overscroll-contain">
+          <ul className="divide-y divide-rule">
+            <li>
+              <Link
+                href="/collections/all"
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-between gap-4 px-6 py-4"
+              >
+                <span className="font-display text-d2 text-onyx">Shop all</span>
+                <IconChevronRight size={16} className="text-quiet" />
+              </Link>
+            </li>
+            {links.map((l) => (
+              <li key={l.href}>
+                <Link
+                  href={l.href}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center justify-between gap-4 px-6 py-4"
+                >
+                  <span className="text-body text-onyx">{l.label}</span>
+                  <IconChevronRight size={16} className="text-quiet" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className="border-t border-rule px-6 py-5">
+          <Link
+            href="/orders/track"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 text-label text-greige"
+          >
+            <IconTruck size={17} />
+            Track an order
+          </Link>
+        </div>
+      </div>
+    </>
+  );
+}

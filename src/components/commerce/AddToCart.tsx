@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Magnetic } from '@/components/motion/Magnetic';
+import { IconBag, IconCheck, IconMinus, IconPlus } from '@/components/icons';
+import { CART_CHANGED_EVENT, openCartDrawer } from './CartDrawer';
 import { Price } from './Price';
 
 export interface VariantOption {
@@ -63,7 +65,16 @@ export function AddToCart({
 
       setAdded(true);
       router.refresh();
-      if (buyNow) router.push('/checkout');
+
+      if (buyNow) {
+        router.push('/checkout');
+        return;
+      }
+
+      // Open the bag rather than navigating away — the customer keeps their
+      // place, which is the whole point of the drawer.
+      window.dispatchEvent(new CustomEvent(CART_CHANGED_EVENT));
+      openCartDrawer();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
@@ -136,7 +147,7 @@ export function AddToCart({
               className="px-4 py-3 text-greige transition-colors hover:text-onyx disabled:opacity-30"
               aria-label="Decrease quantity"
             >
-              −
+              <IconMinus size={14} />
             </button>
             <span className="min-w-8 text-center text-body tabular-nums" aria-live="polite">
               {quantity}
@@ -147,7 +158,7 @@ export function AddToCart({
               className="px-4 py-3 text-greige transition-colors hover:text-onyx"
               aria-label="Increase quantity"
             >
-              +
+              <IconPlus size={14} />
             </button>
           </div>
 
@@ -158,6 +169,7 @@ export function AddToCart({
               disabled={busy || !selected.available}
               className="btn btn-primary sheen w-full"
             >
+              {added && !busy ? <IconCheck size={16} /> : <IconBag size={16} />}
               {busy ? 'Adding…' : added ? 'Added to bag' : 'Add to bag'}
             </button>
           </Magnetic>

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { HydratedCart } from '@/lib/cart';
+import { IconMinus, IconPlus, IconTrash } from '@/components/icons';
 import { Price } from './Price';
 
 export function CartTable({ initial }: { initial: HydratedCart }) {
@@ -106,7 +107,7 @@ export function CartTable({ initial }: { initial: HydratedCart }) {
                       className="px-3 py-1.5 text-greige transition-colors hover:text-onyx"
                       aria-label={`Decrease quantity of ${line.productTitle}`}
                     >
-                      −
+                      <IconMinus size={13} />
                     </button>
                     <span className="min-w-7 text-center text-label tabular-nums">
                       {line.quantity}
@@ -117,16 +118,18 @@ export function CartTable({ initial }: { initial: HydratedCart }) {
                       className="px-3 py-1.5 text-greige transition-colors hover:text-onyx"
                       aria-label={`Increase quantity of ${line.productTitle}`}
                     >
-                      +
+                      <IconPlus size={13} />
                     </button>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => update(line.variantId, 0)}
-                    className="link text-label !text-greige"
+                    aria-label={`Remove ${line.productTitle}`}
+                    className="flex items-center gap-1.5 text-label text-quiet transition-colors hover:text-danger"
                   >
-                    Remove
+                    <IconTrash size={14} />
+                    <span className="sr-only sm:not-sr-only">Remove</span>
                   </button>
                 </div>
               </div>
