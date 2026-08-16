@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { IconBag, IconTruck } from '@/components/icons';
+import { IconBag, IconSearch, IconTruck } from '@/components/icons';
 import { openCartDrawer } from '@/components/commerce/CartDrawer';
+import { openSearch } from '@/components/commerce/SearchOverlay';
 
 /**
  * Icon utilities.
@@ -44,6 +45,16 @@ export function HeaderActions() {
 
   return (
     <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={openSearch}
+        aria-label="Search products"
+        title="Search (Ctrl K)"
+        className="p-2.5 text-greige transition-colors hover:text-onyx"
+      >
+        <IconSearch size={19} />
+      </button>
+
       <Link
         href="/orders/track"
         aria-label="Track an order"

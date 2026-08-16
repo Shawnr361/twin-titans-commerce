@@ -3,6 +3,7 @@ import { Fraunces, Hanken_Grotesk } from 'next/font/google';
 import { SiteHeader } from '@/components/layout/SiteHeader';
 import { SiteFooter } from '@/components/layout/SiteFooter';
 import { CartDrawer } from '@/components/commerce/CartDrawer';
+import { SearchOverlay } from '@/components/commerce/SearchOverlay';
 import { getStoreSettings } from '@/lib/settings';
 import './globals.css';
 
@@ -81,8 +82,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </main>
         <SiteFooter />
 
-        {/* Mounted once, opened from anywhere via openCartDrawer(). */}
+        {/* Mounted once each; opened from anywhere via their exported helpers. */}
         <CartDrawer />
+        <SearchOverlay />
       </body>
     </html>
   );
