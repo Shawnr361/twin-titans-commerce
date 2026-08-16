@@ -43,6 +43,9 @@ export interface HydratedCart {
   currency: string;
   itemCount: number;
   issues: string[];
+  /** Threshold for complimentary delivery; 0 when not configured. Exposed so
+   *  the cart can show progress toward it without re-reading settings. */
+  freeShippingOverMinor: number;
 }
 
 export async function readCart(): Promise<CartLine[]> {
@@ -99,6 +102,7 @@ export async function hydrateCart(lines: CartLine[]): Promise<HydratedCart> {
       totalMinor: 0,
       costMinor: 0,
       currency: settings.baseCurrency,
+      freeShippingOverMinor: settings.freeShippingOverMinor,
       itemCount: 0,
       issues,
     };
@@ -171,5 +175,6 @@ export async function hydrateCart(lines: CartLine[]): Promise<HydratedCart> {
     currency: settings.baseCurrency,
     itemCount: sellable.reduce((s, l) => s + l.quantity, 0),
     issues,
+    freeShippingOverMinor: settings.freeShippingOverMinor,
   };
 }

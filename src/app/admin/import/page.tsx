@@ -11,7 +11,7 @@ export default async function ImportPage() {
     <div className="space-y-6">
       <header className="space-y-2">
         <h2 className="text-lg font-bold tracking-tight">Import from a supplier link</h2>
-        <p className="max-w-2xl text-sm text-mut">
+        <p className="max-w-2xl text-sm text-greige">
           Paste any AliExpress, Alibaba or 1688 product URL. The listing is read, converted to{' '}
           {settings.baseCurrency}, and priced from each variant&apos;s own cost — so no SKU can
           quietly end up selling below what it costs you.

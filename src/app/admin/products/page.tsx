@@ -28,17 +28,17 @@ export default async function AdminProductsPage() {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold tracking-tight">Products</h2>
-          <p className="text-sm text-mut">{products.length} in catalog</p>
+          <p className="text-sm text-greige">{products.length} in catalog</p>
         </div>
-        <Link href="/admin/import" className="btn-primary">
+        <Link href="/admin/import" className="btn btn-primary">
           Import from link
         </Link>
       </header>
 
       {products.length === 0 ? (
-        <div className="panel space-y-4 p-12 text-center">
-          <p className="text-sm text-mut">No products yet.</p>
-          <Link href="/admin/import" className="btn-primary">
+        <div className="card space-y-4 p-12 text-center">
+          <p className="text-sm text-greige">No products yet.</p>
+          <Link href="/admin/import" className="btn btn-primary">
             Import your first product
           </Link>
         </div>
@@ -57,8 +57,8 @@ export default async function AdminProductsPage() {
             );
 
             return (
-              <article key={product.id} className="panel flex flex-wrap items-center gap-4 p-4">
-                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-black/40">
+              <article key={product.id} className="card flex flex-wrap items-center gap-4 p-4">
+                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-sm bg-bone2">
                   {product.images[0] && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -72,11 +72,11 @@ export default async function AdminProductsPage() {
                 <div className="min-w-[200px] flex-1 space-y-1">
                   <Link
                     href={`/products/${product.handle}`}
-                    className="line-clamp-1 text-sm font-semibold hover:text-accent2"
+                    className="line-clamp-1 text-sm font-semibold hover:text-verdigris"
                   >
                     {product.title}
                   </Link>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-mut">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-greige">
                     <span>{product.variants.length} variant(s)</span>
                     {cheapest != null && (
                       <span>· from {formatMoney(cheapest, settings.baseCurrency)}</span>
@@ -86,7 +86,7 @@ export default async function AdminProductsPage() {
                         href={product.source.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-accent2 hover:underline"
+                        className="text-verdigris hover:underline"
                       >
                         · {product.source.platform} source
                       </a>
@@ -96,12 +96,12 @@ export default async function AdminProductsPage() {
 
                 {worst && (
                   <span
-                    className={`chip ${
+                    className={`tag ${
                       worst.severity === 'loss'
-                        ? 'border-red-500/50 text-red-300'
+                        ? 'border-danger/50 text-danger'
                         : worst.severity === 'thin'
-                          ? 'border-amber-500/50 text-amber-300'
-                          : 'border-accent/50 text-accent2'
+                          ? 'border-warn/50 text-warn'
+                          : 'border-verdigris/50 text-verdigris'
                     }`}
                     title={worst.message}
                   >

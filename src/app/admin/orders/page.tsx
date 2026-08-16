@@ -21,17 +21,17 @@ export default async function AdminOrdersPage() {
     <div className="space-y-6">
       <header>
         <h2 className="text-lg font-bold tracking-tight">Orders</h2>
-        <p className="text-sm text-mut">{orders.length} order(s)</p>
+        <p className="text-sm text-greige">{orders.length} order(s)</p>
       </header>
 
       {orders.length === 0 ? (
-        <div className="panel p-12 text-center text-sm text-mut">No orders yet.</div>
+        <div className="card p-12 text-center text-sm text-greige">No orders yet.</div>
       ) : (
-        <div className="panel overflow-hidden">
+        <div className="card overflow-hidden">
           <div className="scroll-x">
             <table className="w-full min-w-[860px] text-sm">
               <thead>
-                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-mut">
+                <tr className="border-b border-rule text-left text-xs uppercase tracking-wide text-greige">
                   <th className="p-4 font-medium">Order</th>
                   <th className="p-4 font-medium">Date</th>
                   <th className="p-4 font-medium">Customer</th>
@@ -48,24 +48,24 @@ export default async function AdminOrdersPage() {
                   const unplaced = order.supplierOrders.filter((s) => s.status === 'PENDING').length;
 
                   return (
-                    <tr key={order.id} className="border-b border-line/60 last:border-0">
+                    <tr key={order.id} className="border-b border-rule/60 last:border-0">
                       <td className="p-4">
                         <Link
                           href={`/admin/orders/${order.id}`}
-                          className="font-medium hover:text-accent2"
+                          className="font-medium hover:text-verdigris"
                         >
                           #{order.number}
                         </Link>
                       </td>
-                      <td className="p-4 text-mut">
+                      <td className="p-4 text-greige">
                         {order.createdAt.toISOString().slice(0, 10)}
                       </td>
-                      <td className="p-4 text-mut">{order.email}</td>
-                      <td className="p-4 text-mut">{order._count.lineItems}</td>
+                      <td className="p-4 text-greige">{order.email}</td>
+                      <td className="p-4 text-greige">{order._count.lineItems}</td>
                       <td className="p-4">
                         <span
-                          className={`chip ${
-                            order.paymentStatus === 'PAID' ? 'border-accent/50 text-accent2' : ''
+                          className={`tag ${
+                            order.paymentStatus === 'PAID' ? 'border-verdigris/50 text-verdigris' : ''
                           }`}
                         >
                           {order.paymentStatus}
@@ -73,20 +73,20 @@ export default async function AdminOrdersPage() {
                       </td>
                       <td className="p-4">
                         {order.supplierOrders.length === 0 ? (
-                          <span className="text-xs text-mut">—</span>
+                          <span className="text-xs text-greige">—</span>
                         ) : unplaced > 0 ? (
-                          <span className="chip border-amber-500/50 text-amber-300">
+                          <span className="tag border-warn/50 text-warn">
                             {unplaced} to place
                           </span>
                         ) : (
-                          <span className="chip border-accent/50 text-accent2">placed</span>
+                          <span className="tag border-verdigris/50 text-verdigris">placed</span>
                         )}
                       </td>
                       <td className="p-4 text-right font-semibold">
                         {formatMoney(order.totalMinor, order.currency)}
                       </td>
                       <td
-                        className={`p-4 text-right font-semibold ${profit <= 0 ? 'text-red-400' : 'text-accent2'}`}
+                        className={`p-4 text-right font-semibold ${profit <= 0 ? 'text-danger' : 'text-verdigris'}`}
                       >
                         {formatMoney(profit, order.currency)}
                       </td>

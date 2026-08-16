@@ -16,7 +16,7 @@ export default async function AdminSettingsPage() {
     <div className="space-y-6">
       <header className="space-y-1">
         <h2 className="text-lg font-bold tracking-tight">Settings</h2>
-        <p className="text-sm text-mut">Store identity, pricing defaults and exchange rates.</p>
+        <p className="text-sm text-greige">Store identity, pricing defaults and exchange rates.</p>
       </header>
 
       <SettingsForm settings={settings} rules={rules} rates={rates} />

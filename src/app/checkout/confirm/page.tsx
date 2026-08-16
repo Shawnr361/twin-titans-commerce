@@ -5,16 +5,16 @@ import { markOrderPaid } from '@/lib/orders';
 import { verifyTransaction } from '@/lib/payments/paystack';
 import { Price } from '@/components/commerce/Price';
 
-export const metadata = { title: 'Order confirmed' };
+export const metadata = { title: 'Order confirmed', robots: { index: false } };
 export const dynamic = 'force-dynamic';
 
 /**
  * Post-payment landing page.
  *
- * It verifies the transaction server-side rather than trusting the redirect —
- * and because the webhook may have already processed the same payment,
- * `markOrderPaid` is idempotent by reference. Whichever arrives first wins and
- * the second is a no-op.
+ * Verifies the transaction server-side rather than trusting the redirect. The
+ * webhook may already have processed the same payment, so `markOrderPaid` is
+ * idempotent by reference — whichever arrives first wins and the second is a
+ * no-op.
  */
 export default async function ConfirmPage({
   searchParams,
@@ -51,10 +51,7 @@ export default async function ConfirmPage({
 
   const order = orderId
     ? await prisma.order
-        .findUnique({
-          where: { id: orderId },
-          include: { lineItems: true, supplierOrders: { select: { id: true } } },
-        })
+        .findUnique({ where: { id: orderId }, include: { lineItems: true } })
         .catch(() => null)
     : null;
 
@@ -64,15 +61,16 @@ export default async function ConfirmPage({
 
   if (failure || !order) {
     return (
-      <div className="container-x py-20">
-        <div className="panel mx-auto max-w-md space-y-4 p-10 text-center">
-          <h1 className="text-xl font-bold">Payment not confirmed</h1>
-          <p className="text-sm text-mut">
-            {failure ?? 'We could not find that order.'} If money left your account, contact us with
-            your payment reference and we will sort it out immediately.
+      <div className="shell py-24">
+        <div className="max-w-text">
+          <hr className="rule-gold" />
+          <h1 className="display-m mt-5">Payment not confirmed</h1>
+          <p className="mt-5 text-body text-greige">
+            {failure ?? 'We could not find that order.'} If money has left your account, contact us
+            with your payment reference and we will resolve it immediately.
           </p>
-          <Link href="/cart" className="btn-ghost">
-            Back to cart
+          <Link href="/cart" className="btn btn-secondary mt-8">
+            Back to your bag
           </Link>
         </div>
       </div>
@@ -80,64 +78,59 @@ export default async function ConfirmPage({
   }
 
   return (
-    <div className="container-x py-16">
-      <div className="panel mx-auto max-w-2xl space-y-6 p-8 sm:p-10">
-        <div className="space-y-2 text-center">
-          <span
-            aria-hidden
-            className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-accent/20 text-2xl"
-          >
-            ✓
-          </span>
-          <h1 className="text-2xl font-extrabold tracking-tight">Thank you — order confirmed</h1>
-          <p className="text-sm text-mut">
-            Order <span className="font-semibold text-ink">#{order.number}</span>. A confirmation is
-            on its way to {order.email}.
-          </p>
-        </div>
+    <div className="shell py-16 md:py-24">
+      <div className="mx-auto max-w-2xl">
+        <hr className="rule-gold" />
+        <p className="label mt-5">Order {order.number}</p>
+        <h1 className="display-l mt-3">Thank you.</h1>
+        <p className="mt-5 text-body text-greige">
+          Your order is confirmed and a receipt is on its way to {order.email}.
+        </p>
 
-        <ul className="space-y-3 border-y border-line py-5">
+        <ul className="mt-12 divide-y divide-rule border-y border-rule">
           {order.lineItems.map((item) => (
-            <li key={item.id} className="flex items-center gap-3">
-              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-black/40">
+            <li key={item.id} className="flex items-center gap-4 py-5">
+              <div className="media aspect-product w-16 shrink-0">
                 {item.imageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                  <img src={item.imageUrl} alt="" loading="lazy" />
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="line-clamp-1 text-sm font-medium">{item.productTitle}</p>
-                <p className="text-xs text-mut">
-                  {item.variantTitle} × {item.quantity}
+                <p className="text-body text-onyx">{item.productTitle}</p>
+                <p className="text-label text-quiet">
+                  {item.variantTitle} · {item.quantity}
                 </p>
               </div>
               <Price
                 minor={item.unitPriceMinor * item.quantity}
                 currency={order.currency}
-                className="text-sm font-semibold"
+                className="text-body text-onyx"
               />
             </li>
           ))}
         </ul>
 
-        <div className="flex justify-between text-base font-bold">
-          <span>Total paid</span>
-          <Price minor={order.totalMinor} currency={order.currency} />
+        <div className="mt-6 flex justify-between gap-4">
+          <span className="font-display text-d2 text-onyx">Total paid</span>
+          <Price
+            minor={order.totalMinor}
+            currency={order.currency}
+            className="font-display text-d2 text-onyx"
+          />
         </div>
 
-        <div className="rounded-xl bg-white/5 p-4 text-sm text-mut">
-          <p>
-            We are placing your order with our supplier now. You will get a tracking number by email
-            as soon as it ships — usually within 1–3 business days.
-          </p>
-        </div>
+        <p className="mt-12 border-t border-rule pt-8 text-body text-greige">
+          We are placing your order with our supplier now. A tracking number follows by email as
+          soon as it ships — usually within one to three business days.
+        </p>
 
-        <div className="flex flex-wrap justify-center gap-3">
-          <Link href="/collections/all" className="btn-ghost">
-            Continue shopping
-          </Link>
-          <Link href={`/orders/track?number=${order.number}`} className="btn-primary">
+        <div className="mt-8 flex flex-wrap items-center gap-6">
+          <Link href={`/orders/track?number=${order.number}`} className="btn btn-primary">
             Track this order
+          </Link>
+          <Link href="/collections/all" className="link text-label">
+            Continue shopping
           </Link>
         </div>
       </div>

@@ -112,15 +112,15 @@ export function ImportWizard({
 
   return (
     <div className="space-y-6">
-      <div className="panel space-y-4 p-6">
+      <div className="card space-y-4 p-6">
         <div>
-          <label className="label" htmlFor="supplier-url">
+          <label className="field-label" htmlFor="supplier-url">
             Supplier product URL
           </label>
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               id="supplier-url"
-              className="input flex-1"
+              className="field flex-1"
               placeholder="https://www.aliexpress.com/item/1005007635123586.html"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -132,18 +132,18 @@ export function ImportWizard({
               type="button"
               onClick={runPreview}
               disabled={busy || !url.trim()}
-              className="btn-primary sm:w-40"
+              className="btn btn-primary sm:w-40"
             >
               {busy ? 'Reading…' : 'Fetch listing'}
             </button>
           </div>
-          <p className="mt-2 text-xs text-mut">
+          <p className="mt-2 text-xs text-greige">
             AliExpress, Alibaba and 1688 links are all understood, including short share links.
           </p>
         </div>
 
         <div className="max-w-xs">
-          <label className="label" htmlFor="margin">
+          <label className="field-label" htmlFor="margin">
             Target margin: {marginPct}%
           </label>
           <input
@@ -159,21 +159,21 @@ export function ImportWizard({
       </div>
 
       {error && (
-        <div role="alert" className="panel border-red-500/40 bg-red-500/10 p-4 text-sm text-red-300">
+        <div role="alert" className="card border-danger/40 bg-danger/10 p-4 text-sm text-danger">
           {error}
         </div>
       )}
 
       {saved && (
-        <div className="panel border-accent/40 bg-accent/10 p-5 text-sm">
-          <p className="font-semibold text-ink">
-            Saved as a draft: <code className="text-accent2">{saved.handle}</code>
+        <div className="card border-verdigris/40 bg-verdigris/10 p-5 text-sm">
+          <p className="font-semibold text-onyx">
+            Saved as a draft: <code className="text-verdigris">{saved.handle}</code>
           </p>
-          <p className="mt-1 text-mut">
+          <p className="mt-1 text-greige">
             It is not live yet. Review it under Products, then publish when you are happy.
           </p>
           {saved.warnings.length > 0 && (
-            <ul className="mt-3 space-y-1 text-xs text-amber-300">
+            <ul className="mt-3 space-y-1 text-xs text-warn">
               {saved.warnings.map((w, i) => (
                 <li key={i}>• {w}</li>
               ))}
@@ -185,14 +185,14 @@ export function ImportWizard({
       {preview && (
         <div className="space-y-5">
           {preview.alreadyImported && (
-            <div className="panel border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+            <div className="card border-warn/40 bg-warn/10 p-4 text-sm text-warn">
               You already imported this listing as{' '}
               <strong>{preview.alreadyImported.title}</strong>. Importing again creates a duplicate.
             </div>
           )}
 
           {preview.product.provenance === 'manual' && (
-            <div className="panel border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+            <div className="card border-warn/40 bg-warn/10 p-4 text-sm text-warn">
               <p className="font-semibold">The supplier blocked the automated read.</p>
               <ul className="mt-2 space-y-1 text-xs">
                 {preview.product.warnings.map((w, i) => (
@@ -202,23 +202,23 @@ export function ImportWizard({
             </div>
           )}
 
-          <div className="panel space-y-5 p-6">
+          <div className="card space-y-5 p-6">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="chip border-accent/40 text-accent2">{preview.product.platform}</span>
-              <span className="chip">Read from: {preview.product.provenance}</span>
+              <span className="tag border-verdigris/40 text-verdigris">{preview.product.platform}</span>
+              <span className="tag">Read from: {preview.product.provenance}</span>
               {preview.product.supplierName && (
-                <span className="chip">{preview.product.supplierName}</span>
+                <span className="tag">{preview.product.supplierName}</span>
               )}
               {preview.product.rating != null && (
-                <span className="chip">★ {preview.product.rating}</span>
+                <span className="tag">★ {preview.product.rating}</span>
               )}
               {preview.product.ordersCount != null && (
-                <span className="chip">{preview.product.ordersCount.toLocaleString()} sold</span>
+                <span className="tag">{preview.product.ordersCount.toLocaleString()} sold</span>
               )}
             </div>
 
             <div className="grid gap-5 sm:grid-cols-[160px_1fr]">
-              <div className="aspect-square overflow-hidden rounded-xl bg-black/40">
+              <div className="aspect-square overflow-hidden rounded-sm bg-bone2">
                 {preview.product.images[0] ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -227,24 +227,24 @@ export function ImportWizard({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="grid h-full place-items-center text-xs text-mut">No image</div>
+                  <div className="grid h-full place-items-center text-xs text-greige">No image</div>
                 )}
               </div>
 
               <div className="space-y-3">
                 <div>
-                  <label className="label" htmlFor="product-title">
+                  <label className="field-label" htmlFor="product-title">
                     Product title (rewrite this — supplier titles are keyword spam)
                   </label>
                   <textarea
                     id="product-title"
                     rows={2}
-                    className="input resize-none"
+                    className="field resize-none"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                   />
                 </div>
-                <p className="text-xs text-mut">
+                <p className="text-xs text-greige">
                   {preview.product.images.length} image(s) · costs in {preview.product.currency} ·
                   converted at {preview.fxRateUsed.toFixed(2)} {baseCurrency} per{' '}
                   {preview.product.currency}
@@ -253,21 +253,21 @@ export function ImportWizard({
             </div>
           </div>
 
-          <div className="panel overflow-hidden">
-            <div className="flex items-center justify-between border-b border-line p-5">
+          <div className="card overflow-hidden">
+            <div className="flex items-center justify-between border-b border-rule p-5">
               <h3 className="text-sm font-bold">
                 Pricing — {preview.pricing.length} variant
                 {preview.pricing.length === 1 ? '' : 's'}
               </h3>
               {lossMaking && (
-                <span className="chip border-red-500/50 text-red-300">Loss-making variants</span>
+                <span className="tag border-danger/50 text-danger">Loss-making variants</span>
               )}
             </div>
 
             <div className="scroll-x">
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
-                  <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-mut">
+                  <tr className="border-b border-rule text-left text-xs uppercase tracking-wide text-greige">
                     <th className="p-4 font-medium">Variant</th>
                     <th className="p-4 font-medium">Landed cost</th>
                     <th className="p-4 font-medium">Your price</th>
@@ -279,23 +279,23 @@ export function ImportWizard({
                   {preview.pricing.map((row, i) => {
                     const loss = row.profitMinor <= 0;
                     return (
-                      <tr key={i} className="border-b border-line/60 last:border-0">
+                      <tr key={i} className="border-b border-rule/60 last:border-0">
                         <td className="p-4">
                           <span className="font-medium">{row.optionLabel}</span>
                           {row.warnings.length > 0 && (
-                            <ul className="mt-1 space-y-0.5 text-[11px] text-amber-400">
+                            <ul className="mt-1 space-y-0.5 text-[11px] text-warn">
                               {row.warnings.map((w, j) => (
                                 <li key={j}>{w}</li>
                               ))}
                             </ul>
                           )}
                         </td>
-                        <td className="p-4 text-mut">
+                        <td className="p-4 text-greige">
                           {formatMoney(row.landedCostMinor, baseCurrency)}
                         </td>
                         <td className="p-4">
                           <input
-                            className="input w-32 py-2"
+                            className="field w-32 py-2"
                             inputMode="decimal"
                             value={overrides[i] ?? String(fromMinor(row.priceMinor, baseCurrency))}
                             onChange={(e) =>
@@ -304,10 +304,10 @@ export function ImportWizard({
                             aria-label={`Price for ${row.optionLabel}`}
                           />
                         </td>
-                        <td className={`p-4 font-semibold ${loss ? 'text-red-400' : 'text-ink'}`}>
+                        <td className={`p-4 font-semibold ${loss ? 'text-danger' : 'text-onyx'}`}>
                           {formatMoney(row.profitMinor, baseCurrency)}
                         </td>
-                        <td className={`p-4 ${loss ? 'text-red-400' : 'text-accent2'}`}>
+                        <td className={`p-4 ${loss ? 'text-danger' : 'text-verdigris'}`}>
                           {row.marginPct.toFixed(1)}%
                         </td>
                       </tr>
@@ -319,13 +319,13 @@ export function ImportWizard({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={commit} disabled={busy} className="btn-primary">
+            <button type="button" onClick={commit} disabled={busy} className="btn btn-primary">
               {busy ? 'Saving…' : 'Save as draft product'}
             </button>
-            <button type="button" onClick={() => setPreview(null)} className="btn-ghost">
+            <button type="button" onClick={() => setPreview(null)} className="btn btn-secondary">
               Discard
             </button>
-            <p className="text-xs text-mut">
+            <p className="text-xs text-greige">
               Imports always land as drafts — nothing goes live until you publish it.
             </p>
           </div>

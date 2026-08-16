@@ -55,11 +55,11 @@ export function ProductStatusToggle({
         type="button"
         onClick={toggle}
         disabled={busy}
-        className={isActive ? 'btn-ghost px-4 py-2 text-xs' : 'btn-primary px-4 py-2 text-xs'}
+        className={isActive ? 'btn btn-secondary px-4 py-2 text-xs' : 'btn btn-primary px-4 py-2 text-xs'}
       >
         {busy ? '…' : isActive ? 'Unpublish' : 'Publish'}
       </button>
-      {error && <span className="text-[11px] text-red-400">{error}</span>}
+      {error && <span className="text-[11px] text-danger">{error}</span>}
     </div>
   );
 }

@@ -2,16 +2,22 @@ import Link from 'next/link';
 
 export default function NotFound() {
   return (
-    <div className="container-x py-24">
-      <div className="panel mx-auto max-w-md space-y-4 p-10 text-center">
-        <p className="text-5xl font-black tracking-tight text-accent">404</p>
-        <h1 className="text-xl font-bold">We can&apos;t find that page</h1>
-        <p className="text-sm text-mut">
-          It may have been moved or removed. Try the shop instead.
+    <div className="shell py-32">
+      <div className="max-w-text">
+        <hr className="rule-gold" />
+        <p className="label mt-5">Error 404</p>
+        <h1 className="display-l mt-3">This page has moved on</h1>
+        <p className="mt-5 text-body text-greige">
+          The address may be mistyped, or the piece may no longer be available.
         </p>
-        <Link href="/collections/all" className="btn-primary">
-          Browse products
-        </Link>
+        <div className="mt-10 flex flex-wrap items-center gap-5">
+          <Link href="/collections/all" className="btn btn-primary">
+            View the catalogue
+          </Link>
+          <Link href="/" className="link text-label">
+            Return home
+          </Link>
+        </div>
       </div>
     </div>
   );

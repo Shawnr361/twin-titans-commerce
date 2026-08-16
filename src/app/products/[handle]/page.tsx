@@ -1,13 +1,17 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ProductGallery } from '@/components/ProductGallery';
-import { ProductBuyBox } from '@/components/ProductBuyBox';
+import { ProductGallery } from '@/components/commerce/ProductGallery';
+import { AddToCart } from '@/components/commerce/AddToCart';
 import { ProductCard } from '@/components/commerce/ProductCard';
+import { SectionHead } from '@/components/layout/SectionHead';
+import { Reveal } from '@/components/motion/Reveal';
 import { prisma } from '@/lib/db';
 import { CARD_SELECT, toCard } from '@/lib/catalog';
+import { formatMoney } from '@/lib/money';
 import { getStoreSettings } from '@/lib/settings';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 async function getProduct(handle: string) {
   return prisma.product.findFirst({
@@ -27,12 +31,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { handle } = await params;
   const product = await getProduct(handle).catch(() => null);
-  if (!product) return { title: 'Product not found' };
+  if (!product) return { title: 'Not found' };
 
   return {
     title: product.seoTitle ?? product.title,
     description: product.seoDescription ?? product.title,
+    alternates: { canonical: `/products/${product.handle}` },
     openGraph: {
+      type: 'website',
       title: product.seoTitle ?? product.title,
       description: product.seoDescription ?? undefined,
       images: product.images[0]?.url ? [product.images[0].url] : undefined,
@@ -58,57 +64,119 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
 
   const shipMin = product.source?.supplier.shipDaysMin ?? 7;
   const shipMax = product.source?.supplier.shipDaysMax ?? 21;
+  const cheapest = product.variants.reduce(
+    (min, v) => (v.priceMinor < min ? v.priceMinor : min),
+    product.variants[0]?.priceMinor ?? 0
+  );
+  const inStock = product.variants.some((v) => v.inventory == null || v.inventory > 0);
+
+  /*
+   * Product structured data. Only facts we actually hold are emitted — there
+   * is no aggregateRating, because inventing review data is both dishonest
+   * and a Google policy violation. It appears once reviews are real.
+   */
+  const jsonLd = {
+    '@context': 'https://schema.org/',
+    '@type': 'Product',
+    name: product.title,
+    description: product.seoDescription ?? undefined,
+    image: product.images.map((i) => i.url).slice(0, 6),
+    sku: product.variants[0]?.sku ?? undefined,
+    brand: product.vendor ? { '@type': 'Brand', name: product.vendor } : undefined,
+    offers: {
+      '@type': 'AggregateOffer',
+      priceCurrency: settings.baseCurrency,
+      lowPrice: (cheapest / 100).toFixed(2),
+      offerCount: product.variants.length,
+      availability: inStock
+        ? 'https://schema.org/InStock'
+        : 'https://schema.org/OutOfStock',
+    },
+  };
 
   return (
     <>
-      <div className="container-x grid gap-10 py-10 lg:grid-cols-2 lg:py-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {/* Breadcrumb */}
+      <nav aria-label="Breadcrumb" className="shell pt-8">
+        <ol className="flex flex-wrap items-center gap-2 text-label text-quiet">
+          <li>
+            <Link href="/" className="hover:text-onyx transition-colors">
+              Home
+            </Link>
+          </li>
+          <li aria-hidden>/</li>
+          <li>
+            <Link href="/collections/all" className="hover:text-onyx transition-colors">
+              Shop
+            </Link>
+          </li>
+          <li aria-hidden>/</li>
+          <li className="text-greige">{product.title}</li>
+        </ol>
+      </nav>
+
+      <div className="shell grid gap-12 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16 lg:py-14">
         <ProductGallery
           images={product.images.map((i) => ({ url: i.url, alt: i.alt ?? product.title }))}
           title={product.title}
         />
 
-        <div className="space-y-7">
-          <div className="space-y-3">
-            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{product.title}</h1>
-            {product.vendor && <p className="text-sm text-mut">Sold by {product.vendor}</p>}
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          {product.vendor && <p className="label mb-3">{product.vendor}</p>}
+          <h1 className="display-m">{product.title}</h1>
+          <hr className="rule-gold mt-6" />
+
+          <div className="mt-8">
+            <AddToCart
+              variants={product.variants.map((v) => ({
+                id: v.id,
+                title: v.title,
+                priceMinor: v.priceMinor,
+                compareAtMinor: v.compareAtMinor,
+                imageUrl: v.imageUrl,
+                available: v.inventory == null || v.inventory > 0,
+                options: (v.optionValues ?? {}) as Record<string, string>,
+              }))}
+              currency={settings.baseCurrency}
+            />
           </div>
 
-          <ProductBuyBox
-            variants={product.variants.map((v) => ({
-              id: v.id,
-              title: v.title,
-              priceMinor: v.priceMinor,
-              compareAtMinor: v.compareAtMinor,
-              imageUrl: v.imageUrl,
-              available: v.inventory == null || v.inventory > 0,
-              options: (v.optionValues ?? {}) as Record<string, string>,
-            }))}
-            currency={settings.baseCurrency}
-          />
-
-          <div className="panel space-y-3 p-5 text-sm">
-            <div className="flex items-start gap-3">
-              <span aria-hidden className="text-accent2">
-                ⏱
-              </span>
-              <p className="text-mut">
-                Estimated delivery: <span className="text-ink">{shipMin}–{shipMax} days</span> after
-                dispatch. You get a tracking number by email as soon as your parcel ships.
-              </p>
+          {/* Service facts — no invented guarantees or certifications. */}
+          <dl className="mt-10 divide-y divide-rule border-y border-rule">
+            <div className="flex justify-between gap-6 py-4">
+              <dt className="label">Delivery</dt>
+              <dd className="text-body text-right text-greige">
+                {shipMin}–{shipMax} days after dispatch
+              </dd>
             </div>
-            <div className="flex items-start gap-3">
-              <span aria-hidden className="text-accent2">
-                🔒
-              </span>
-              <p className="text-mut">
-                Secure checkout. Card and bank transfer accepted, charged in {settings.baseCurrency}.
-              </p>
+            <div className="flex justify-between gap-6 py-4">
+              <dt className="label">Tracking</dt>
+              <dd className="text-body text-right text-greige">Emailed when it ships</dd>
             </div>
-          </div>
+            <div className="flex justify-between gap-6 py-4">
+              <dt className="label">Payment</dt>
+              <dd className="text-body text-right text-greige">
+                Card, transfer or USSD in {settings.baseCurrency}
+              </dd>
+            </div>
+            {settings.freeShippingOverMinor > 0 && (
+              <div className="flex justify-between gap-6 py-4">
+                <dt className="label">Shipping</dt>
+                <dd className="text-body text-right text-greige">
+                  Free over {formatMoney(settings.freeShippingOverMinor, settings.baseCurrency)}
+                </dd>
+              </div>
+            )}
+          </dl>
 
           {product.descriptionHtml && (
             <div
-              className="prose-invert max-w-none space-y-3 text-sm leading-relaxed text-mut [&_h2]:text-base [&_h2]:font-bold [&_h2]:text-ink [&_li]:ml-4 [&_li]:list-disc [&_strong]:text-ink"
+              className="prose-measure mt-10 space-y-4 text-body text-greige [&_h2]:font-display [&_h2]:text-d2 [&_h2]:text-onyx [&_li]:ml-5 [&_li]:list-disc [&_strong]:text-onyx [&_ul]:space-y-2"
               dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}
             />
           )}
@@ -116,12 +184,18 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
       </div>
 
       {related.length > 0 && (
-        <section className="container-x pb-20">
-          <h2 className="mb-6 text-xl font-bold tracking-tight">You might also like</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {related.map((p) => (
-              <ProductCard key={p.handle} product={toCard(p, settings.baseCurrency)} />
-            ))}
+        <section className="border-t border-rule">
+          <div className="shell py-20">
+            <Reveal>
+              <SectionHead eyebrow="Also consider" title="You may also like" />
+            </Reveal>
+            <Reveal stagger className="mt-12 grid grid-cols-2 gap-x-5 gap-y-14 lg:grid-cols-4">
+              {related.map((p, i) => (
+                <div key={p.handle} style={{ '--i': i } as React.CSSProperties}>
+                  <ProductCard product={toCard(p, settings.baseCurrency)} />
+                </div>
+              ))}
+            </Reveal>
           </div>
         </section>
       )}

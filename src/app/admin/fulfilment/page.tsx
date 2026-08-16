@@ -38,7 +38,7 @@ export default async function FulfilmentPage() {
     <div className="space-y-6">
       <header className="space-y-2">
         <h2 className="text-lg font-bold tracking-tight">Supplier queue</h2>
-        <p className="max-w-2xl text-sm text-mut">
+        <p className="max-w-2xl text-sm text-greige">
           Paid orders waiting to be placed with the supplier. Open the listing, buy the exact SKU,
           and paste the customer&apos;s address as the delivery address — then record the supplier
           order number here.
@@ -46,7 +46,7 @@ export default async function FulfilmentPage() {
       </header>
 
       {valid.length === 0 ? (
-        <div className="panel p-12 text-center text-sm text-mut">
+        <div className="card p-12 text-center text-sm text-greige">
           Nothing waiting. Every paid order has been placed with its supplier.
         </div>
       ) : (

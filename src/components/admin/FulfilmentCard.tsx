@@ -78,47 +78,47 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
   };
 
   return (
-    <article className="panel space-y-5 p-6">
+    <article className="card space-y-5 p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-bold">Order #{sheet.orderNumber}</span>
-          <span className="chip">{sheet.platform}</span>
-          <span className="chip">{sheet.supplierName}</span>
+          <span className="tag">{sheet.platform}</span>
+          <span className="tag">{sheet.supplierName}</span>
           <span
-            className={`chip ${sheet.status === 'PENDING' ? 'border-amber-500/50 text-amber-300' : 'border-accent/50 text-accent2'}`}
+            className={`tag ${sheet.status === 'PENDING' ? 'border-warn/50 text-warn' : 'border-verdigris/50 text-verdigris'}`}
           >
             {sheet.status}
           </span>
         </div>
-        <span className="text-sm text-mut">
+        <span className="text-sm text-greige">
           Cost: {formatMoney(sheet.estimatedCostMinor, sheet.currency)}
         </span>
       </header>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="space-y-3">
-          <h3 className="label">Buy these</h3>
+          <h3 className="field-label">Buy these</h3>
           {sheet.lines.map((line, i) => (
-            <div key={i} className="rounded-xl border border-line bg-black/20 p-4 text-sm">
+            <div key={i} className="rounded-sm border border-rule bg-bone2 p-4 text-sm">
               <a
                 href={line.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="line-clamp-2 break-all text-accent2 underline-offset-2 hover:underline"
+                className="line-clamp-2 break-all text-verdigris underline-offset-2 hover:underline"
               >
                 {line.url}
               </a>
               <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
                 <div>
-                  <dt className="text-mut">Variant</dt>
+                  <dt className="text-greige">Variant</dt>
                   <dd>{line.variant}</dd>
                 </div>
                 <div>
-                  <dt className="text-mut">SKU</dt>
+                  <dt className="text-greige">SKU</dt>
                   <dd className="break-all">{line.sku}</dd>
                 </div>
                 <div>
-                  <dt className="text-mut">Qty</dt>
+                  <dt className="text-greige">Qty</dt>
                   <dd className="font-bold">{line.quantity}</dd>
                 </div>
               </dl>
@@ -129,11 +129,11 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="label mb-0">Ship directly to</h3>
-            <button type="button" onClick={copy} className="btn-ghost px-3 py-1.5 text-xs">
+            <button type="button" onClick={copy} className="btn btn-secondary px-3 py-1.5 text-xs">
               {copied ? 'Copied ✓' : 'Copy order sheet'}
             </button>
           </div>
-          <address className="rounded-xl border border-line bg-black/20 p-4 text-sm not-italic leading-relaxed">
+          <address className="rounded-sm border border-rule bg-bone2 p-4 text-sm not-italic leading-relaxed">
             {sheet.shipTo.name}
             <br />
             {sheet.shipTo.line1}
@@ -154,27 +154,27 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
               </>
             )}
           </address>
-          <p className="text-[11px] text-mut">
+          <p className="text-[11px] text-greige">
             Always ask the supplier to ship with no invoice or price tag in the parcel.
           </p>
         </div>
       </div>
 
       {error && (
-        <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">
+        <p role="alert" className="rounded-sm bg-danger/10 p-3 text-sm text-danger">
           {error}
         </p>
       )}
 
-      <div className="grid gap-4 border-t border-line pt-5 sm:grid-cols-2">
+      <div className="grid gap-4 border-t border-rule pt-5 sm:grid-cols-2">
         <form onSubmit={onPlace} className="flex gap-2">
           <input
             name="externalOrderNo"
-            className="input"
+            className="field"
             placeholder="Supplier order number"
             aria-label="Supplier order number"
           />
-          <button type="submit" disabled={busy} className="btn-ghost shrink-0">
+          <button type="submit" disabled={busy} className="btn btn-secondary shrink-0">
             Mark placed
           </button>
         </form>
@@ -182,12 +182,12 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
         <form onSubmit={onShip} className="flex gap-2">
           <input
             name="trackingNumber"
-            className="input"
+            className="field"
             placeholder="Tracking number"
             aria-label="Tracking number"
           />
-          <input name="carrier" className="input w-28" placeholder="Carrier" aria-label="Carrier" />
-          <button type="submit" disabled={busy} className="btn-primary shrink-0">
+          <input name="carrier" className="field w-28" placeholder="Carrier" aria-label="Carrier" />
+          <button type="submit" disabled={busy} className="btn btn-primary shrink-0">
             Shipped
           </button>
         </form>

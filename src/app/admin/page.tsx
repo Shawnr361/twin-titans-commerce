@@ -60,8 +60,8 @@ export default async function AdminDashboard() {
     <div className="space-y-8">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
-          <div key={s.label} className="panel p-5">
-            <p className="text-xs uppercase tracking-wide text-mut">{s.label}</p>
+          <div key={s.label} className="card p-5">
+            <p className="text-xs uppercase tracking-wide text-greige">{s.label}</p>
             <p className="mt-1.5 text-2xl font-extrabold tracking-tight">{s.value}</p>
           </div>
         ))}
@@ -70,31 +70,31 @@ export default async function AdminDashboard() {
       {pendingSupplierOrders > 0 && (
         <Link
           href="/admin/fulfilment"
-          className="panel flex items-center justify-between border-amber-500/40 bg-amber-500/10 p-5 transition hover:border-amber-400"
+          className="card flex items-center justify-between border-warn/40 bg-warn/10 p-5 transition hover:border-warn"
         >
           <div>
-            <p className="text-sm font-bold text-amber-200">
+            <p className="text-sm font-bold text-warn">
               {pendingSupplierOrders} order{pendingSupplierOrders === 1 ? '' : 's'} waiting to be
               placed with a supplier
             </p>
-            <p className="text-xs text-amber-200/80">
+            <p className="text-xs text-warn/80">
               Customers have paid. Nothing ships until these are placed.
             </p>
           </div>
-          <span className="text-sm text-amber-200">Open queue →</span>
+          <span className="text-sm text-warn">Open queue →</span>
         </Link>
       )}
 
-      <section className="panel overflow-hidden">
-        <h2 className="border-b border-line p-5 text-sm font-bold">Recent orders</h2>
+      <section className="card overflow-hidden">
+        <h2 className="border-b border-rule p-5 text-sm font-bold">Recent orders</h2>
 
         {recentOrders.length === 0 ? (
-          <p className="p-8 text-center text-sm text-mut">No orders yet.</p>
+          <p className="p-8 text-center text-sm text-greige">No orders yet.</p>
         ) : (
           <div className="scroll-x">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
-                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-mut">
+                <tr className="border-b border-rule text-left text-xs uppercase tracking-wide text-greige">
                   <th className="p-4 font-medium">Order</th>
                   <th className="p-4 font-medium">Customer</th>
                   <th className="p-4 font-medium">Status</th>
@@ -104,20 +104,20 @@ export default async function AdminDashboard() {
               </thead>
               <tbody>
                 {recentOrders.map((o) => (
-                  <tr key={o.id} className="border-b border-line/60 last:border-0">
+                  <tr key={o.id} className="border-b border-rule/60 last:border-0">
                     <td className="p-4">
-                      <Link href={`/admin/orders/${o.id}`} className="font-medium hover:text-accent2">
+                      <Link href={`/admin/orders/${o.id}`} className="font-medium hover:text-verdigris">
                         #{o.number}
                       </Link>
                     </td>
-                    <td className="p-4 text-mut">{o.email}</td>
+                    <td className="p-4 text-greige">{o.email}</td>
                     <td className="p-4">
-                      <span className="chip">{o.status}</span>
+                      <span className="tag">{o.status}</span>
                     </td>
                     <td className="p-4">
                       <span
-                        className={`chip ${
-                          o.paymentStatus === 'PAID' ? 'border-accent/50 text-accent2' : ''
+                        className={`tag ${
+                          o.paymentStatus === 'PAID' ? 'border-verdigris/50 text-verdigris' : ''
                         }`}
                       >
                         {o.paymentStatus}

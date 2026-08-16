@@ -36,21 +36,21 @@ function LoginForm() {
   };
 
   return (
-    <form onSubmit={submit} className="panel w-full max-w-sm space-y-5 p-8">
+    <form onSubmit={submit} className="card w-full max-w-sm space-y-5 p-8">
       <div className="space-y-1 text-center">
         <h1 className="text-xl font-bold tracking-tight">Store admin</h1>
-        <p className="text-xs text-mut">Sign in to manage your store.</p>
+        <p className="text-xs text-greige">Sign in to manage your store.</p>
       </div>
 
       <div>
-        <label className="label" htmlFor="email">
+        <label className="field-label" htmlFor="email">
           Email
         </label>
-        <input id="email" name="email" type="email" required autoFocus className="input" />
+        <input id="email" name="email" type="email" required autoFocus className="field" />
       </div>
 
       <div>
-        <label className="label" htmlFor="password">
+        <label className="field-label" htmlFor="password">
           Password
         </label>
         <input
@@ -58,18 +58,18 @@ function LoginForm() {
           name="password"
           type="password"
           required
-          className="input"
+          className="field"
           autoComplete="current-password"
         />
       </div>
 
       {error && (
-        <p role="alert" className="rounded-xl bg-red-500/10 p-3 text-sm text-red-300">
+        <p role="alert" className="rounded-xl bg-danger/10 p-3 text-sm text-danger">
           {error}
         </p>
       )}
 
-      <button type="submit" disabled={busy} className="btn-primary w-full">
+      <button type="submit" disabled={busy} className="btn btn-primary w-full">
         {busy ? 'Signing in…' : 'Sign in'}
       </button>
     </form>
