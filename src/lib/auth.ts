@@ -23,12 +23,28 @@ export interface AdminSession {
   role: string;
 }
 
+/*
+ * bcryptjs SYNC, deliberately.
+ *
+ * The async API (`bcrypt.hash` / `bcrypt.compare`) does not use threads — it
+ * splits the work into small chunks and yields to the event loop between each
+ * one. On a busy or CPU-throttled server that turns a ~0.5s computation into
+ * an unbounded wait, because the continuation keeps losing to other work. Live
+ * symptom: the login request hung past 90 seconds while a malformed request to
+ * the same route returned in 1.3s.
+ *
+ * The sync API blocks for a predictable ~0.5s instead. On a login route that
+ * is the right trade: bounded and reliable beats non-blocking and starved.
+ *
+ * Cost stays 12. bcrypt encodes the cost inside the hash, so existing hashes
+ * keep verifying regardless of what we choose for new ones.
+ */
 export function hashPassword(plain: string): Promise<string> {
-  return bcrypt.hash(plain, 12);
+  return Promise.resolve(bcrypt.hashSync(plain, 12));
 }
 
 export function verifyPassword(plain: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(plain, hash);
+  return Promise.resolve(bcrypt.compareSync(plain, hash));
 }
 
 export async function createSession(session: AdminSession): Promise<void> {

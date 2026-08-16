@@ -29,14 +29,14 @@ enum ProductStatus {
 }
 
 model Product {
-  id             String        @id @default(cuid())
-  handle         String        @unique
-  title          String @db.VarChar(512)
-  descriptionHtml String       @default("") @db.Text
-  status         ProductStatus @default(DRAFT)
-  vendor         String?
-  productType    String?
-  tags           Json      @default("[]")
+  id              String        @id @default(cuid())
+  handle          String        @unique
+  title           String        @db.VarChar(512)
+  descriptionHtml String        @default("") @db.Text
+  status          ProductStatus @default(DRAFT)
+  vendor          String?
+  productType     String?
+  tags            Json          @default("[]")
 
   // Marketing landing page this product's cards should route to instead of the
   // plain product page. Mirrors the Shopify `custom.landing_page` metafield —
@@ -52,8 +52,8 @@ model Product {
   source      SupplierProduct?
 
   publishedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([status])
   @@index([landingPageHandle])
@@ -63,7 +63,7 @@ model ProductImage {
   id        String  @id @default(cuid())
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  url       String @db.Text
+  url       String  @db.Text
   alt       String? @db.Text
   position  Int     @default(0)
   // Set once the image has been copied off the supplier CDN onto our storage.
@@ -77,19 +77,19 @@ model Variant {
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  title    String @db.VarChar(512)
+  title    String  @db.VarChar(512)
   sku      String? @unique
   position Int     @default(0)
 
   // { "Color": "Midnight Blue", "Size": "XL" }
   optionValues Json @default("{}")
 
-  priceMinor      Int
-  compareAtMinor  Int?
+  priceMinor     Int
+  compareAtMinor Int?
   // Landed cost for THIS variant specifically. Never share one cost across a
   // product: per-SKU supplier cost variance is what caused loss-making variants
   // on the old store three separate times.
-  costMinor       Int  @default(0)
+  costMinor      Int  @default(0)
 
   // null = unlimited (pure dropship, supplier holds stock)
   inventory Int?
@@ -97,8 +97,8 @@ model Variant {
   // Supplier CDN URLs routinely exceed MySQL's default VARCHAR(191).
   imageUrl String? @db.Text
 
-  supplierVariantId String?
-  supplierSku       String?
+  supplierVariantId  String?
+  supplierSku        String?
   // Cost in the supplier's own currency, for drift detection.
   sourceCostMinor    Int?
   sourceCostCurrency String?
@@ -112,13 +112,13 @@ model Variant {
 }
 
 model Collection {
-  id             String  @id @default(cuid())
-  handle         String  @unique
-  title          String @db.VarChar(512)
-  descriptionHtml String @default("") @db.Text
-  imageUrl       String? @db.Text
-  position       Int     @default(0)
-  published      Boolean @default(true)
+  id              String  @id @default(cuid())
+  handle          String  @unique
+  title           String  @db.VarChar(512)
+  descriptionHtml String  @default("") @db.Text
+  imageUrl        String? @db.Text
+  position        Int     @default(0)
+  published       Boolean @default(true)
 
   products CollectionProduct[]
 
@@ -141,7 +141,7 @@ model CollectionProduct {
 model Page {
   id        String  @id @default(cuid())
   handle    String  @unique
-  title     String @db.VarChar(512)
+  title     String  @db.VarChar(512)
   // Landing-page HTML is the largest thing this app stores.
   bodyHtml  String  @default("") @db.LongText
   published Boolean @default(true)
@@ -181,7 +181,7 @@ model Supplier {
   id       String           @id @default(cuid())
   name     String
   platform SupplierPlatform @default(MANUAL)
-  storeUrl String? @db.Text
+  storeUrl String?          @db.Text
 
   // How we place orders with them. See lib/suppliers/adapters.
   contactEmail String?
@@ -204,21 +204,21 @@ model Supplier {
 // The link between one of our products and the supplier listing it came from.
 // This is the "paste a link" record — the whole dropship model hangs off it.
 model SupplierProduct {
-  id         String  @id @default(cuid())
-  productId  String  @unique
-  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  productId  String   @unique
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   supplierId String
   supplier   Supplier @relation(fields: [supplierId], references: [id])
 
   platform   SupplierPlatform
   externalId String
-  sourceUrl  String @db.Text
+  sourceUrl  String           @db.Text
 
-  sourceCurrency     String @default("USD")
-  sourcePriceMinor   Int    @default(0)
-  shippingCostMinor  Int    @default(0)
+  sourceCurrency    String @default("USD")
+  sourcePriceMinor  Int    @default(0)
+  shippingCostMinor Int    @default(0)
   // FX rate (base per 1 source unit) captured at import, so drift is visible.
-  importFxRate       Float  @default(1)
+  importFxRate      Float  @default(1)
 
   // Full scraped/API payload, kept for re-mapping without re-fetching.
   raw Json?
@@ -236,10 +236,10 @@ model SupplierProduct {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id        String  @id @default(cuid())
-  email     String  @unique
-  name      String?
-  phone     String?
+  id             String  @id @default(cuid())
+  email          String  @unique
+  name           String?
+  phone          String?
   marketingOptIn Boolean @default(false)
 
   orders Order[]
@@ -249,7 +249,7 @@ model Customer {
 }
 
 enum OrderStatus {
-  PENDING   // created, not paid
+  PENDING // created, not paid
   PAID
   FULFILLING
   SHIPPED
@@ -281,14 +281,14 @@ model Order {
   paymentStatus PaymentStatus @default(UNPAID)
 
   // Amounts are in BASE currency.
-  currency       String @default("NGN")
-  subtotalMinor  Int    @default(0)
-  shippingMinor  Int    @default(0)
-  discountMinor  Int    @default(0)
-  totalMinor     Int    @default(0)
+  currency      String @default("NGN")
+  subtotalMinor Int    @default(0)
+  shippingMinor Int    @default(0)
+  discountMinor Int    @default(0)
+  totalMinor    Int    @default(0)
   // Total landed cost of goods at time of sale — lets margin be reported per
   // order without re-deriving it from a supplier price that may have moved.
-  costMinor      Int    @default(0)
+  costMinor     Int    @default(0)
 
   // What the buyer actually saw / was charged, if not base currency.
   presentmentCurrency String?
@@ -325,10 +325,10 @@ model OrderLineItem {
   // deleted — the old store had landing pages pointing at deleted variant ids.
   // These mirror Product.title / Variant.title, so they need the same width —
   // otherwise a long supplier title makes the whole order fail to insert.
-  productTitle String @db.VarChar(512)
-  variantTitle String @db.VarChar(512)
-  sku          String?
-  imageUrl     String? @db.Text
+  productTitle  String  @db.VarChar(512)
+  variantTitle  String  @db.VarChar(512)
+  sku           String?
+  imageUrl      String? @db.Text
   productHandle String?
 
   quantity       Int
@@ -336,7 +336,7 @@ model OrderLineItem {
   unitCostMinor  Int @default(0)
 
   // Everything needed to re-place this item with the supplier, frozen at sale.
-  sourceUrl         String? @db.Text
+  sourceUrl         String?           @db.Text
   sourcePlatform    SupplierPlatform?
   supplierId        String?
   supplierVariantId String?
@@ -364,7 +364,7 @@ model Payment {
 
   amountMinor Int
   currency    String
-  feeMinor    Int @default(0)
+  feeMinor    Int    @default(0)
 
   raw Json?
 
@@ -375,12 +375,12 @@ model Payment {
 }
 
 model OrderEvent {
-  id      String @id @default(cuid())
-  orderId String
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  kind    String
-  message String @db.Text
-  data    Json?
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  kind      String
+  message   String   @db.Text
+  data      Json?
   createdAt DateTime @default(now())
 
   @@index([orderId, createdAt])
@@ -391,7 +391,7 @@ model OrderEvent {
 // ---------------------------------------------------------------------------
 
 enum SupplierOrderStatus {
-  PENDING   // awaiting placement with the supplier
+  PENDING // awaiting placement with the supplier
   PLACED
   SHIPPED
   DELIVERED
@@ -405,7 +405,7 @@ model SupplierOrder {
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   supplierId String
-  supplier   Supplier @relation(fields: [supplierId], references: [id])
+  supplier   Supplier         @relation(fields: [supplierId], references: [id])
   platform   SupplierPlatform
 
   status SupplierOrderStatus @default(PENDING)
@@ -425,7 +425,7 @@ model SupplierOrder {
   placedAt    DateTime?
   shippedAt   DateTime?
   deliveredAt DateTime?
-  notes       String? @db.Text
+  notes       String?   @db.Text
 
   items SupplierOrderItem[]
 
@@ -444,7 +444,7 @@ model SupplierOrderItem {
   orderLineItemId String
   orderLineItem   OrderLineItem @relation(fields: [orderLineItemId], references: [id])
 
-  sourceUrl         String @db.Text
+  sourceUrl         String  @db.Text
   externalVariantId String?
   variantLabel      String? @db.VarChar(512)
   quantity          Int
@@ -458,13 +458,13 @@ model SupplierOrderItem {
 // ---------------------------------------------------------------------------
 
 model AdminUser {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String    @id @default(cuid())
+  email        String    @unique
   name         String?
   passwordHash String
-  role         String   @default("owner")
+  role         String    @default("owner")
   lastLoginAt  DateTime?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 }
 
 // Display-currency rates. Base currency always has rate 1.
@@ -488,16 +488,54 @@ enum DiscountType {
 }
 
 model Discount {
-  id         String       @id @default(cuid())
-  code       String       @unique
-  type       DiscountType @default(PERCENT)
-  value      Int          @default(0) // percent points, or minor units for FIXED
-  active     Boolean      @default(true)
-  startsAt   DateTime?
-  endsAt     DateTime?
-  usageLimit Int?
-  usedCount  Int          @default(0)
-  minSubtotalMinor Int    @default(0)
+  id               String       @id @default(cuid())
+  code             String       @unique
+  type             DiscountType @default(PERCENT)
+  value            Int          @default(0) // percent points, or minor units for FIXED
+  active           Boolean      @default(true)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  usageLimit       Int?
+  usedCount        Int          @default(0)
+  minSubtotalMinor Int          @default(0)
 
   createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Browser captures
+// ---------------------------------------------------------------------------
+
+/// A product captured from a supplier page by the in-browser script.
+///
+/// Kept separate from Product deliberately: a capture is raw supplier truth,
+/// not yet a thing we sell. It is reviewed and priced in the import wizard
+/// before any Product row exists, so a bad capture can never quietly become a
+/// live listing.
+model SupplierCapture {
+  id         String           @id @default(cuid())
+  platform   SupplierPlatform
+  externalId String?
+  sourceUrl  String           @db.Text
+
+  title    String @db.VarChar(512)
+  currency String @default("USD")
+
+  /// Full captured payload: images, videos, variants, reviews, shipping.
+  payload Json
+
+  variantCount       Int @default(0)
+  pricedVariantCount Int @default(0)
+  imageCount         Int @default(0)
+  videoCount         Int @default(0)
+  reviewCount        Int @default(0)
+
+  /// Set once this capture has been turned into a Product.
+  importedProductId String?
+  importedAt        DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([platform, externalId])
+  @@index([createdAt])
 }

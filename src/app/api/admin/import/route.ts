@@ -19,6 +19,13 @@ const commitSchema = z.object({
   tags: z.array(z.string()).optional(),
   supplierName: z.string().optional(),
   priceOverrides: z.record(z.string(), z.number()).optional(),
+  /*
+   * Landed cost typed in by the merchant. Required whenever the supplier page
+   * did not yield a cost — AliExpress commonly serves an anti-bot page with
+   * only og: tags, so title and images arrive but price and SKUs do not.
+   * Saving a product with an unknown cost is how you end up selling below it.
+   */
+  costOverrides: z.record(z.string(), z.number()).optional(),
 });
 
 export async function POST(request: Request) {
@@ -59,6 +66,11 @@ export async function POST(request: Request) {
         overrides[Number(key)] = value;
       }
 
+      const costs: Record<number, number> = {};
+      for (const [key, value] of Object.entries(commit.data.costOverrides ?? {})) {
+        costs[Number(key)] = value;
+      }
+
       const result = await commitImport({
         preview: commit.data.preview as PreviewResult,
         title: commit.data.title,
@@ -68,6 +80,7 @@ export async function POST(request: Request) {
         tags: commit.data.tags,
         supplierName: commit.data.supplierName,
         priceOverrides: overrides,
+        costOverrides: costs,
       });
       return NextResponse.json(result);
     } catch (err) {

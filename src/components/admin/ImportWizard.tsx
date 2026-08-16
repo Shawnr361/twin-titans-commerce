@@ -50,6 +50,13 @@ export function ImportWizard({
   const [preview, setPreview] = useState<Preview | null>(null);
   const [title, setTitle] = useState('');
   const [overrides, setOverrides] = useState<Record<number, string>>({});
+  /*
+   * Landed cost, typed in by hand. Suppliers frequently serve an anti-bot page
+   * that yields title and images but no price or SKU data, and a product whose
+   * cost we do not know cannot be priced — every margin computed against a
+   * zero cost is fiction.
+   */
+  const [costs, setCosts] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ handle: string; warnings: string[] } | null>(null);
@@ -90,10 +97,18 @@ export function ImportWizard({
         }
       }
 
+      const costOverrides: Record<string, number> = {};
+      for (const [index, raw] of Object.entries(costs)) {
+        const value = parseFloat(raw);
+        if (Number.isFinite(value) && value > 0) {
+          costOverrides[index] = toMinor(value, baseCurrency);
+        }
+      }
+
       const res = await fetch('/api/admin/import', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'commit', preview, title, priceOverrides }),
+        body: JSON.stringify({ action: 'commit', preview, title, priceOverrides, costOverrides }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? 'Could not save the product.');
@@ -108,7 +123,41 @@ export function ImportWizard({
     }
   };
 
-  const lossMaking = preview?.pricing.some((p) => p.profitMinor <= 0) ?? false;
+  /** Effective cost for a row: what was typed, else what the supplier gave. */
+  const costFor = (row: PricingRow, i: number): number => {
+    const typed = parseFloat(costs[i] ?? '');
+    return Number.isFinite(typed) && typed > 0 ? toMinor(typed, baseCurrency) : row.landedCostMinor;
+  };
+
+  /** Effective price for a row: what was typed, else what the engine solved. */
+  const priceFor = (row: PricingRow, i: number): number => {
+    const typed = parseFloat(overrides[i] ?? '');
+    return Number.isFinite(typed) && typed > 0 ? toMinor(typed, baseCurrency) : row.priceMinor;
+  };
+
+  const rows = preview?.pricing ?? [];
+
+  // Recomputed live from whatever is in the inputs, so the numbers on screen
+  // always describe what would actually be saved.
+  const computed = rows.map((row, i) => {
+    const cost = costFor(row, i);
+    const price = priceFor(row, i);
+    const known = cost > 0;
+    return {
+      cost,
+      price,
+      known,
+      profit: known ? price - cost : 0,
+      margin: known && price > 0 ? ((price - cost) / price) * 100 : 0,
+      loss: known && price - cost <= 0,
+    };
+  });
+
+  const missingCost = computed.some((c) => !c.known);
+  const lossMaking = computed.some((c) => c.loss);
+  /* Saving is refused while any cost is unknown — the whole point of the
+     pricing engine is that it can prove a price clears its cost. */
+  const blocked = missingCost || lossMaking;
 
   return (
     <div className="space-y-6">
@@ -277,7 +326,8 @@ export function ImportWizard({
                 </thead>
                 <tbody>
                   {preview.pricing.map((row, i) => {
-                    const loss = row.profitMinor <= 0;
+                    const c = computed[i];
+                    const loss = c.loss;
                     return (
                       <tr key={i} className="border-b border-rule/60 last:border-0">
                         <td className="p-4">
@@ -290,8 +340,25 @@ export function ImportWizard({
                             </ul>
                           )}
                         </td>
-                        <td className="p-4 text-greige">
-                          {formatMoney(row.landedCostMinor, baseCurrency)}
+                        <td className="p-4">
+                          <input
+                            className={`field w-32 py-2 ${!c.known ? 'border-danger' : ''}`}
+                            inputMode="decimal"
+                            placeholder="required"
+                            value={
+                              costs[i] ??
+                              (row.landedCostMinor > 0
+                                ? String(fromMinor(row.landedCostMinor, baseCurrency))
+                                : '')
+                            }
+                            onChange={(e) => setCosts((prev) => ({ ...prev, [i]: e.target.value }))}
+                            aria-label={`Landed cost for ${row.optionLabel}`}
+                          />
+                          {!c.known && (
+                            <span className="mt-1 block text-[11px] text-danger">
+                              Enter what this costs you
+                            </span>
+                          )}
                         </td>
                         <td className="p-4">
                           <input
@@ -304,11 +371,16 @@ export function ImportWizard({
                             aria-label={`Price for ${row.optionLabel}`}
                           />
                         </td>
+                        {/*
+                          With no cost, profit and margin are arithmetic against
+                          zero — a 98.5% margin that means nothing. Show a dash
+                          rather than a number that flatters.
+                        */}
                         <td className={`p-4 font-semibold ${loss ? 'text-danger' : 'text-onyx'}`}>
-                          {formatMoney(row.profitMinor, baseCurrency)}
+                          {c.known ? formatMoney(c.profit, baseCurrency) : '—'}
                         </td>
                         <td className={`p-4 ${loss ? 'text-danger' : 'text-verdigris'}`}>
-                          {row.marginPct.toFixed(1)}%
+                          {c.known ? `${c.margin.toFixed(1)}%` : '—'}
                         </td>
                       </tr>
                     );
