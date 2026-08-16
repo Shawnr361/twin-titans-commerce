@@ -5,6 +5,7 @@ import { Marquee } from '@/components/layout/Marquee';
 import { Reveal } from '@/components/motion/Reveal';
 import { Parallax } from '@/components/motion/Parallax';
 import { Magnetic } from '@/components/motion/Magnetic';
+import { Spotlight } from '@/components/motion/Spotlight';
 import { prisma } from '@/lib/db';
 import { CARD_SELECT, toCard } from '@/lib/catalog';
 import { getStoreSettings } from '@/lib/settings';
@@ -49,7 +50,7 @@ export default async function HomePage() {
       {/* ---------------------------------------------------------------
           Hero. The headline arrives line by line, the image drifts.
           --------------------------------------------------------------- */}
-      <section className="relative">
+      <Spotlight as="section" className="overflow-hidden">
         <div className="shell grid items-center gap-14 py-20 md:grid-cols-[1.05fr_0.95fr] md:py-28 lg:gap-20">
           <Reveal className="max-w-xl">
             <p className="label">Est. Lagos</p>
@@ -105,7 +106,7 @@ export default async function HomePage() {
             </Parallax>
           </Reveal>
         </div>
-      </section>
+      </Spotlight>
 
       {/* Running band — motion at the seam between sections. */}
       <Marquee

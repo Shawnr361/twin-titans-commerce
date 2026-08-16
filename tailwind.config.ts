@@ -1,14 +1,18 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * Tailwind is bound to the tokens in src/styles/tokens.css. There are no
- * literal colours here and none are permitted in components — if a value is
- * needed, it becomes a token first.
+ * Bound to the tokens in src/styles/tokens.css. No literal colours here, and
+ * none permitted in components — a value becomes a token first.
  *
- * The default palette is switched off entirely. Leaving Tailwind's stock
- * colours available is how a codebase ends up with `bg-slate-900` and
- * `text-indigo-500` scattered through it, which is exactly the generated-
- * template look this store has to avoid.
+ * Tailwind's stock palette is switched off entirely. Leaving it available is
+ * how a codebase ends up with `bg-slate-900` and `text-indigo-500` sprinkled
+ * through it, which is precisely the generated-template look this store must
+ * not have.
+ *
+ * The class NAMES are deliberately stable across theme changes: `bg-bone` is
+ * "the page ground" and `text-onyx` is "the strongest ink", whatever those
+ * happen to resolve to. That is what let the whole storefront flip from light
+ * to dark by editing one token file.
  */
 const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
@@ -20,22 +24,29 @@ const config: Config = {
       white: '#ffffff',
       black: '#000000',
 
-      bone: 'rgb(var(--bone) / <alpha-value>)',
-      bone2: 'rgb(var(--bone-2) / <alpha-value>)',
+      // Ground
+      bone: 'rgb(var(--bg) / <alpha-value>)',
+      bone2: 'rgb(var(--bg-2) / <alpha-value>)',
       paper: 'rgb(var(--paper) / <alpha-value>)',
+      paper2: 'rgb(var(--paper-2) / <alpha-value>)',
 
+      // Ink
       onyx: 'rgb(var(--onyx) / <alpha-value>)',
       ink: 'rgb(var(--ink) / <alpha-value>)',
       greige: 'rgb(var(--greige) / <alpha-value>)',
       quiet: 'rgb(var(--quiet) / <alpha-value>)',
 
+      // Line
       rule: 'rgb(var(--rule) / <alpha-value>)',
       ruleStrong: 'rgb(var(--rule-strong) / <alpha-value>)',
 
-      verdigris: 'rgb(var(--verdigris) / <alpha-value>)',
-      verdigrisDeep: 'rgb(var(--verdigris-deep) / <alpha-value>)',
-      brass: 'rgb(var(--brass) / <alpha-value>)',
+      // Metal
+      gold: 'rgb(var(--gold) / <alpha-value>)',
+      goldLight: 'rgb(var(--gold-light) / <alpha-value>)',
+      goldDeep: 'rgb(var(--gold-deep) / <alpha-value>)',
 
+      // Signal
+      verdigris: 'rgb(var(--verdigris) / <alpha-value>)',
       sale: 'rgb(var(--sale) / <alpha-value>)',
       positive: 'rgb(var(--positive) / <alpha-value>)',
       warn: 'rgb(var(--warn) / <alpha-value>)',
@@ -81,14 +92,17 @@ const config: Config = {
       },
       transitionTimingFunction: {
         ease: 'var(--ease)',
+        expo: 'var(--ease-out-expo)',
       },
       transitionDuration: {
         1: 'var(--dur-1)',
         2: 'var(--dur-2)',
         3: 'var(--dur-3)',
+        4: 'var(--dur-4)',
+        5: 'var(--dur-5)',
       },
       aspectRatio: {
-        product: '4 / 5', // the portrait crop used across luxury retail
+        product: '4 / 5',
         editorial: '3 / 2',
       },
     },

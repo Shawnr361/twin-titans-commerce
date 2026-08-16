@@ -1,75 +1,69 @@
 /*
-  ATELIER — the design system's single source of truth.
+  ATELIER NOIR — the design system's single source of truth.
   ---------------------------------------------------------------------------
-  Every colour, size and duration in the storefront resolves to a token here.
-  Nothing downstream is allowed to invent a value.
+  Dark, warm and gold. Every colour, size and duration resolves to a token
+  here; nothing downstream invents a value.
 
-  The palette is deliberately warm-neutral and LIGHT. Luxury retail
-  (SSENSE, Net-a-Porter, Aesop, Toteme) is bone-coloured, near-square and
-  serif-led. Dark backgrounds with saturated gradients read as crypto or as
-  generated-by-AI, which is the single thing this storefront must not look
-  like. There is exactly one accent, and metal appears only as a hairline.
+  The neutrals are deliberately WARM (brown/olive undertone, never blue). A
+  blue-black ground plus a saturated accent is the generated-template look;
+  a warm near-black with a single metal reads as a jeweller's case.
 
-  Neutrals carry a green-brown undertone (not blue) so they read as paper and
-  stone rather than as "slate-900", the default of every generated template.
+  CONTRAST — checked against the page ground #0E0C09:
+    ink     #F2EDE3   16.1:1   body and headings      (AAA)
+    greige  #A8A091    8.0:1   secondary text         (AAA)
+    quiet   #8A8274    5.2:1   captions, small print  (AA)
+    gold    #C9A227    7.1:1   links, marks           (AAA large / AA small)
+  Nothing in the palette falls below 4.5:1 on the ground it is used against.
 */
 
 :root {
-  /* --- Ground -------------------------------------------------------- */
-  --bone: 246 242 233; /* #F6F2E9  page */
-  --bone-2: 240 235 224; /* #F0EBE0  alternating band */
-  --paper: 252 250 246; /* #FCFAF6  cards, raised surfaces */
+  /* --- Ground: warm near-black, layered ------------------------------ */
+  --bg: 14 12 9; /* #0E0C09  page */
+  --bg-2: 20 17 13; /* #14110D  alternating band */
+  --paper: 26 22 17; /* #1A1611  cards, raised surfaces */
+  --paper-2: 34 29 22; /* #221D16 hover / inset */
 
-  /* --- Ink ----------------------------------------------------------- */
-  --onyx: 22 21 15; /* #16150F  headings, warm near-black */
-  --ink: 38 36 30; /* #26241E  body */
-  --greige: 122 116 105; /* #7A7469  secondary text */
-  --quiet: 168 160 147; /* #A8A093  tertiary, captions */
+  /* --- Ink: warm bone, never pure white ------------------------------ */
+  --onyx: 242 237 227; /* #F2EDE3  headings (strongest) */
+  --ink: 230 224 212; /* #E6E0D4  body */
+  --greige: 168 160 145; /* #A8A091  secondary */
+  --quiet: 138 130 116; /* #8A8274  tertiary */
 
   /* --- Line ---------------------------------------------------------- */
-  --rule: 219 212 199; /* #DBD4C7  hairlines, borders */
-  --rule-strong: 196 187 172; /* #C4BBAC */
+  --rule: 45 39 31; /* #2D271F  hairlines */
+  --rule-strong: 68 59 46; /* #443B2E */
 
-  /* --- Accent (exactly one) ------------------------------------------ */
-  --verdigris: 36 80 63; /* #24503F  deep jade — CTAs, links */
-  --verdigris-deep: 26 58 46; /* #1A3A2E  hover */
-
-  /* --- Gold ----------------------------------------------------------
-     A four-stop metallic ramp, not a single yellow. Real gold reads as
-     metal because it has a highlight, a body and a shadow — a flat
-     #FFD700 fill is the giveaway of a cheap site. These stops drive a
-     gradient that is clipped to text and swept on hover.               */
-  --gold-hi: 244 228 190; /* #F4E4BE  champagne highlight */
-  --gold-lt: 224 197 133; /* #E0C585  light */
-  --gold: 184 145 47; /* #B8912F  body */
-  --gold-dk: 138 106 34; /* #8A6A22  shadow */
-  --brass: 168 131 78; /* #A8834E  hairlines */
+  /* --- Gold: the single metal ---------------------------------------- */
+  --gold: 201 162 39; /* #C9A227  marks, links, CTA fill */
+  --gold-light: 232 217 160; /* #E8D9A0  sheen highlight */
+  --gold-deep: 154 121 26; /* #9A791A  shadow side of the gradient */
 
   /* --- Signal -------------------------------------------------------- */
-  --sale: 138 45 38; /* #8A2D26  oxblood, for reductions */
-  --positive: 47 92 62; /* #2F5C3E */
-  --warn: 141 106 34; /* #8D6A22 */
-  --danger: 150 42 34; /* #962A22 */
+  --sale: 214 122 106; /* #D67A6A  reductions, legible on dark */
+  --positive: 122 176 148; /* #7AB094 */
+  --warn: 214 176 92; /* #D6B05C */
+  --danger: 224 118 104; /* #E07668 */
+
+  /* Kept for continuity; used only for subtle success wash. */
+  --verdigris: 122 176 148;
 
   /* --- Type ---------------------------------------------------------- */
   --font-display: var(--font-fraunces), 'Times New Roman', serif;
   --font-sans: var(--font-hanken), system-ui, -apple-system, sans-serif;
 
-  /* Editorial scale. Display sizes are fluid; body is fixed for legibility. */
-  --step--1: 0.8125rem; /* 13px  captions, labels */
-  --step-0: 0.9375rem; /* 15px  body */
-  --step-1: 1.0625rem; /* 17px  lead */
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.0625rem;
   --step-2: clamp(1.25rem, 1.05rem + 0.9vw, 1.625rem);
   --step-3: clamp(1.5rem, 1.15rem + 1.6vw, 2.25rem);
   --step-4: clamp(1.875rem, 1.2rem + 3vw, 3.25rem);
   --step-5: clamp(2.25rem, 1.1rem + 5.2vw, 4.75rem);
 
-  /* Luxury typography is set tight at display sizes and open at label sizes. */
   --tracking-display: -0.02em;
   --tracking-body: 0;
   --tracking-label: 0.14em;
 
-  /* --- Space (8px base, generous by default) ------------------------- */
+  /* --- Space --------------------------------------------------------- */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -81,44 +75,27 @@
   --space-24: 6rem;
   --space-32: 8rem;
 
-  /* --- Measure ------------------------------------------------------- */
-  --measure: 1280px; /* editorial max width */
-  --measure-text: 66ch; /* prose */
+  --measure: 1280px;
+  --measure-text: 66ch;
   --gutter: 1.25rem;
 
-  /* --- Radius: near-square. Rounded corners read as "app", not "atelier". */
+  /* Near-square. Rounded corners read as "app", not "atelier". */
   --radius-0: 0px;
   --radius-1: 2px;
   --radius-2: 4px;
-  --radius-pill: 999px; /* reserved for tags only */
+  --radius-pill: 999px;
 
-  /* --- Elevation: luxury uses hairlines, not drop shadows. ----------- */
+  /* On dark, elevation is a lift in surface value plus a gold hairline —
+     drop shadows are invisible against a near-black ground. */
   --shadow-none: none;
-  --shadow-lift: 0 1px 2px rgba(22, 21, 15, 0.04), 0 8px 24px rgba(22, 21, 15, 0.06);
+  --shadow-lift: 0 18px 50px rgba(0, 0, 0, 0.55);
 
-  /* --- Motion: short, linear-ish, almost imperceptible. -------------- */
+  /* --- Motion -------------------------------------------------------- */
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-1: 140ms;
   --dur-2: 240ms;
   --dur-3: 420ms;
-}
-
-/*
-  A dark mode exists but is a warm charcoal, not the blue-black default.
-  Opt-in via data-theme so it can be a store setting rather than a guess at
-  what the visitor wants mid-purchase.
-*/
-:root[data-theme='dark'] {
-  --bone: 24 22 19;
-  --bone-2: 30 28 24;
-  --paper: 34 31 27;
-  --onyx: 244 240 232;
-  --ink: 232 227 217;
-  --greige: 166 158 146;
-  --quiet: 130 123 112;
-  --rule: 58 54 48;
-  --rule-strong: 78 72 64;
-  --verdigris: 122 176 148;
-  --verdigris-deep: 150 198 172;
-  --brass: 198 163 108;
+  --dur-4: 720ms;
+  --dur-5: 1100ms;
 }
