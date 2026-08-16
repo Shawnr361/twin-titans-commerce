@@ -2,6 +2,10 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Shared hosting (CloudLinux LVE) caps process count. Next spawns one build
+  // worker per CPU core, and on a many-core shared box that hits the cap and
+  // fails with `spawn ... EAGAIN` during "Collecting page data".
+  experimental: { cpus: 1, workerThreads: false },
   // Standalone is opt-in, for the Docker image only. On Passenger hosts
   // (DirectAdmin / CloudLinux) it must stay OFF: Passenger boots ./server.js at
   // the app root and would never reach .next/standalone/server.js.

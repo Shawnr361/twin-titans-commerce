@@ -5,7 +5,10 @@ import { prisma } from '@/lib/db';
 import { CARD_SELECT, toCard } from '@/lib/catalog';
 import { getStoreSettings } from '@/lib/settings';
 
-export const revalidate = 60;
+// Dynamic rather than ISR: prices, stock and the product list all change from
+// the admin, and prerendering this page at build time would also require a
+// database connection during the build, which shared hosting cannot give us.
+export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const settings = await getStoreSettings();
