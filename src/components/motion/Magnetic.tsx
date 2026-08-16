@@ -13,12 +13,15 @@ import { useEffect, useRef } from 'react';
 export function Magnetic({
   children,
   radius = 90,
-  pull = 0.28,
+  pull = 0.2,
+  max = 7,
   className = '',
 }: {
   children: React.ReactNode;
   radius?: number;
   pull?: number;
+  /** Hard ceiling on displacement, in px, on each axis. */
+  max?: number;
   className?: string;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -40,8 +43,15 @@ export function Magnetic({
         return;
       }
 
-      node.style.setProperty('--mx', `${(dx * pull).toFixed(1)}px`);
-      node.style.setProperty('--my', `${(dy * pull).toFixed(1)}px`);
+      /*
+       * Clamp the displacement. Without a ceiling, `dx * pull` grows with the
+       * cursor distance and the control drifts far enough to sit on top of
+       * whatever is next to it — the hero CTA was covering the "Track an
+       * order" link beside it on hover.
+       */
+      const clamp = (v: number) => Math.max(-max, Math.min(max, v));
+      node.style.setProperty('--mx', `${clamp(dx * pull).toFixed(1)}px`);
+      node.style.setProperty('--my', `${clamp(dy * pull).toFixed(1)}px`);
     };
 
     const reset = () => {
@@ -56,7 +66,7 @@ export function Magnetic({
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('blur', reset);
     };
-  }, [radius, pull]);
+  }, [radius, pull, max]);
 
   return (
     <span ref={ref} className={`magnetic inline-block ${className}`}>

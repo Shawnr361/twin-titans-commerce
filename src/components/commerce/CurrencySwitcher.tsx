@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { IconChevronDown, IconGlobe } from '@/components/icons';
+import { IconCheck, IconChevronDown, IconGlobe } from '@/components/icons';
 
 export interface CurrencyOption {
   code: string;
@@ -11,6 +11,30 @@ export interface CurrencyOption {
 }
 
 const STORAGE_KEY = 'tt_currency';
+
+/**
+ * Flag per currency, as a regional-indicator pair.
+ *
+ * Emoji rather than image assets: no requests, no CDN, scales with the type,
+ * and renders from the system font on every modern platform. Windows draws
+ * these as letter pairs rather than flags, which still reads correctly as a
+ * country mark, so the currency code beside it always carries the real meaning.
+ */
+const FLAG: Record<string, string> = {
+  NGN: '🇳🇬',
+  USD: '🇺🇸',
+  GBP: '🇬🇧',
+  EUR: '🇪🇺',
+  CAD: '🇨🇦',
+  AUD: '🇦🇺',
+  CNY: '🇨🇳',
+  ZAR: '🇿🇦',
+  GHS: '🇬🇭',
+  KES: '🇰🇪',
+  AED: '🇦🇪',
+  JPY: '🇯🇵',
+  INR: '🇮🇳',
+};
 
 /**
  * Display-currency switcher for international shoppers.
@@ -169,7 +193,9 @@ export function CurrencySwitcher({
         aria-label={`Change currency, currently ${active}`}
         className="flex items-center gap-1.5 py-2 text-label text-greige transition-colors hover:text-onyx"
       >
-        <IconGlobe size={17} />
+        <span aria-hidden className="text-[0.95rem] leading-none">
+          {FLAG[active] ?? <IconGlobe size={17} />}
+        </span>
         <span className="tabular-nums">{active}</span>
         <IconChevronDown size={13} className={open ? 'rotate-180 transition-transform' : 'transition-transform'} />
       </button>
@@ -187,15 +213,17 @@ export function CurrencySwitcher({
               role="option"
               aria-selected={o.code === active}
               onClick={() => choose(o.code)}
-              className={`flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left text-label transition-colors hover:bg-bone2 ${
+              className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-label transition-colors hover:bg-bone2 ${
                 o.code === active ? 'text-onyx' : 'text-greige'
               }`}
             >
-              <span>
-                <span className="tabular-nums">{o.code}</span>
-                <span className="ml-2 text-quiet">{o.symbol}</span>
+              {/* Fixed-width columns so codes and symbols align down the list. */}
+              <span aria-hidden className="w-5 shrink-0 text-center text-[1rem] leading-none">
+                {FLAG[o.code] ?? '🌐'}
               </span>
-              {o.code === active && <IconGlobe size={14} />}
+              <span className="w-10 shrink-0 tabular-nums">{o.code}</span>
+              <span className="flex-1 text-quiet">{o.symbol}</span>
+              {o.code === active && <IconCheck size={15} className="shrink-0 text-verdigris" />}
             </button>
           ))}
 

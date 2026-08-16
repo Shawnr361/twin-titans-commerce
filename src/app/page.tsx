@@ -69,13 +69,13 @@ export default async function HomePage() {
               priced honestly, then shipped direct to your door.
             </p>
 
-            <div className="mt-10 flex flex-wrap items-center gap-4">
+            <div className="mt-10 flex flex-wrap items-center gap-x-9 gap-y-5">
               <Magnetic>
                 <Link href="/collections/all" className="btn btn-primary sheen">
                   View the catalogue
                 </Link>
               </Magnetic>
-              <Link href="/orders/track" className="link text-label">
+              <Link href="/orders/track" className="link whitespace-nowrap text-label">
                 Track an order
               </Link>
             </div>

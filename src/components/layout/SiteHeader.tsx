@@ -47,15 +47,25 @@ export async function SiteHeader() {
           {/* Left: departments on desktop, menu button on mobile */}
           <div className="flex flex-1 items-center gap-7">
             <MobileNav links={links} storeName={settings.storeName} />
-            <nav aria-label="Departments" className="hidden items-center gap-7 lg:flex">
-              <Link href="/collections/all" className="label transition-colors hover:!text-onyx">
+            {/*
+              `whitespace-nowrap` is load-bearing: the label style uses 0.14em
+              tracking, which makes multi-word departments ("Home & Living")
+              wrap to two or three lines and wreck the header rhythm. Tracking
+              is also eased off here so more departments fit before the row
+              runs out of room.
+            */}
+            <nav aria-label="Departments" className="hidden min-w-0 items-center gap-6 lg:flex">
+              <Link
+                href="/collections/all"
+                className="label whitespace-nowrap !tracking-[0.1em] transition-colors hover:!text-onyx"
+              >
                 Shop
               </Link>
               {links.slice(0, 4).map((l) => (
                 <Link
                   key={l.href}
                   href={l.href}
-                  className="label transition-colors hover:!text-onyx"
+                  className="label whitespace-nowrap !tracking-[0.1em] transition-colors hover:!text-onyx"
                 >
                   {l.label}
                 </Link>
