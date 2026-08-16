@@ -2,10 +2,18 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { UnauthorizedError, requireAdmin } from '@/lib/auth';
 import { commitImport, previewImport, type PreviewResult } from '@/lib/suppliers/import';
+import { previewFromCapture } from '@/lib/suppliers/fromCapture';
 
 const previewSchema = z.object({
   action: z.literal('preview'),
   url: z.string().min(4),
+  marginPct: z.number().min(0).max(95).optional(),
+});
+
+/** Load a capture taken by the in-browser script into the pricing wizard. */
+const capturePreviewSchema = z.object({
+  action: z.literal('preview-capture'),
+  captureId: z.string().min(1),
   marginPct: z.number().min(0).max(95).optional(),
 });
 
@@ -53,6 +61,24 @@ export async function POST(request: Request) {
     } catch (err) {
       return NextResponse.json(
         { error: err instanceof Error ? err.message : 'Import failed.' },
+        { status: 422 }
+      );
+    }
+  }
+
+  const fromCapture = capturePreviewSchema.safeParse(body);
+  if (fromCapture.success) {
+    try {
+      const result = await previewFromCapture(
+        fromCapture.data.captureId,
+        fromCapture.data.marginPct != null
+          ? { strategy: 'MARGIN', marginPct: fromCapture.data.marginPct }
+          : undefined
+      );
+      return NextResponse.json(result);
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Could not load that capture.' },
         { status: 422 }
       );
     }

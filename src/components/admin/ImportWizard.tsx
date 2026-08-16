@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useState } from 'react';
 import { formatMoney, fromMinor, toMinor } from '@/lib/money';
 
 interface PricingRow {
@@ -37,13 +37,15 @@ interface Preview {
   alreadyImported: { productId: string; handle: string; title: string } | null;
 }
 
-export function ImportWizard({
-  baseCurrency,
-  defaultMarginPct,
-}: {
-  baseCurrency: string;
-  defaultMarginPct: number;
-}) {
+/** Lets the workspace hand a capture to the wizard without lifting its state. */
+export interface ImportWizardHandle {
+  loadCapture: (captureId: string) => void;
+}
+
+export const ImportWizard = forwardRef<
+  ImportWizardHandle,
+  { baseCurrency: string; defaultMarginPct: number; activeCaptureId?: string | null }
+>(function ImportWizard({ baseCurrency, defaultMarginPct }, ref) {
   const router = useRouter();
   const [url, setUrl] = useState('');
   const [marginPct, setMarginPct] = useState(defaultMarginPct);
@@ -60,6 +62,38 @@ export function ImportWizard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ handle: string; warnings: string[] } | null>(null);
+
+  /** Load a browser capture into the pricing table. */
+  const loadCapture = useCallback(
+    async (captureId: string) => {
+      setBusy(true);
+      setError(null);
+      setSaved(null);
+      try {
+        const res = await fetch('/api/admin/import', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'preview-capture', captureId, marginPct }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body?.error ?? 'Could not load that capture.');
+        setPreview(body);
+        setTitle(body.product.title);
+        setOverrides({});
+        setCosts({});
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not load that capture.');
+        setPreview(null);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [marginPct]
+  );
+
+  useImperativeHandle(ref, () => ({ loadCapture: (id: string) => void loadCapture(id) }), [
+    loadCapture,
+  ]);
 
   const runPreview = async () => {
     setBusy(true);
@@ -391,18 +425,34 @@ export function ImportWizard({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={commit} disabled={busy} className="btn btn-primary">
+            <button
+              type="button"
+              onClick={commit}
+              disabled={busy || blocked}
+              title={
+                missingCost
+                  ? 'Enter the landed cost for every variant first'
+                  : lossMaking
+                    ? 'A variant would sell at or below cost'
+                    : undefined
+              }
+              className="btn btn-primary"
+            >
               {busy ? 'Saving…' : 'Save as draft product'}
             </button>
             <button type="button" onClick={() => setPreview(null)} className="btn btn-secondary">
               Discard
             </button>
             <p className="text-xs text-greige">
-              Imports always land as drafts — nothing goes live until you publish it.
+              {missingCost
+                ? 'Enter the landed cost for every variant — a product cannot be priced without it.'
+                : lossMaking
+                  ? 'At least one variant would sell at or below cost. Fix the price or the cost.'
+                  : 'Imports always land as drafts — nothing goes live until you publish it.'}
             </p>
           </div>
         </div>
       )}
     </div>
   );
-}
+});

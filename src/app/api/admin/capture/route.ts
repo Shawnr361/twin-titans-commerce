@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { assessCapture, captureSchema } from '@/lib/suppliers/capture';
 import { prisma } from '@/lib/db';
+import { captureToken } from '@/lib/suppliers/captureToken';
 
 /**
  * Receives a product captured by the in-page script.
@@ -18,16 +18,6 @@ import { prisma } from '@/lib/db';
  * until a human prices and publishes them.
  */
 
-function captureToken(): string {
-  const secret = process.env.AUTH_SECRET ?? '';
-  if (secret.length < 16) throw new Error('AUTH_SECRET missing');
-  return createHash('sha256').update(`${secret}:capture`).digest('hex').slice(0, 32);
-}
-
-/** Exposed so the admin page can render the same token into the bookmarklet. */
-export function getCaptureToken(): string {
-  return captureToken();
-}
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
