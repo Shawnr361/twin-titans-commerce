@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { CaptureSetup } from './CaptureSetup';
+import { CapturePaste } from './CapturePaste';
 import { CaptureList, type CaptureRow } from './CaptureList';
 import { ImportWizard, type ImportWizardHandle } from './ImportWizard';
 
@@ -47,6 +48,8 @@ export function ImportWorkspace({
           </p>
         </div>
       )}
+
+      <CapturePaste />
 
       <section className="space-y-4">
         <h3 className="font-display text-d2 text-onyx">

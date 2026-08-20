@@ -208,7 +208,23 @@ export function buildCaptureScript(endpoint: string, token: string): string {
       + priced + ' priced), ' + out.images.length + ' images, ' + out.videos.length + ' videos, '
       + out.reviews.length + ' reviews. Open Import in your admin.');
   }catch(e){
-    note('Could not reach your store: ' + e.message, true);
+    /*
+     * Supplier pages set a Content-Security-Policy whose connect-src blocks
+     * requests to our domain. A bookmarklet runs INSIDE the page and inherits
+     * that policy, so the browser kills the fetch before it leaves — this is
+     * exactly why DSers and Oberlo ship extensions, which are CSP-exempt.
+     *
+     * The clipboard is not governed by connect-src, so it always works. Copy
+     * the payload and let the merchant paste it into the admin.
+     */
+    try{
+      await navigator.clipboard.writeText(JSON.stringify(out));
+      note("Captured " + out.variants.length + " variants (" + priced + " priced), " +
+        out.images.length + " images, " + out.videos.length + " videos. This site blocks" +
+        " direct sending, so it is COPIED to your clipboard - paste it into Import.");
+    }catch(e2){
+      note("Blocked by this site and clipboard unavailable. Error: " + e.message, true);
+    }
   }
 })();`;
 

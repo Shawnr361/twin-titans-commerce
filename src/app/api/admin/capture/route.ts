@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { assessCapture, captureSchema } from '@/lib/suppliers/capture';
 import { prisma } from '@/lib/db';
 import { captureToken } from '@/lib/suppliers/captureToken';
+import { getSession } from '@/lib/auth';
 
 /**
  * Receives a product captured by the in-page script.
@@ -38,11 +39,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Store not configured.' }, { status: 503, headers: CORS });
   }
 
+  /*
+   * Two ways in, because supplier sites set a Content-Security-Policy whose
+   * connect-src blocks the bookmarklet from posting here at all. When that
+   * happens the script copies the payload to the clipboard and the merchant
+   * pastes it into the admin — that request is same-origin and carries the
+   * session cookie, so it needs no token.
+   */
   const provided = request.headers.get('x-capture-token');
-  // Length-independent compare is unnecessary here (the token is not a
-  // password and the endpoint is rate-limited by its own cost), but a plain
-  // mismatch must still be rejected before any parsing work.
-  if (!provided || provided !== expected) {
+  const tokenOk = Boolean(provided) && provided === expected;
+  const sessionOk = tokenOk ? false : Boolean(await getSession().catch(() => null));
+
+  if (!tokenOk && !sessionOk) {
     return NextResponse.json(
       { error: 'Invalid capture token. Copy the bookmarklet again from your admin.' },
       { status: 401, headers: CORS }
