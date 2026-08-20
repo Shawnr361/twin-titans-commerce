@@ -5,6 +5,7 @@ import { CaptureSetup } from './CaptureSetup';
 import { CapturePaste } from './CapturePaste';
 import { CaptureList, type CaptureRow } from './CaptureList';
 import { ImportWizard, type ImportWizardHandle } from './ImportWizard';
+import { useLiveCaptures } from './useLiveCaptures';
 
 /**
  * Ties the three pieces of the import flow together: install the bookmarklet,
@@ -27,6 +28,9 @@ export function ImportWorkspace({
 }) {
   const wizardRef = useRef<ImportWizardHandle>(null);
   const [pricingId, setPricingId] = useState<string | null>(null);
+  // Only this subtree re-renders when a capture lands; the pricing table below
+  // keeps whatever the merchant has already typed into it.
+  const { rows, arrivedIds, busyId, remove } = useLiveCaptures(captures);
 
   const use = (id: string) => {
     setPricingId(id);
@@ -54,9 +58,15 @@ export function ImportWorkspace({
       <section className="space-y-4">
         <h3 className="font-display text-d2 text-onyx">
           Captures
-          {captures.length > 0 && <span className="ml-2 text-label text-quiet">{captures.length}</span>}
+          {rows.length > 0 && <span className="ml-2 text-label text-quiet">{rows.length}</span>}
         </h3>
-        <CaptureList captures={captures} onUse={use} />
+        <CaptureList
+          captures={rows}
+          onUse={use}
+          onDelete={remove}
+          busyId={busyId}
+          arrivedIds={arrivedIds}
+        />
       </section>
 
       <section id="pricing" className="scroll-mt-24 space-y-4">

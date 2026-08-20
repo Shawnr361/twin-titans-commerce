@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ProductStatusToggle } from '@/components/admin/ProductStatusToggle';
+import { ProductDeleteButton } from '@/components/admin/ProductDeleteButton';
 import { prisma } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import { auditMargin } from '@/lib/pricing';
@@ -114,6 +115,8 @@ export default async function AdminProductsPage() {
                   status={product.status}
                   blocked={worst?.severity === 'loss'}
                 />
+
+                <ProductDeleteButton productId={product.id} title={product.title} />
               </article>
             );
           })}

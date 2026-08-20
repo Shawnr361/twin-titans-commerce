@@ -55,6 +55,31 @@ export function buildCaptureScript(endpoint: string, token: string): string {
     return out;
   }
 
+  // AliExpress serves the same photo at many sizes: "....png_640x640.png".
+  // bigImage only understood the .jpg form, so .png renditions of one picture
+  // stayed distinct and the gallery filled up with duplicates.
+  function normUrl(u){
+    u = String(u || '').trim();
+    if(u.indexOf('//') === 0) u = 'https:' + u;
+    var exts = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+    var low = u.toLowerCase();
+    for(var i = 0; i < exts.length; i++){
+      var p = low.indexOf(exts[i] + '_');
+      if(p > -1){ u = u.slice(0, p + exts[i].length); break; }
+    }
+    return u;
+  }
+
+  // Product photos live under /kf/ on the supplier CDN. The rest of the page is
+  // chrome, icons and other sellers' recommendations - importing those would
+  // show the buyer pictures of something they are not buying.
+  function isProductImage(u){
+    if(!u) return false;
+    if(u.indexOf('/kf/') < 0) return false;
+    if(u.indexOf('48x48') > -1 || u.indexOf('50x50') > -1 || u.indexOf('64x64') > -1) return false;
+    return true;
+  }
+
   // Supplier sites append their own brand to <title>. It is not part of the
   // product name and reads badly as a storefront heading.
   function cleanTitle(t){
@@ -236,7 +261,7 @@ export function buildCaptureScript(endpoint: string, token: string): string {
             if(!v) return;
             vals[vid] = v.name;
             var img = v.image || v.thumbnail || (v.data && v.data.skuPropertyImagePath);
-            if(img) valueImages[vid] = bigImage(img);
+            if(img) valueImages[vid] = normUrl(img);
           });
           props[pid] = { name: p.name, vals: vals };
         });
@@ -306,11 +331,24 @@ export function buildCaptureScript(endpoint: string, token: string): string {
       }
     }catch(e){}
 
-    // The gallery for this layout lives in the image component's cache.
+    /*
+     * _d_c_.DCData is one mutable slot holding whichever component rendered
+     * into it last, so reading the gallery from it alone is a race: it yielded
+     * 2 images on a listing that actually carries 6. Merge it with the rendered
+     * thumbnail rail and keep anything that looks like a product photo. Main
+     * gallery goes first so the hero image stays the hero image.
+     */
     try{
+      var pool = [];
       var dcd = window._d_c_ && window._d_c_.DCData;
-      var ipl = dcd && (dcd.imagePathList || dcd.summImagePathList);
-      if(ipl && ipl.length && !out.images.length) out.images = ipl.map(bigImage);
+      if(dcd) pool = pool.concat(dcd.imagePathList || [], dcd.summImagePathList || []);
+      var rail = document.querySelectorAll(
+        '[class*="slider--item"] img, [class*="gallery"] img, [class*="image-view"] img, [class*="magnifier"] img'
+      );
+      Array.prototype.forEach.call(rail, function(i){
+        pool.push(i.getAttribute('src') || i.getAttribute('data-src'));
+      });
+      out.images = uniq(pool.map(normUrl).filter(isProductImage)).concat(out.images);
     }catch(e){}
 
     // Store name, when the layout renders a store link.

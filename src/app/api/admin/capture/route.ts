@@ -3,6 +3,7 @@ import { assessCapture, captureSchema } from '@/lib/suppliers/capture';
 import { prisma } from '@/lib/db';
 import { captureToken } from '@/lib/suppliers/captureToken';
 import { getSession } from '@/lib/auth';
+import { listCaptureRows } from '@/lib/suppliers/captureRows';
 
 /**
  * Receives a product captured by the in-page script.
@@ -26,6 +27,42 @@ const CORS = {
   'Access-Control-Allow-Headers': 'content-type, x-capture-token',
   'Access-Control-Max-Age': '86400',
 };
+
+/**
+ * Cheap poll target for the import page.
+ *
+ * A capture arrives from a different tab entirely - the supplier's page - so
+ * nothing in this app knows to re-render when one lands, and the merchant had
+ * to reload by hand. The page polls this and refreshes only when the answer
+ * changes. Deliberately a count plus a timestamp rather than the rows: it runs
+ * every few seconds on shared hosting, so it has to stay tiny.
+ */
+export async function GET(request: Request) {
+  const session = await getSession().catch(() => null);
+  if (!session) {
+    return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  }
+
+  const [count, latest] = await Promise.all([
+    prisma.supplierCapture.count(),
+    prisma.supplierCapture.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, createdAt: true },
+    }),
+  ]);
+
+  // The steady-state poll asks only "has anything changed?". The rows are
+  // fetched once, afterwards, when the answer is yes - so the every-few-seconds
+  // request stays two numbers rather than 25 rows of payload.
+  const wantRows = new URL(request.url).searchParams.get('rows') === '1';
+
+  return NextResponse.json({
+    count,
+    latestId: latest?.id ?? null,
+    latestAt: latest?.createdAt.toISOString() ?? null,
+    captures: wantRows ? await listCaptureRows() : undefined,
+  });
+}
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });

@@ -72,6 +72,28 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
   const inStock = product.variants.some((v) => v.inventory == null || v.inventory > 0);
 
   /*
+   * Variant photos belong in the gallery, not only behind the option picker.
+   * A sixteen-colour listing arrives with a photo per colour, and showing only
+   * the handful of catalogue shots leaves the shopper unable to see the one
+   * they are actually buying. Product images lead so the hero stays the hero.
+   */
+  const galleryImages = (() => {
+    const seen = new Set<string>();
+    const out: { url: string; alt: string }[] = [];
+    for (const image of product.images) {
+      if (seen.has(image.url)) continue;
+      seen.add(image.url);
+      out.push({ url: image.url, alt: image.alt ?? product.title });
+    }
+    for (const variant of product.variants) {
+      if (!variant.imageUrl || seen.has(variant.imageUrl)) continue;
+      seen.add(variant.imageUrl);
+      out.push({ url: variant.imageUrl, alt: `${product.title} — ${variant.title}` });
+    }
+    return out;
+  })();
+
+  /*
    * Product structured data. Only facts we actually hold are emitted — there
    * is no aggregateRating, because inventing review data is both dishonest
    * and a Google policy violation. It appears once reviews are real.
@@ -123,10 +145,7 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
 
       <div className="shell grid gap-12 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16 lg:py-14">
         <div className="min-w-0">
-          <ProductGallery
-            images={product.images.map((i) => ({ url: i.url, alt: i.alt ?? product.title }))}
-            title={product.title}
-          />
+          <ProductGallery images={galleryImages} title={product.title} />
         </div>
 
         {/*

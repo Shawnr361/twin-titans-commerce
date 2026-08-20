@@ -1,8 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-
 export interface CaptureRow {
   id: string;
   title: string;
@@ -30,22 +27,18 @@ export interface CaptureRow {
 export function CaptureList({
   captures,
   onUse,
+  onDelete,
+  busyId = null,
+  arrivedIds = [],
 }: {
   captures: CaptureRow[];
   onUse: (id: string) => void;
+  onDelete: (id: string) => void;
+  busyId?: string | null;
+  arrivedIds?: string[];
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState<string | null>(null);
-
-  const remove = async (id: string) => {
-    setBusy(id);
-    try {
-      await fetch(`/api/admin/capture/${id}`, { method: 'DELETE' });
-      router.refresh();
-    } finally {
-      setBusy(null);
-    }
-  };
+  const busy = busyId;
+  const remove = onDelete;
 
   if (captures.length === 0) {
     return (
@@ -64,7 +57,15 @@ export function CaptureList({
         return (
           <li
             key={c.id}
-            className={`card flex flex-wrap items-center gap-4 p-4 ${busy === c.id ? 'opacity-50' : ''}`}
+            className={[
+              'card flex flex-wrap items-center gap-4 p-4 transition-opacity',
+              busy === c.id ? 'opacity-50' : '',
+              // A capture lands while the merchant is looking at another tab,
+              // so the row has to announce itself when they come back.
+              arrivedIds.includes(c.id) ? 'capture-arrived' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
           >
             <div className="media aspect-product w-16 shrink-0">
               {c.thumbnail && (
