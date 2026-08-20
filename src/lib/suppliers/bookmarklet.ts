@@ -43,6 +43,41 @@ export function buildCaptureScript(endpoint: string, token: string): string {
     return isFinite(n) ? n : 0;
   }
 
+  // Different sized renditions of one photo normalise to the same URL, so the
+  // gallery ends up holding the same picture several times over. The storefront
+  // takes images[1] as the hover image and showed the main shot twice.
+  function uniq(list){
+    var seen = {}, out = [];
+    for(var i = 0; i < list.length; i++){
+      var u = list[i];
+      if(u && !seen[u]){ seen[u] = 1; out.push(u); }
+    }
+    return out;
+  }
+
+  // Supplier sites append their own brand to <title>. It is not part of the
+  // product name and reads badly as a storefront heading.
+  function cleanTitle(t){
+    t = String(t || '').trim();
+    var tails = [' - AliExpress', ' | AliExpress', ' - Alibaba.com', ' - 1688.com'];
+    for(var i = 0; i < tails.length; i++){
+      var tail = tails[i];
+      if(t.length > tail.length && t.slice(-tail.length).toLowerCase() === tail.toLowerCase()){
+        t = t.slice(0, -tail.length).trim();
+      }
+    }
+    return t;
+  }
+
+  // "Sold ByHarvester Hair Store(Trader)" -> "Harvester Hair Store".
+  function cleanStore(s){
+    s = String(s || '').trim();
+    if(s.slice(0, 7).toLowerCase() === 'sold by') s = s.slice(7).trim();
+    var p = s.indexOf('(');
+    if(p > 0) s = s.slice(0, p).trim();
+    return s.slice(0, 80);
+  }
+
   var host = location.hostname;
   var platform = /aliexpress/i.test(host) ? 'ALIEXPRESS'
     : /alibaba/i.test(host) ? 'ALIBABA'
@@ -188,11 +223,21 @@ export function buildCaptureScript(endpoint: string, token: string): string {
       if(sd && sd.info){
         // propertyId -> { name, vals: { valueId: label } }
         var props = {};
+        // Each option value carries its own photo. Discarding these was why a
+        // 16-colour listing imported with only the handful of gallery shots and
+        // no way to show the buyer the colour they actually chose.
+        var valueImages = {};
         (sd.ids || []).forEach(function(pid){
           var p = sd[pid];
           if(!p) return;
           var vals = {};
-          (p.ids || []).forEach(function(vid){ if(p[vid]) vals[vid] = p[vid].name; });
+          (p.ids || []).forEach(function(vid){
+            var v = p[vid];
+            if(!v) return;
+            vals[vid] = v.name;
+            var img = v.image || v.thumbnail || (v.data && v.data.skuPropertyImagePath);
+            if(img) valueImages[vid] = bigImage(img);
+          });
           props[pid] = { name: p.name, vals: vals };
         });
 
@@ -208,21 +253,27 @@ export function buildCaptureScript(endpoint: string, token: string): string {
           return num(String(rec.skuCurrentPrice || '').replace(/,/g, ''));
         };
 
+        var variantImages = [];
         Object.keys(sd.info).forEach(function(key){
-          var rec = sd.info[key], opts = {};
+          var rec = sd.info[key], opts = {}, vimg = '';
           key.split(',').forEach(function(vid){
             for(var pid in props){
               if(props[pid].vals[vid] !== undefined) opts[props[pid].name] = props[pid].vals[vid];
             }
+            if(!vimg && valueImages[vid]) vimg = valueImages[vid];
           });
+          if(vimg) variantImages.push(vimg);
           out.variants.push({
             skuId: String(rec.skuId || ''),
             options: opts,
             price: priceOf(rec),
             compareAtPrice: num(rec.skuOriginalPriceValue) || undefined,
-            stock: parseInt(rec.skuStock, 10) || 0
+            stock: parseInt(rec.skuStock, 10) || 0,
+            imageUrl: vimg || undefined
           });
         });
+        // Every distinct swatch belongs in the gallery too, after the main shots.
+        out.images = out.images.concat(uniq(variantImages));
 
         // These prices are in the VIEWER's currency, not USD. Getting this
         // wrong prices every variant against the wrong cost, so read it off
@@ -300,9 +351,23 @@ export function buildCaptureScript(endpoint: string, token: string): string {
   Array.prototype.forEach.call(document.querySelectorAll('video source, video'), function(v){
     var s = v.getAttribute('src'); if(s && out.videos.indexOf(abs(s)) < 0) out.videos.push(abs(s));
   });
+  /*
+   * The player usually boots with an empty src and resolves the file later, so
+   * reading the <video> element alone finds nothing. The real URL is sitting in
+   * the page source. [/] and [.] stand in for escaped characters on purpose:
+   * a backslash does not survive the template literal this script lives in.
+   */
+  try{
+    var found = document.documentElement.outerHTML.match(/https?:[/][/][^"' <>]+[.]mp4/g) || [];
+    found.forEach(function(u){ if(out.videos.indexOf(u) < 0) out.videos.push(u); });
+  }catch(e){}
 
-  out.images = out.images.filter(Boolean).slice(0, 20);
-  out.videos = out.videos.filter(Boolean).slice(0, 5);
+  out.title = cleanTitle(out.title);
+  if(out.supplierName) out.supplierName = cleanStore(out.supplierName);
+  // Deduplicate, and leave room for per-variant photos: a 16-colour listing
+  // legitimately carries more than the old cap of 20.
+  out.images = uniq(out.images.filter(Boolean)).slice(0, 60);
+  out.videos = uniq(out.videos.filter(Boolean)).slice(0, 8);
   out.reviews = out.reviews.slice(0, 40);
 
   if(!out.title){ note('Could not read this page. Is it a product page, fully loaded?', true); return; }

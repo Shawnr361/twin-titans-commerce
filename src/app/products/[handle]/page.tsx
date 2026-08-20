@@ -122,14 +122,22 @@ export default async function ProductPage({ params }: { params: Promise<{ handle
       </nav>
 
       <div className="shell grid gap-12 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16 lg:py-14">
-        <ProductGallery
-          images={product.images.map((i) => ({ url: i.url, alt: i.alt ?? product.title }))}
-          title={product.title}
-        />
+        <div className="min-w-0">
+          <ProductGallery
+            images={product.images.map((i) => ({ url: i.url, alt: i.alt ?? product.title }))}
+            title={product.title}
+          />
+        </div>
 
-        <div className="lg:sticky lg:top-28 lg:self-start">
-          {product.vendor && <p className="label mb-3">{product.vendor}</p>}
-          <h1 className="display-m">{product.title}</h1>
+        {/*
+          * min-w-0: a grid item defaults to min-width:auto and refuses to
+          * shrink below its content's min-content width. Supplier titles run
+          * past 140 characters, so this column was forced wide, pushed off
+          * the viewport, and took the page into horizontal scroll.
+          */}
+        <div className="min-w-0 lg:sticky lg:top-28 lg:self-start">
+          {product.vendor && <p className="label mb-3 break-words">{product.vendor}</p>}
+          <h1 className="display-m break-words hyphens-auto">{product.title}</h1>
           <hr className="rule-gold mt-6" />
 
           <div className="mt-8">

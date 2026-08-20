@@ -31,20 +31,41 @@ if grep -rq "localhost:3400" .next/server 2>/dev/null; then
 fi
 
 WT="$(mktemp -d)"
-cleanup() { git worktree remove --force "$WT" >/dev/null 2>&1 || true; rm -rf "$WT"; }
+# A throwaway local branch name per run: reusing a fixed one leaves a branch
+# behind after the worktree is torn down, and the next release collides with it.
+TMP_BRANCH="release-tmp-$$"
+cleanup() {
+  git worktree remove --force "$WT" >/dev/null 2>&1 || true
+  git branch -D "$TMP_BRANCH" >/dev/null 2>&1 || true
+  rm -rf "$WT"
+}
 trap cleanup EXIT
 
 # A detached worktree keeps the main checkout untouched throughout.
 git worktree add --detach "$WT" >/dev/null
 (
   cd "$WT"
-  git checkout -q --orphan deploy
+  git checkout -q --orphan "$TMP_BRANCH"
   git rm -rqf . >/dev/null 2>&1 || true
   cp -a "$REPO/.next" .next
+
+  # .next/cache is build-time only and enormous - the webpack server pack alone
+  # is ~59MB, past GitHub's file-size warning. The tarball deploys always
+  # excluded it; publishing it here was an oversight that bloats every release.
+  rm -rf .next/cache
+
+  # Nothing in a legitimate .next should approach this. If something does, it
+  # is almost certainly cache-like and should not be shipped.
+  BIG="$(find .next -type f -size +45M -print -quit)"
+  if [ -n "$BIG" ]; then
+    echo "FATAL: oversized file in artifact: $BIG" >&2
+    exit 1
+  fi
+
   git add -f .next
   git -c user.name="release" -c user.email="release@twintitanemporium.com" \
       commit -qm "build $BUILD_ID"
-  git push -qf origin deploy
+  git push -qf origin "HEAD:deploy"
 )
 echo "==> pushed build $BUILD_ID to origin/deploy"
 echo "    now run on the server:  bash ~/server-deploy.sh"
