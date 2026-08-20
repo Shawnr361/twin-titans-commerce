@@ -81,7 +81,18 @@ export async function POST(request: Request) {
     }
 
     // PayPal cannot process NGN at all, so the order is presented in USD.
+    /*
+     * getRate returns null for an unknown code rather than 1. Converting at 1.0
+     * would bill a ₦50,000 order as $50,000, and the <= 0 check below would not
+     * catch it because the number is large and positive.
+     */
     const usdRate = await getRate('USD');
+    if (usdRate == null || usdRate <= 0) {
+      return NextResponse.json(
+        { error: 'Could not convert your order total to USD. Please use card payment.' },
+        { status: 503 }
+      );
+    }
     const amountUsdMinor = convertMinor(order.totalMinor, settings.baseCurrency, 'USD', usdRate);
 
     if (amountUsdMinor <= 0) {

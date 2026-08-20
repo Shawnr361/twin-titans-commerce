@@ -95,12 +95,13 @@ export async function previewImport(
 
   for (const variant of product.variants) {
     const sourceTotal = variant.costMinor + perUnitShipping;
-    const { baseMinor, rateUsed } = await sourceCostToBase(
+    const { baseMinor, rateUsed, converted } = await sourceCostToBase(
       sourceTotal,
       product.currency,
       settings.baseCurrency
     );
-    fxRateUsed = rateUsed;
+    // A failed conversion reports rate 0; keep the last real rate for display.
+    if (converted) fxRateUsed = rateUsed;
 
     const result = computePrice(baseMinor, rules);
     pricing.push({
@@ -111,7 +112,12 @@ export async function previewImport(
       compareAtMinor: result.compareAtMinor,
       profitMinor: result.profitMinor,
       marginPct: result.marginPct,
-      warnings: result.warnings,
+      warnings: converted
+        ? result.warnings
+        : [
+            ...result.warnings,
+            `No exchange rate for ${product.currency} — landed cost could not be calculated. Add a rate in Settings, or enter the cost by hand.`,
+          ],
     });
   }
 

@@ -8,6 +8,7 @@ import { parseSupplierUrl, stripTracking } from '../src/lib/suppliers/parse';
 import { auditMargin, computePrice, gatewayFee, PAYSTACK_NG_FEES } from '../src/lib/pricing';
 import { DEFAULT_RULES } from '../src/lib/pricing';
 import { formatMoney, toMinor } from '../src/lib/money';
+import { getRate, sourceCostToBase } from '../src/lib/fx';
 
 let failures = 0;
 
@@ -150,7 +151,59 @@ check('healthy variant passes', healthy.severity, 'ok');
 const noCost = auditMargin(toMinor(9999, 'NGN'), 0, DEFAULT_RULES);
 assert('missing cost is never treated as healthy', noCost.ok === false);
 
-console.log(
-  `\n${failures === 0 ? '✓ ALL CHECKS PASSED' : `✗ ${failures} CHECK(S) FAILED`}\n`
-);
-process.exit(failures === 0 ? 0 : 1);
+// Top-level await is unavailable under the CJS transform, so the async FX
+// checks and the final summary run inside one IIFE.
+void (async () => {
+  console.log('');
+  console.log('── FX safety ───────────────────────────────────');
+
+  const sameCcy = await sourceCostToBase(toMinor(5000, 'NGN'), 'NGN', 'NGN');
+  check(
+    'same currency passes through at rate 1',
+    [sameCcy.baseMinor, sameCcy.converted],
+    [toMinor(5000, 'NGN'), true]
+  );
+
+  const usdCost = toMinor(12, 'USD');
+  const usdConv = await sourceCostToBase(usdCost, 'USD', 'NGN');
+  assert(
+    'known currency converts at a buy-side rate',
+    usdConv.converted && usdConv.rateUsed > 1400 && usdConv.rateUsed < 1700,
+    `rate ${usdConv.rateUsed.toFixed(2)} (mid 1500 + 3% buffer)`
+  );
+  assert(
+    'a USD cost lands materially higher in NGN',
+    usdConv.baseMinor > usdCost * 100,
+    formatMoney(usdConv.baseMinor, 'NGN')
+  );
+
+  /*
+   * The regression that matters: an unseeded currency used to return the cost
+   * unchanged at rate 1, so a supplier cost was read as though it were already
+   * naira and every variant priced below what it cost to buy.
+   */
+  const unseeded = await sourceCostToBase(usdCost, 'BRL', 'NGN');
+  assert('unseeded currency is refused, not passed through', unseeded.converted === false);
+  assert('refused conversion never echoes the source cost', unseeded.baseMinor !== usdCost);
+  check('refused conversion reports zero cost', unseeded.baseMinor, 0);
+  check('refused conversion reports no rate', unseeded.rateUsed, 0);
+
+  const unpriceable = computePrice(unseeded.baseMinor, DEFAULT_RULES);
+  assert(
+    'a refused cost cannot be verified as profitable',
+    unpriceable.warnings.length > 0,
+    unpriceable.warnings[0]
+  );
+
+  // 'XXX' is what the browser capture emits when it cannot identify the symbol.
+  const xxx = await sourceCostToBase(toMinor(9999, 'NGN'), 'XXX', 'NGN');
+  assert('the XXX unknown-currency marker is refused', xxx.converted === false);
+
+  check('getRate returns null for an unknown code', await getRate('ZZZ'), null);
+  assert('getRate still resolves a seeded code', (await getRate('USD')) !== null);
+
+  console.log(
+    `\n${failures === 0 ? '✓ ALL CHECKS PASSED' : `✗ ${failures} CHECK(S) FAILED`}\n`
+  );
+  process.exit(failures === 0 ? 0 : 1);
+})();

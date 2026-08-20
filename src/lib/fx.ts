@@ -34,9 +34,16 @@ export async function getRates(): Promise<Record<string, number>> {
   }
 }
 
-export async function getRate(code: string): Promise<number> {
+/**
+ * Look up a display rate, or null when the code is unknown.
+ *
+ * Returning 1 for an unknown currency silently asserts parity between two
+ * currencies, which is never true and is not a safe default: at 1.0 a ₦50,000
+ * order converts to $50,000. Callers must decide what to do instead.
+ */
+export async function getRate(code: string): Promise<number | null> {
   const rates = await getRates();
-  return rates[code.toUpperCase()] ?? 1;
+  return rates[code.toUpperCase()] ?? null;
 }
 
 /**
@@ -47,26 +54,50 @@ export async function getRate(code: string): Promise<number> {
  * to buy foreign currency is always worse than the mid-market rate you look up —
  * skipping this is how a 20% margin quietly becomes 12%.
  */
+export interface SourceCostConversion {
+  /** Landed cost in base currency. Zero when the rate was unavailable. */
+  baseMinor: number;
+  rateUsed: number;
+  /**
+   * False when no usable rate existed for `sourceCurrency`. The cost is then
+   * reported as zero rather than guessed, so downstream guardrails fire.
+   */
+  converted: boolean;
+}
+
 export async function sourceCostToBase(
   costMinor: number,
   sourceCurrency: string,
   baseCurrency: string,
   buyBufferPct = 3
-): Promise<{ baseMinor: number; rateUsed: number }> {
+): Promise<SourceCostConversion> {
   const src = sourceCurrency.toUpperCase();
   const base = baseCurrency.toUpperCase();
-  if (src === base) return { baseMinor: costMinor, rateUsed: 1 };
+  if (src === base) return { baseMinor: costMinor, rateUsed: 1, converted: true };
 
   const rates = await getRates();
   const targetPerBase = rates[src];
   if (!targetPerBase || targetPerBase <= 0) {
-    return { baseMinor: costMinor, rateUsed: 1 };
+    /*
+     * No rate for this currency. Passing the cost through unchanged — which is
+     * what this used to do — asserts that 1 unit of the supplier's currency
+     * equals 1 unit of ours, so a $12 cost becomes ₦12 and every variant is
+     * priced far below what it costs to buy. The browser capture can now report
+     * BRL, INR, TRY, PHP and others that have no seeded rate, so this path is
+     * reachable in normal use.
+     *
+     * Report zero instead. computePrice already treats a zero landed cost as
+     * "cannot verify profitability", and commit refuses to publish without a
+     * hand-entered cost, so the existing guardrails do the work.
+     */
+    return { baseMinor: 0, rateUsed: 0, converted: false };
   }
 
   const basePerTarget = (1 / targetPerBase) * (1 + buyBufferPct / 100);
   return {
     baseMinor: convertMinor(costMinor, src, base, basePerTarget),
     rateUsed: basePerTarget,
+    converted: true,
   };
 }
 
