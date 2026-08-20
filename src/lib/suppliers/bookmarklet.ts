@@ -159,6 +159,118 @@ export function buildCaptureScript(endpoint: string, token: string): string {
     }catch(e){}
   }
 
+  // --- AliExpress client-rendered PDP -----------------------------------
+  // Newer product pages render entirely client-side: runParams is an empty
+  // object, _d_c_.DCData holds only the gallery, and NOTHING is embedded in
+  // the HTML. The whole SKU matrix lives on a React prop named skuInstance,
+  // so reach it through the fiber that React leaves on the DOM node.
+  if(platform === 'ALIEXPRESS' && !out.variants.length){
+    try{
+      var fiberOf = function(el){
+        var ks = Object.keys(el);
+        for(var i = 0; i < ks.length; i++){
+          if(ks[i].indexOf('__reactFiber') === 0 || ks[i].indexOf('__reactInternalInstance') === 0) return el[ks[i]];
+        }
+        return null;
+      };
+      var si = null;
+      var pool = document.querySelectorAll('[class*="sku"]');
+      if(!pool.length) pool = document.querySelectorAll('div');
+      for(var pi = 0; pi < pool.length && !si; pi++){
+        var f = fiberOf(pool[pi]), hops = 0;
+        while(f && hops < 40){
+          if(f.memoizedProps && f.memoizedProps.skuInstance){ si = f.memoizedProps.skuInstance; break; }
+          f = f.return; hops++;
+        }
+      }
+
+      var sd = si && si.data;
+      if(sd && sd.info){
+        // propertyId -> { name, vals: { valueId: label } }
+        var props = {};
+        (sd.ids || []).forEach(function(pid){
+          var p = sd[pid];
+          if(!p) return;
+          var vals = {};
+          (p.ids || []).forEach(function(vid){ if(p[vid]) vals[vid] = p[vid].name; });
+          props[pid] = { name: p.name, vals: vals };
+        });
+
+        // "NGN 12,345.67" and "R$ 1.234,56" both defeat naive parsing, so use
+        // the pre-split local form when present: "<display>|<int>|<fraction>".
+        var priceOf = function(rec){
+          var loc = rec.skuCurrentPriceLocal;
+          if(loc && String(loc).indexOf('|') > -1){
+            var a = String(loc).split('|');
+            var n = parseFloat(a[1] + '.' + (a[2] || '0'));
+            if(isFinite(n)) return n;
+          }
+          return num(String(rec.skuCurrentPrice || '').replace(/,/g, ''));
+        };
+
+        Object.keys(sd.info).forEach(function(key){
+          var rec = sd.info[key], opts = {};
+          key.split(',').forEach(function(vid){
+            for(var pid in props){
+              if(props[pid].vals[vid] !== undefined) opts[props[pid].name] = props[pid].vals[vid];
+            }
+          });
+          out.variants.push({
+            skuId: String(rec.skuId || ''),
+            options: opts,
+            price: priceOf(rec),
+            compareAtPrice: num(rec.skuOriginalPriceValue) || undefined,
+            stock: parseInt(rec.skuStock, 10) || 0
+          });
+        });
+
+        // These prices are in the VIEWER's currency, not USD. Getting this
+        // wrong prices every variant against the wrong cost, so read it off
+        // the rendered string rather than assuming.
+        var sample = sd.info[Object.keys(sd.info)[0]] || {};
+        var shown = String(sample.skuCurrentPrice || '');
+        var code = shown.match(/[A-Z]{3}/);
+        if(code){ out.currency = code[0]; }
+        else {
+          // Longest symbol first: 'R$' must beat '$', or a real is costed
+          // as a dollar and every variant prices below cost.
+          var SYM = { 'R$':'BRL', 'US$':'USD', 'A$':'AUD', 'C$':'CAD', 'NZ$':'NZD',
+                      'HK$':'HKD', 'NT$':'TWD', 'S$':'SGD', 'MX$':'MXN',
+                      '₦':'NGN', '$':'USD', '€':'EUR', '£':'GBP', '₽':'RUB',
+                      '₹':'INR', '¥':'CNY', '₩':'KRW', '₺':'TRY', '₪':'ILS',
+                      '₫':'VND', '฿':'THB', '₱':'PHP' };
+          var sym = shown.replace(/[0-9.,]/g, '').trim();
+          var syms = Object.keys(SYM).sort(function(a, b){ return b.length - a.length; });
+          var matched = '';
+          for(var ki = 0; ki < syms.length; ki++){
+            if(sym.indexOf(syms[ki]) > -1){ matched = SYM[syms[ki]]; break; }
+          }
+          // Never silently claim USD. XXX is the ISO code for "no currency",
+          // so an unrecognised symbol travels as an explicit unknown and the
+          // raw text below records what was actually on the page.
+          // raw.priceSample below preserves the exact string either way.
+          out.currency = matched || 'XXX';
+        }
+        out.raw = { shape: 'skuInstance', priceSample: shown, propertyOrder: sd.ids || [] };
+      }
+    }catch(e){}
+
+    // The gallery for this layout lives in the image component's cache.
+    try{
+      var dcd = window._d_c_ && window._d_c_.DCData;
+      var ipl = dcd && (dcd.imagePathList || dcd.summImagePathList);
+      if(ipl && ipl.length && !out.images.length) out.images = ipl.map(bigImage);
+    }catch(e){}
+
+    // Store name, when the layout renders a store link.
+    try{
+      if(!out.supplierName){
+        var sl = document.querySelector('a[href*="/store/"]');
+        if(sl) out.supplierName = sl.textContent.trim().replace(/^Sold By/i, '').slice(0, 80);
+      }
+    }catch(e){}
+  }
+
   // --- Alibaba / 1688 / anything else: JSON-LD + og fallback -------------
   if(!out.title){
     var ld = document.querySelector('script[type="application/ld+json"]');
