@@ -3,6 +3,9 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { prisma } from './db';
 
+/** A real bcrypt hash at the same cost factor, used only to equalise timing. */
+const DUMMY_HASH = '$2a$12$xzR2b2x6X7EvXTMV2p.WfuKdz72SgZOxMjL8GlDG8ANDkkgO3fmAO';
+
 const COOKIE = 'tt_admin';
 const MAX_AGE_SECONDS = 60 * 60 * 12;
 
@@ -100,9 +103,16 @@ export class UnauthorizedError extends Error {
 export async function authenticate(email: string, password: string): Promise<AdminSession | null> {
   const user = await prisma.adminUser.findUnique({ where: { email: email.toLowerCase().trim() } });
   if (!user) {
-    // Constant-ish work whether or not the account exists, so a timing
-    // difference does not reveal which emails are registered.
-    await bcrypt.compare(password, '$2a$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinv');
+    /*
+     * Burn the same CPU as a real check so that "no such user" and "wrong
+     * password" take indistinguishable time — otherwise the response time
+     * itself reveals which emails have accounts.
+     *
+     * This must be a VALID bcrypt hash. bcryptjs returns false immediately for
+     * a malformed one, doing no work at all, which silently defeats the whole
+     * point of this line.
+     */
+    bcrypt.compareSync(password, DUMMY_HASH);
     return null;
   }
   const ok = await verifyPassword(password, user.passwordHash);

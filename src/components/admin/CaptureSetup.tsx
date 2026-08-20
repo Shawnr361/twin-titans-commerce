@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { IconCheck, IconSpark } from '@/components/icons';
 
 /**
@@ -12,6 +12,19 @@ import { IconCheck, IconSpark } from '@/components/icons';
  */
 export function CaptureSetup({ href }: { href: string }) {
   const [copied, setCopied] = useState(false);
+  const anchorRef = useRef<HTMLAnchorElement>(null);
+
+  /*
+   * React refuses to render a `javascript:` href — it sanitises the attribute
+   * and, in React 19, throws while rendering. That crashed this entire page.
+   *
+   * A bookmarklet is a javascript: URL by definition, so the attribute is set
+   * directly on the DOM node after mount, which React does not police. The
+   * anchor is inert until then, and clicking it never navigates anyway.
+   */
+  useEffect(() => {
+    if (anchorRef.current && href) anchorRef.current.setAttribute('href', href);
+  }, [href]);
 
   const copy = async () => {
     try {
@@ -49,9 +62,10 @@ export function CaptureSetup({ href }: { href: string }) {
           <span className="text-label shrink-0 text-gold">02</span>
           <span className="flex flex-wrap items-center gap-3">
             Drag this button onto it:
+            {/* href is attached in an effect — see the note above. */}
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a
-              href={href}
+              ref={anchorRef}
               onClick={(e) => e.preventDefault()}
               draggable
               className="btn btn-primary cursor-grab px-5 py-2.5 active:cursor-grabbing"
