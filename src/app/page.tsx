@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ProductCard } from '@/components/commerce/ProductCard';
 import { SectionHead } from '@/components/layout/SectionHead';
+import { HeroCarousel } from '@/components/home/HeroCarousel';
 import { Reveal } from '@/components/motion/Reveal';
 import { Parallax } from '@/components/motion/Parallax';
 import { Magnetic } from '@/components/motion/Magnetic';
@@ -31,6 +32,16 @@ export default async function HomePage() {
 
     prisma.product.count({ where: { status: 'ACTIVE' } }).catch(() => 0),
   ]);
+
+  /*
+   * One slide per product, first image only. Products with no image are
+   * skipped rather than shown as a gap, and the list is capped so the hero
+   * stays a taste of the catalogue rather than all of it.
+   */
+  const heroSlides = newest
+    .filter((p) => p.images?.[0]?.url)
+    .slice(0, 6)
+    .map((p) => ({ handle: p.handle, title: p.title, url: p.images[0].url }));
 
   const hasStock = newest.length > 0;
 
@@ -74,14 +85,8 @@ export default async function HomePage() {
           <Reveal>
             <Parallax className="aspect-editorial md:aspect-product" strength={12}>
               <div className="media h-full">
-                {newest[0]?.images?.[0]?.url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={newest[0].images[0].url}
-                    alt={newest[0].title}
-                    fetchPriority="high"
-                    loading="eager"
-                  />
+                {heroSlides.length > 0 ? (
+                  <HeroCarousel slides={heroSlides} />
                 ) : (
                   <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
                     <hr className="rule-gold" />
