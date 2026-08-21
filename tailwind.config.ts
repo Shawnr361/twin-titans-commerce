@@ -102,7 +102,9 @@ const config: Config = {
         5: 'var(--dur-5)',
       },
       aspectRatio: {
-        product: '4 / 5',
+        // Supplier photography is square. A 4:5 frame cropped the sides off
+        // every listing image - which is why pack shots lost their own labels.
+        product: '1 / 1',
         editorial: '3 / 2',
       },
     },

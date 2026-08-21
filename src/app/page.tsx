@@ -17,7 +17,9 @@ export const dynamic = 'force-dynamic';
 export default async function HomePage() {
   const settings = await getStoreSettings();
 
-  const [newest, collections, productCount] = await Promise.all([
+  // The departments strip is gone, so the collection query goes with it rather
+  // than running on every homepage render for nothing.
+  const [newest, productCount] = await Promise.all([
     prisma.product
       .findMany({
         where: { status: 'ACTIVE' },
@@ -26,19 +28,7 @@ export default async function HomePage() {
         select: CARD_SELECT,
       })
       .catch(() => []),
-    prisma.collection
-      .findMany({
-        where: { published: true },
-        orderBy: { position: 'asc' },
-        take: 3,
-        select: {
-          handle: true,
-          title: true,
-          imageUrl: true,
-          _count: { select: { products: true } },
-        },
-      })
-      .catch(() => []),
+
     prisma.product.count({ where: { status: 'ACTIVE' } }).catch(() => 0),
   ]);
 
@@ -106,42 +96,6 @@ export default async function HomePage() {
           </Reveal>
         </div>
       </Spotlight>
-
-      {/* ---------------------------------------------------------------
-          Departments
-          --------------------------------------------------------------- */}
-      {collections.length > 0 && (
-        <section className="shell py-20 md:py-28">
-          <Reveal>
-            <SectionHead eyebrow="Departments" title="Where to begin" />
-          </Reveal>
-
-          <Reveal stagger className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {collections.map((c, i) => (
-              <div key={c.handle} style={{ '--i': i } as React.CSSProperties}>
-                <Link href={`/collections/${c.handle}`} className="group block">
-                  <div className="media media-hover sheen aspect-editorial">
-                    {c.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={c.imageUrl} alt="" loading="lazy" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center">
-                        <span className="font-display text-d2 text-quiet">{c.title}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-5 flex items-baseline justify-between gap-4">
-                    <h3 className="font-display text-d2 text-onyx transition-colors duration-2 group-hover:text-verdigris">
-                      {c.title}
-                    </h3>
-                    <span className="text-label text-quiet tabular-nums">{c._count.products}</span>
-                  </div>
-                </Link>
-              </div>
-            ))}
-          </Reveal>
-        </section>
-      )}
 
       {/* ---------------------------------------------------------------
           New arrivals

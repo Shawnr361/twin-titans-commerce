@@ -94,6 +94,28 @@ export default async function ProductPage({
    * the handful of catalogue shots leaves the shopper unable to see the one
    * they are actually buying. Product images lead so the hero stays the hero.
    */
+  /*
+   * Specification, built only from what the supplier listing actually stated
+   * for this exact item. Most dropship pages either paste unreadable supplier
+   * copy or invent specifications outright; the point of difference here is
+   * that a figure appears only when it was captured, and is otherwise absent.
+   */
+  const specification = (() => {
+    const byName = new Map<string, Set<string>>();
+    for (const variant of product.variants) {
+      const values = (variant.optionValues ?? {}) as Record<string, string>;
+      for (const [name, value] of Object.entries(values)) {
+        if (!name || !value) continue;
+        if (!byName.has(name)) byName.set(name, new Set());
+        byName.get(name)!.add(value);
+      }
+    }
+    return Array.from(byName.entries()).map(([name, values]) => ({
+      name,
+      values: Array.from(values),
+    }));
+  })();
+
   const galleryImages = (() => {
     const seen = new Set<string>();
     const out: { url: string; alt: string }[] = [];
@@ -256,6 +278,41 @@ export default async function ProductPage({
                 className="prose-measure mt-10 space-y-4 text-body text-greige [&_h2]:font-display [&_h2]:text-d2 [&_h2]:text-onyx [&_li]:ml-5 [&_li]:list-disc [&_strong]:text-onyx [&_ul]:space-y-2"
                 dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}
               />
+            )}
+
+            {specification.length > 0 && (
+              <section className="mt-12">
+                <h2 className="font-display text-d2 text-onyx">Specification</h2>
+                <dl className="mt-5 divide-y divide-rule border-y border-rule">
+                  {specification.map((spec) => (
+                    <div key={spec.name} className="flex gap-5 py-4">
+                      <dt className="label w-28 shrink-0 pt-0.5">{spec.name}</dt>
+                      <dd className="min-w-0 text-body text-greige">
+                        {spec.values.join('  ·  ')}
+                      </dd>
+                    </div>
+                  ))}
+                  <div className="flex gap-5 py-4">
+                    <dt className="label w-28 shrink-0 pt-0.5">Choices</dt>
+                    <dd className="min-w-0 text-body text-greige">
+                      {product.variants.length}{' '}
+                      {product.variants.length === 1 ? 'option' : 'options'} available
+                    </dd>
+                  </div>
+                  {product.vendor && (
+                    <div className="flex gap-5 py-4">
+                      <dt className="label w-28 shrink-0 pt-0.5">Supplier</dt>
+                      <dd className="min-w-0 break-words text-body text-greige">
+                        {product.vendor}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+                <p className="mt-4 max-w-text text-micro text-quiet">
+                  Read from the supplier&rsquo;s own listing for this exact item. Anything
+                  they did not state, we leave out rather than guess at.
+                </p>
+              </section>
             )}
           </div>
         </div>
