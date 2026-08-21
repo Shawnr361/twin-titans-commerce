@@ -369,8 +369,9 @@ export function buildCaptureScript(endpoint: string, token: string): string {
      * quietly pricing delivery at nothing.
      */
     try{
-      var lines = (document.body.innerText || '').split('
-');
+      // String.fromCharCode(10) rather than an escape: a backslash does not
+      // survive the template literal this script is embedded in.
+      var lines = (document.body.innerText || '').split(String.fromCharCode(10));
       for(var li = 0; li < lines.length; li++){
         var t = lines[li].trim().toLowerCase();
         if(t.indexOf('free shipping') === 0 && t.indexOf('over') < 0 && t.indexOf('add') < 0){

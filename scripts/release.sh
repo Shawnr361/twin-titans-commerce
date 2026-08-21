@@ -13,6 +13,11 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
+# The bookmarklet is a string inside a template literal, so nothing type-checks
+# its contents. Prove it still parses before it can reach a build.
+echo "==> verifying capture bookmarklet"
+npx tsx scripts/emit-bookmarklet.ts
+
 echo "==> building"
 CHECKPOINT_DISABLE=1 npx next build
 
