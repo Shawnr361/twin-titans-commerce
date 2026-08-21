@@ -1,5 +1,6 @@
 import { prisma } from '../db';
 import { sourceCostToBase } from '../fx';
+import { isMarketplaceName } from '../vendor';
 import { computePrice, type PricingRules } from '../pricing';
 import { getPricingRules, getStoreSettings } from '../settings';
 import { adapterFor, genericAdapter } from './adapters';
@@ -184,8 +185,15 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
 
   const handle = await uniqueHandle(input.handle ? slugify(input.handle) : slugify(title));
 
+  /*
+   * Two different things share this name. The Supplier record is internal and
+   * wants the platform in it, because that is what we need to reorder from.
+   * Product.vendor is customer-facing and must not read "ALIEXPRESS supplier" —
+   * that tells a shopper where we buy rather than who makes it.
+   */
   const supplierName =
     input.supplierName?.trim() || p.supplierName?.trim() || `${p.platform} supplier`;
+  const customerFacingVendor = isMarketplaceName(supplierName) ? null : supplierName;
 
   const supplier = await findOrCreateSupplier(supplierName, p.platform, p.supplierStoreUrl);
 
@@ -197,7 +205,7 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
       status: 'DRAFT', // never auto-publish an import
       productType: input.productType,
       tags: input.tags ?? [],
-      vendor: supplierName,
+      vendor: customerFacingVendor,
       images: {
         create: p.images.map((url, i) => ({ url, position: i, alt: title })),
       },

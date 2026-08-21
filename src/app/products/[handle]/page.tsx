@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProductGallery } from "@/components/commerce/ProductGallery";
 import { VariantMediaProvider } from "@/components/commerce/VariantMediaContext";
+import { displayVendor, isMarketplaceName } from "@/lib/vendor";
 import { AddToCart } from "@/components/commerce/AddToCart";
 import { ProductCard } from "@/components/commerce/ProductCard";
 import { SectionHead } from "@/components/layout/SectionHead";
@@ -147,7 +148,7 @@ export default async function ProductPage({
     description: product.seoDescription ?? undefined,
     image: product.images.map((i) => i.url).slice(0, 6),
     sku: product.variants[0]?.sku ?? undefined,
-    brand: product.vendor
+    brand: !isMarketplaceName(product.vendor)
       ? { "@type": "Brand", name: product.vendor }
       : undefined,
     offers: {
@@ -203,9 +204,7 @@ export default async function ProductPage({
            * the viewport, and took the page into horizontal scroll.
            */}
           <div className="min-w-0 lg:sticky lg:top-28 lg:self-start">
-            {product.vendor && (
-              <p className="label mb-3 break-words">{product.vendor}</p>
-            )}
+            <p className="label mb-3 break-words">{displayVendor(product.vendor)}</p>
             <h1 className="display-m break-words hyphens-auto">
               {product.title}
             </h1>
@@ -299,14 +298,12 @@ export default async function ProductPage({
                       {product.variants.length === 1 ? 'option' : 'options'} available
                     </dd>
                   </div>
-                  {product.vendor && (
-                    <div className="flex gap-5 py-4">
-                      <dt className="label w-28 shrink-0 pt-0.5">Supplier</dt>
-                      <dd className="min-w-0 break-words text-body text-greige">
-                        {product.vendor}
-                      </dd>
-                    </div>
-                  )}
+                  <div className="flex gap-5 py-4">
+                    <dt className="label w-28 shrink-0 pt-0.5">Supplier</dt>
+                    <dd className="min-w-0 break-words text-body text-greige">
+                      {displayVendor(product.vendor)}
+                    </dd>
+                  </div>
                 </dl>
                 <p className="mt-4 max-w-text text-micro text-quiet">
                   Read from the supplier&rsquo;s own listing for this exact item. Anything

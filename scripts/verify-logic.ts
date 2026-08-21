@@ -10,6 +10,7 @@ import { DEFAULT_RULES } from '../src/lib/pricing';
 import { formatMoney, toMinor } from '../src/lib/money';
 import { getRate, sourceCostToBase } from '../src/lib/fx';
 import { assessCapture } from '../src/lib/suppliers/capture';
+import { displayVendor } from '../src/lib/vendor';
 
 let failures = 0;
 
@@ -157,6 +158,21 @@ assert('missing cost is never treated as healthy', noCost.ok === false);
 void (async () => {
   console.log('');
   console.log('');
+  console.log('');
+  console.log('── Vendor display ────────────────────────────');
+
+  // The marketplace is not the vendor, and must never reach the storefront.
+  check('platform fallback is hidden', displayVendor('ALIEXPRESS supplier'), 'Trusted supplier');
+  check('a marketplace name is hidden', displayVendor('AliExpress'), 'Trusted supplier');
+  check('1688 is hidden', displayVendor('1688 supplier'), 'Trusted supplier');
+  check('a missing vendor falls back', displayVendor(''), 'Trusted supplier');
+  check('a null vendor falls back', displayVendor(null), 'Trusted supplier');
+  // An auto-generated shop handle is a name only in the technical sense.
+  check('a generated shop handle is hidden', displayVendor('Shop1105057416 Store'), 'Trusted supplier');
+  // A real store name is genuine information and is kept.
+  check('a real store name survives', displayVendor('DAZZLEEX Store'), 'DAZZLEEX Store');
+  check('a second real name survives', displayVendor('Ingemark Official Store'), 'Ingemark Official Store');
+
   console.log('── Capture quality ────────────────────────────');
 
   const captureBase = {

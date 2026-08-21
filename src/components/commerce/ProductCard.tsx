@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { TiltCard } from '@/components/motion/TiltCard';
 import { Price } from './Price';
+import { displayVendor } from '@/lib/vendor';
 
 export interface ProductCardData {
   handle: string;
@@ -78,7 +79,9 @@ export function ProductCard({
         </TiltCard>
 
         <div className="mt-5 space-y-1.5">
-          {product.vendor && <p className="text-micro uppercase tracking-label text-quiet">{product.vendor}</p>}
+          <p className="text-micro uppercase tracking-label text-quiet">
+            {displayVendor(product.vendor)}
+          </p>
 
           <h3 className="font-sans text-body font-medium leading-snug text-onyx">
             {product.title}
