@@ -172,24 +172,26 @@ void (async () => {
 
   // A near-permanent countdown sale is the normal state of these listings, so
   // pricing against the discounted figure must be called out, not assumed safe.
+  // Cost is the regular price; the sale price rides along as promoPrice.
   const onPromo = assessCapture({
     ...captureBase,
-    variants: [{ options: {}, price: 2605, compareAtPrice: 5316 }],
+    variants: [{ options: {}, price: 5316, promoPrice: 2605 }],
   });
   assert(
-    'a promotional supplier cost is flagged',
-    onPromo.problems.some((p) => p.includes('promotion'))
+    'a deep discount today is surfaced',
+    onPromo.problems.some((p) => p.includes('discounted today'))
   );
-  assert('a promotional cost is still importable', onPromo.ok === true);
+  assert('a discounted listing is still importable', onPromo.ok === true);
+  check('cost is the regular price, not the sale price', onPromo.pricedVariantCount, 1);
 
   // An ordinary markdown must not cry wolf.
   const mildDiscount = assessCapture({
     ...captureBase,
-    variants: [{ options: {}, price: 900, compareAtPrice: 1000 }],
+    variants: [{ options: {}, price: 1000, promoPrice: 900 }],
   });
   assert(
-    'an ordinary markdown is not flagged as promotional',
-    !mildDiscount.problems.some((p) => p.includes('promotion'))
+    'an ordinary markdown is not called out',
+    !mildDiscount.problems.some((p) => p.includes('discounted today'))
   );
 
   const noPrices = assessCapture({ ...captureBase, variants: [{ options: {}, price: 0 }] });

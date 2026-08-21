@@ -298,11 +298,23 @@ export function buildCaptureScript(endpoint: string, token: string): string {
           if(sd.ids && sd.ids.length && !Object.keys(opts).length) return;
 
           if(vimg) variantImages.push(vimg);
+
+          /*
+           * Cost is the regular price, not the countdown-sale one. These
+           * listings are on "sale" almost permanently, so costing at today's
+           * figure prices the whole catalogue against a number that expires -
+           * a 45% margin becomes 27% the week the timer runs out. The sale
+           * price travels alongside as promoPrice, for information.
+           */
+          var promoPrice = priceOf(rec);
+          var listPrice = num(rec.skuOriginalPriceValue) || promoPrice;
+          var cost = listPrice > promoPrice ? listPrice : promoPrice;
+
           out.variants.push({
             skuId: String(rec.skuId || ''),
             options: opts,
-            price: priceOf(rec),
-            compareAtPrice: num(rec.skuOriginalPriceValue) || undefined,
+            price: cost,
+            promoPrice: promoPrice < cost ? promoPrice : undefined,
             stock: parseInt(rec.skuStock, 10) || 0,
             imageUrl: vimg || undefined
           });

@@ -25,8 +25,15 @@ export const capturedVariantSchema = z.object({
   skuId: z.string().optional(),
   /** e.g. { Colour: "White", Plug: "EU" } */
   options: z.record(z.string(), z.string()).default({}),
-  /** Price in the SUPPLIER's currency, as a decimal number. */
+  /**
+   * Cost basis in the SUPPLIER's currency: the price we must assume we will pay
+   * on the reorder. That is the regular price, NOT a countdown-sale figure —
+   * these listings are discounted almost permanently, so costing at the
+   * promotional number prices the catalogue against something that expires.
+   */
   price: z.number().nonnegative(),
+  /** What the supplier is charging today, when it is below `price`. */
+  promoPrice: z.number().nonnegative().optional(),
   /** Strike-through price, when the listing shows one. */
   compareAtPrice: z.number().nonnegative().optional(),
   stock: z.number().int().nonnegative().optional(),
@@ -109,21 +116,18 @@ export function assessCapture(c: CapturedProduct): CaptureQuality {
     );
   }
   /*
-   * A supplier sale price is what we would pay today, not what we will pay on
-   * the reorder. Pricing retail against a promotional cost is how a healthy
-   * margin quietly turns into a loss the week the promotion ends — and these
-   * listings run near-permanent countdown sales, so it is the normal case, not
-   * an edge one.
+   * Costs are taken at the regular price, so a promotion does not put the
+   * margin at risk. It is still worth surfacing: it tells the merchant the
+   * product is cheaper to buy today than the pricing assumes, which is a
+   * stocking decision rather than a problem.
    */
-  const promo = priced.filter(
-    (v) => v.compareAtPrice != null && v.compareAtPrice > v.price * 1.3
-  );
+  const promo = priced.filter((v) => v.promoPrice != null && v.promoPrice < v.price * 0.7);
   if (promo.length > 0) {
     const deepest = Math.max(
-      ...promo.map((v) => Math.round((1 - v.price / (v.compareAtPrice as number)) * 100))
+      ...promo.map((v) => Math.round((1 - (v.promoPrice as number) / v.price) * 100))
     );
     problems.push(
-      `${promo.length} of ${priced.length} priced variant(s) are on a supplier promotion, up to ${deepest}% off. That discounted figure is the cost being priced against — confirm it still holds when you reorder.`
+      `${promo.length} of ${priced.length} priced variant(s) are discounted today, up to ${deepest}% off. Costs use the regular price, so margins hold when the sale ends — buying now simply costs less than budgeted.`
     );
   }
 
