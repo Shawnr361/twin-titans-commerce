@@ -361,6 +361,31 @@ export function buildCaptureScript(endpoint: string, token: string): string {
       out.images = uniq(pool.map(normUrl).filter(isProductImage)).concat(out.images);
     }catch(e){}
 
+    /*
+     * Shipping. The freight module the old layout exposed is gone, and what
+     * replaced it is conditional: "Free shipping over N" means this item on its
+     * own is NOT free. Only an unconditional "Free shipping" can be stated as
+     * zero. Anything else is left unset, and the importer asks rather than
+     * quietly pricing delivery at nothing.
+     */
+    try{
+      var lines = (document.body.innerText || '').split('
+');
+      for(var li = 0; li < lines.length; li++){
+        var t = lines[li].trim().toLowerCase();
+        if(t.indexOf('free shipping') === 0 && t.indexOf('over') < 0 && t.indexOf('add') < 0){
+          out.shippingCost = 0;
+          break;
+        }
+      }
+      for(var lj = 0; lj < lines.length; lj++){
+        if(lines[lj].indexOf('Delivery:') > -1){
+          out.deliveryEstimate = lines[lj].split('Delivery:')[1].trim().slice(0, 80);
+          break;
+        }
+      }
+    }catch(e){}
+
     // Store name, when the layout renders a store link.
     try{
       if(!out.supplierName){

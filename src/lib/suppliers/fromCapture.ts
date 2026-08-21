@@ -83,6 +83,13 @@ export async function previewFromCapture(
   };
 
   const perUnitShipping = product.shippingCostMinor;
+  /*
+   * undefined and 0 mean very different things here. Zero is "the supplier
+   * states this ships free"; undefined is "we could not read it". Collapsing
+   * them prices delivery at nothing and overstates every margin on the
+   * product, which is the exact bug the landed-cost model exists to prevent.
+   */
+  const shippingUnknown = captured.shippingCost == null;
   let fxRateUsed = 1;
   const pricing: PreviewResult['pricing'] = [];
 
@@ -119,6 +126,11 @@ export async function previewFromCapture(
             ]),
         ...(variant.costMinor === 0
           ? ['No price captured for this option — enter the cost by hand.']
+          : []),
+        ...(shippingUnknown
+          ? [
+              'Supplier delivery was not stated as free and could not be read — this landed cost excludes shipping. Confirm it before publishing.',
+            ]
           : []),
       ],
     });
