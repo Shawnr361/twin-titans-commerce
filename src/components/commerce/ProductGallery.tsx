@@ -108,11 +108,18 @@ export function ProductGallery({
   const current = items[Math.min(active, items.length - 1)];
 
   return (
-    <div className="lg:flex lg:gap-5">
+    <div className="lg:flex lg:items-start lg:gap-5">
       {/* Thumbnail rail — desktop only */}
       {items.length > 1 && (
         <div
-          className="hidden w-20 shrink-0 flex-col gap-3 lg:flex"
+          /*
+           * Capped and scrollable. A listing with 21 thumbnails made this
+           * column 1920px tall, and since the frame sits beside it the frame
+           * inherited that height — which is what left the picture floating in
+           * a placeholder several times its size. The rail scrolls now instead
+           * of setting the height of the whole row.
+           */
+          className="hidden max-h-[70vh] w-20 shrink-0 flex-col gap-3 overflow-y-auto lg:flex"
           role="tablist"
           aria-label="Product images"
         >
@@ -159,7 +166,7 @@ export function ProductGallery({
         onMouseDown={current.kind === 'image' ? () => setZooming(true) : undefined}
         onMouseUp={() => setZooming(false)}
         onMouseLeave={() => setZooming(false)}
-        className={`relative hidden min-h-[320px] flex-1 items-center justify-center overflow-hidden bg-bone2 lg:flex ${
+        className={`relative hidden max-h-[70vh] min-h-[320px] flex-1 items-center justify-center overflow-hidden bg-bone2 lg:flex ${
           current.kind === 'image' ? (zooming ? 'cursor-zoom-out' : 'cursor-zoom-in') : ''
         }`}
       >
