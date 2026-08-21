@@ -1,4 +1,14 @@
 /*
+ * NOTE: on the Go54 host this script cannot run. Node aborts at startup with
+ * `uv_thread_create` failing, because its worker threads count against the
+ * account's LVE process cap. Use the admin route instead, which does the same
+ * work inside the already-running Passenger worker:
+ *
+ *   POST /api/admin/categorise  { "apply": false }   // report only
+ *   POST /api/admin/categorise  { "apply": true }    // file them
+ *
+ * This script is kept for local use, where spawning a process works.
+ *
  * File already-imported products into collections.
  *
  * Auto-categorisation runs at import from now on, but everything imported

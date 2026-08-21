@@ -145,13 +145,21 @@ export function ProductGallery({
       )}
 
       {/* Main frame — desktop */}
+      {/*
+        * No fixed aspect on the frame, and deliberately not .media — that class
+        * stretches its image to width:100%;height:100%, so a square frame turns
+        * a wide banner into a thin strip floating in dead space. Supplier
+        * galleries mix square pack shots, tall spec panels and wide banners, so
+        * the frame takes the shape of whatever it is showing and is bounded by
+        * a max height instead. Automatic for every product, now and later.
+        */}
       <div
         ref={frameRef}
         onMouseMove={current.kind === 'image' ? onMove : undefined}
         onMouseDown={current.kind === 'image' ? () => setZooming(true) : undefined}
         onMouseUp={() => setZooming(false)}
         onMouseLeave={() => setZooming(false)}
-        className={`media aspect-product hidden flex-1 bg-bone2 lg:block ${
+        className={`relative hidden min-h-[320px] flex-1 items-center justify-center overflow-hidden bg-bone2 lg:flex ${
           current.kind === 'image' ? (zooming ? 'cursor-zoom-out' : 'cursor-zoom-in') : ''
         }`}
       >
@@ -162,7 +170,7 @@ export function ProductGallery({
             controls
             playsInline
             preload="metadata"
-            className="h-full w-full !object-contain"
+            className="max-h-[70vh] w-auto max-w-full"
           />
         ) : (
           <>
@@ -178,7 +186,9 @@ export function ProductGallery({
               src={current.url}
               alt={current.alt || title}
               fetchPriority="high"
-              className={`!object-contain ${zooming ? 'scale-[2.1]' : ''}`}
+              className={`max-h-[70vh] w-auto max-w-full object-contain transition-transform duration-5 ${
+                zooming ? 'scale-[2.1]' : ''
+              }`}
               style={zooming ? { transformOrigin: 'var(--zx, 50%) var(--zy, 50%)' } : undefined}
             />
             {!zooming && (
@@ -200,7 +210,7 @@ export function ProductGallery({
           {items.map((item, i) => (
             <div
               key={item.url + i}
-              className="media aspect-product w-full shrink-0 snap-center bg-bone2"
+              className="media aspect-[4/3] w-full shrink-0 snap-center bg-bone2"
             >
               {item.kind === 'video' ? (
                 <video
