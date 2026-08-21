@@ -38,7 +38,9 @@ export function ProductGallery({
    * clips follow.
    */
   const items: GalleryItem[] = [
-    ...images.map((i) => ({ kind: 'image' as const, url: i.url, alt: i.alt })),
+    ...images
+      .filter((i) => !tooSmall.has(i.url))
+      .map((i) => ({ kind: 'image' as const, url: i.url, alt: i.alt })),
     ...videos.map((url) => ({ kind: 'video' as const, url, alt: title })),
   ];
   const [active, setActive] = useState(0);
@@ -46,6 +48,20 @@ export function ProductGallery({
   const frameRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const { activeUrl } = useVariantMedia();
+  /*
+   * Supplier galleries occasionally include a UI icon among the product shots —
+   * one 48x48 sprite came through on the neck fan and rendered as a speck in an
+   * otherwise empty frame. Size is only knowable once the browser has loaded
+   * the file, so anything that turns out to be tiny is dropped on load. Applies
+   * to every product already imported, without re-capturing any of them.
+   */
+  const [tooSmall, setTooSmall] = useState<Set<string>>(new Set());
+  const noteIfTiny = (url: string) => (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = event.currentTarget;
+    if (img.naturalWidth > 0 && img.naturalWidth < 200 && img.naturalHeight < 200) {
+      setTooSmall((prev) => (prev.has(url) ? prev : new Set(prev).add(url)));
+    }
+  };
 
   /*
    * Choosing a colour moves the gallery to that colour's photo, the way the
@@ -144,7 +160,7 @@ export function ProductGallery({
                 </span>
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.url} alt="" loading="lazy" />
+                <img src={item.url} alt="" loading="lazy" onLoad={noteIfTiny(item.url)} />
               )}
             </button>
           ))}
