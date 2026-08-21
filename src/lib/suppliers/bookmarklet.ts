@@ -354,6 +354,52 @@ export function buildCaptureScript(endpoint: string, token: string): string {
     }catch(e){}
 
     /*
+     * Single-SKU listings render no option picker at all, so there is no
+     * skuInstance anywhere in the tree and the capture came back with zero
+     * variants — the quality gate then rejected a product that was perfectly
+     * good, just optionless. A cabbage slicer with 10,000+ sold and 2,553
+     * reviews failed exactly this way. The price header still carries both
+     * figures, so fall back to a single optionless variant.
+     */
+    if(!out.variants.length){
+      try{
+        var priceProps = null;
+        var fiberAt = function(el){
+          var ks = Object.keys(el);
+          for(var i = 0; i < ks.length; i++){
+            if(ks[i].indexOf('__reactFiber') === 0 || ks[i].indexOf('__reactInternalInstance') === 0) return el[ks[i]];
+          }
+          return null;
+        };
+        var nodes = document.querySelectorAll('div,span');
+        for(var ni = 0; ni < nodes.length && !priceProps; ni++){
+          var pf = fiberAt(nodes[ni]), ph = 0;
+          while(pf && ph < 10){
+            if(pf.memoizedProps && pf.memoizedProps.priceText){ priceProps = pf.memoizedProps; break; }
+            pf = pf.return; ph++;
+          }
+        }
+        if(priceProps){
+          var onePromo = num(priceProps.priceText);
+          var oneList = num(priceProps.originalPriceText) || onePromo;
+          var oneCost = oneList > onePromo ? oneList : onePromo;
+          if(oneCost > 0){
+            out.variants.push({
+              options: {},
+              price: oneCost,
+              promoPrice: onePromo < oneCost ? onePromo : undefined,
+              stock: 0
+            });
+            var shown1 = String(priceProps.priceText || '');
+            var code1 = shown1.match(/[A-Z]{3}/);
+            if(code1) out.currency = code1[0];
+            else if(shown1.indexOf('₦') > -1) out.currency = 'NGN';
+          }
+        }
+      }catch(e){}
+    }
+
+    /*
      * _d_c_.DCData is one mutable slot holding whichever component rendered
      * into it last, so reading the gallery from it alone is a race: it yielded
      * 2 images on a listing that actually carries 6. Merge it with the rendered
