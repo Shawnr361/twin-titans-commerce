@@ -46,7 +46,12 @@ export async function SiteHeader() {
         <div className="flex h-16 items-center justify-between gap-3 sm:h-20 sm:gap-6">
           {/* Left: departments on desktop, menu button on mobile */}
           <div className="flex flex-1 items-center gap-7">
-            <MobileNav links={links} storeName={settings.storeName} />
+            <MobileNav
+              links={links}
+              storeName={settings.storeName}
+              currencies={currencies}
+              baseCurrency={settings.baseCurrency}
+            />
             {/*
               `whitespace-nowrap` is load-bearing: the label style uses 0.14em
               tracking, which makes multi-word departments ("Home & Living")

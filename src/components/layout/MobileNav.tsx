@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { IconChevronRight, IconClose, IconMenu, IconTruck } from '@/components/icons';
+import { CurrencySwitcher, type CurrencyOption } from '@/components/commerce/CurrencySwitcher';
 
 /**
  * Mobile navigation drawer.
@@ -17,9 +18,13 @@ import { IconChevronRight, IconClose, IconMenu, IconTruck } from '@/components/i
 export function MobileNav({
   links,
   storeName,
+  currencies = [],
+  baseCurrency,
 }: {
   links: { href: string; label: string }[];
   storeName: string;
+  currencies?: CurrencyOption[];
+  baseCurrency?: string;
 }) {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -134,6 +139,20 @@ export function MobileNav({
             ))}
           </ul>
         </nav>
+
+        {/*
+          * The switcher lives here on phones. In the header bar it was hidden
+          * below 640px — there is no room beside the wordmark and the icons —
+          * so a shopper on a phone had no way to change currency at all. The
+          * drawer has the space, and this is where they already look for
+          * settings-shaped things.
+          */}
+        {currencies.length > 1 && baseCurrency && (
+          <div className="flex items-center justify-between gap-4 border-t border-rule px-6 py-4">
+            <span className="label text-greige">Currency</span>
+            <CurrencySwitcher options={currencies} baseCurrency={baseCurrency} />
+          </div>
+        )}
 
         <div className="border-t border-rule px-6 py-5">
           <Link
