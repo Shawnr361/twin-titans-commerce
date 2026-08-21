@@ -67,6 +67,24 @@ export function buildCaptureScript(endpoint: string, token: string): string {
       var p = low.indexOf(exts[i] + '_');
       if(p > -1){ u = u.slice(0, p + exts[i].length); break; }
     }
+    /*
+     * The same photo is served two ways: /kf/<id>.jpeg and, for SEO,
+     * /kf/<id>/<product-slug>.jpeg. They are different strings for one
+     * picture, so deduplicating without collapsing them puts every image in
+     * the gallery twice.
+     */
+    var k = u.indexOf('/kf/');
+    if(k > -1){
+      var rest = u.slice(k + 4);
+      var slash = rest.indexOf('/');
+      if(slash > -1){
+        var id = rest.slice(0, slash);
+        if(id.indexOf('.') < 0){
+          var dot = rest.lastIndexOf('.');
+          u = u.slice(0, k + 4) + id + (dot > -1 ? rest.slice(dot) : '');
+        }
+      }
+    }
     return u;
   }
 
@@ -85,10 +103,21 @@ export function buildCaptureScript(endpoint: string, token: string): string {
   function cleanTitle(t){
     t = String(t || '').trim();
     var tails = [' - AliExpress', ' | AliExpress', ' - Alibaba.com', ' - 1688.com'];
-    for(var i = 0; i < tails.length; i++){
-      var tail = tails[i];
-      if(t.length > tail.length && t.slice(-tail.length).toLowerCase() === tail.toLowerCase()){
-        t = t.slice(0, -tail.length).trim();
+    /*
+     * Two passes, and a trailing-number strip between them: og:title arrives as
+     * "... Home Kitchen Tools - AliExpress 15", so matching the suffix alone
+     * misses and the storefront heading keeps " - AliExpress" on it.
+     */
+    for(var pass = 0; pass < 2; pass++){
+      for(var i = 0; i < tails.length; i++){
+        var tail = tails[i];
+        if(t.length > tail.length && t.slice(-tail.length).toLowerCase() === tail.toLowerCase()){
+          t = t.slice(0, -tail.length).trim();
+        }
+      }
+      var parts = t.split(' ');
+      if(parts.length > 1 && /^[0-9]+$/.test(parts[parts.length - 1])){
+        t = parts.slice(0, -1).join(' ').trim();
       }
     }
     return t;
