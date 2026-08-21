@@ -1,6 +1,7 @@
 import { prisma } from '../db';
 import { sourceCostToBase } from '../fx';
 import { isMarketplaceName } from '../vendor';
+import { categorise } from '../categorise';
 import { computePrice, type PricingRules } from '../pricing';
 import { getPricingRules, getStoreSettings } from '../settings';
 import { adapterFor, genericAdapter } from './adapters';
@@ -195,6 +196,18 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
     input.supplierName?.trim() || p.supplierName?.trim() || `${p.platform} supplier`;
   const customerFacingVendor = isMarketplaceName(supplierName) ? null : supplierName;
 
+  /*
+   * File it now, from the title. Doing this by hand was skipped on every import
+   * so far, which is why the homepage department tiles all read zero. A product
+   * that matches nothing is left uncategorised on purpose — a hair clipper in
+   * Pet Supplies is worse than one in no collection, because nobody goes
+   * looking for the mistake.
+   */
+  const categoryHandle = categorise(title, input.productType);
+  const collection = categoryHandle
+    ? await prisma.collection.findUnique({ where: { handle: categoryHandle }, select: { id: true } })
+    : null;
+
   const supplier = await findOrCreateSupplier(supplierName, p.platform, p.supplierStoreUrl);
 
   const created = await prisma.product.create({
@@ -206,6 +219,7 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
       productType: input.productType,
       tags: input.tags ?? [],
       vendor: customerFacingVendor,
+      ...(collection ? { collections: { create: { collectionId: collection.id } } } : {}),
       images: {
         create: p.images.map((url, i) => ({ url, position: i, alt: title })),
       },

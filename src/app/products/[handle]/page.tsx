@@ -31,6 +31,8 @@ async function getProduct(handle: string) {
       source: {
         select: {
           supplier: { select: { shipDaysMin: true, shipDaysMax: true } },
+          // Captured videos live here — see the note in fromCapture.
+          raw: true,
         },
       },
     },
@@ -101,6 +103,17 @@ export default async function ProductPage({
    * copy or invent specifications outright; the point of difference here is
    * that a figure appears only when it was captured, and is otherwise absent.
    */
+  /*
+   * Videos ride in SupplierProduct.raw, because there is no column for them and
+   * adding one means a MySQL migration on shared hosting for a list of URLs.
+   * Read defensively: raw is untyped JSON and older imports predate the field.
+   */
+  const productVideos = (() => {
+    const raw = product.source?.raw as { videos?: unknown } | null | undefined;
+    if (!raw || !Array.isArray(raw.videos)) return [];
+    return raw.videos.filter((v): v is string => typeof v === "string" && v.length > 8);
+  })();
+
   const specification = (() => {
     const byName = new Map<string, Set<string>>();
     for (const variant of product.variants) {
@@ -193,8 +206,9 @@ export default async function ProductPage({
 
       <VariantMediaProvider>
         <div className="shell grid gap-12 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16 lg:py-14">
-          <div className="min-w-0">
-            <ProductGallery images={galleryImages} title={product.title} />
+          {/* Capped so the frame stays a product shot rather than a billboard. */}
+          <div className="min-w-0 lg:max-w-[620px]">
+            <ProductGallery images={galleryImages} videos={productVideos} title={product.title} />
           </div>
 
           {/*

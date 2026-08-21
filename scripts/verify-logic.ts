@@ -11,6 +11,7 @@ import { formatMoney, toMinor } from '../src/lib/money';
 import { getRate, sourceCostToBase } from '../src/lib/fx';
 import { assessCapture } from '../src/lib/suppliers/capture';
 import { displayVendor } from '../src/lib/vendor';
+import { categorise } from '../src/lib/categorise';
 
 let failures = 0;
 
@@ -159,6 +160,26 @@ void (async () => {
   console.log('');
   console.log('');
   console.log('');
+  console.log('');
+  console.log('── Auto-categorisation ──────────────────────');
+
+  check('a cat toy files under pets', categorise('Funny Cat Toy Interactive Launch Pet Training Toy'), 'pet-supplies');
+  check('a hair clipper files under beauty', categorise('Vintage Cordless Hair Clipper Electric Hair Trimmer'), 'beauty-skincare');
+  check('fairy lights file under gadgets', categorise('USB LED String Lights 5/10/20M Waterproof Fairy Lights'), 'gadgets-lighting');
+  check('a neck fan files under gadgets', categorise('8000mAh USB Hanging Neck Fan Portable Bladeless'), 'gadgets-lighting');
+  check('a cabbage slicer files under home', categorise('Cabbage Slicer Vegetable Cutter Grater Kitchen Tools'), 'home-living');
+
+  // The collision that makes a naive keyword list embarrassing: a pet clipper
+  // is a pet product, whatever the blade does.
+  check('a pet clipper stays in pets', categorise('Pet Hair Clipper Dog Grooming Trimmer'), 'pet-supplies');
+
+  // Short words must match on boundaries, or "cat" fires on "communicate".
+  assert('"cat" does not match inside another word', categorise('Communicate Bluetooth Device') !== 'pet-supplies');
+  assert('"led" does not match inside "cordless"', categorise('Cordless Handbag') !== 'gadgets-lighting');
+
+  // Declining is the point: no plausible match means no category.
+  check('an unmatched product is left alone', categorise('Ingemark Gold Snake Chain Waist Belt'), null);
+
   console.log('── Vendor display ────────────────────────────');
 
   // The marketplace is not the vendor, and must never reach the storefront.

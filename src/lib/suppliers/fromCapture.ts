@@ -72,6 +72,13 @@ export async function previewFromCapture(
     currency: captured.currency,
     variants,
     shippingCostMinor: toMinor(captured.shippingCost ?? 0, captured.currency),
+    /*
+     * Videos travel in raw because there is no column for them, and adding one
+     * means a migration against MySQL on shared hosting for what is a list of
+     * URLs. SupplierProduct.raw is already stored per product and was otherwise
+     * unused on this path, so the product page reads them back from here.
+     */
+    raw: { videos: captured.videos ?? [] },
     supplierName: captured.supplierName,
     supplierStoreUrl: captured.supplierStoreUrl,
     shipsFrom: captured.shipsFrom,

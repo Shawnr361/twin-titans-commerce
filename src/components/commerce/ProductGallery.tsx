@@ -21,7 +21,26 @@ export interface GalleryImage {
  * Zoom is deliberately pointer-driven rather than a click-to-open overlay so
  * the customer never loses their place on the page.
  */
-export function ProductGallery({ images, title }: { images: GalleryImage[]; title: string }) {
+type GalleryItem = { kind: 'image' | 'video'; url: string; alt: string };
+
+export function ProductGallery({
+  images,
+  videos = [],
+  title,
+}: {
+  images: GalleryImage[];
+  videos?: string[];
+  title: string;
+}) {
+  /*
+   * Video was captured from the supplier all along but had nowhere to live, so
+   * the page only ever rendered stills. Images lead so the hero stays the hero;
+   * clips follow.
+   */
+  const items: GalleryItem[] = [
+    ...images.map((i) => ({ kind: 'image' as const, url: i.url, alt: i.alt })),
+    ...videos.map((url) => ({ kind: 'video' as const, url, alt: title })),
+  ];
   const [active, setActive] = useState(0);
   const [zooming, setZooming] = useState(false);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -37,7 +56,7 @@ export function ProductGallery({ images, title }: { images: GalleryImage[]; titl
    */
   useEffect(() => {
     if (!activeUrl) return;
-    const index = images.findIndex((image) => image.url === activeUrl);
+    const index = items.findIndex((item) => item.url === activeUrl);
     if (index < 0) return;
 
     setActive(index);
@@ -46,7 +65,7 @@ export function ProductGallery({ images, title }: { images: GalleryImage[]; titl
     if (strip) {
       strip.scrollTo({ left: index * strip.clientWidth, behavior: 'smooth' });
     }
-  }, [activeUrl, images]);
+  }, [activeUrl, items]);
 
   // Keep the mobile dot indicator in step with the filmstrip.
   useEffect(() => {
@@ -78,7 +97,7 @@ export function ProductGallery({ images, title }: { images: GalleryImage[]; titl
     frame.style.setProperty('--zy', `${y}%`);
   };
 
-  if (images.length === 0) {
+  if (items.length === 0) {
     return (
       <div className="media aspect-product flex items-center justify-center">
         <span className="label">No image</span>
@@ -86,32 +105,40 @@ export function ProductGallery({ images, title }: { images: GalleryImage[]; titl
     );
   }
 
-  const current = images[Math.min(active, images.length - 1)];
+  const current = items[Math.min(active, items.length - 1)];
 
   return (
     <div className="lg:flex lg:gap-5">
       {/* Thumbnail rail — desktop only */}
-      {images.length > 1 && (
+      {items.length > 1 && (
         <div
           className="hidden w-20 shrink-0 flex-col gap-3 lg:flex"
           role="tablist"
           aria-label="Product images"
         >
-          {images.map((image, i) => (
+          {items.map((item, i) => (
             <button
-              key={image.url + i}
+              key={item.url + i}
               type="button"
               role="tab"
               aria-selected={i === active}
-              aria-label={`View image ${i + 1} of ${images.length}`}
+              aria-label={`View ${item.kind} ${i + 1} of ${items.length}`}
               onClick={() => setActive(i)}
               onMouseEnter={() => setActive(i)}
               className={`media aspect-product w-full border transition-colors duration-2 ${
                 i === active ? 'border-onyx' : 'border-transparent hover:border-ruleStrong'
               }`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={image.url} alt="" loading="lazy" />
+              {item.kind === 'video' ? (
+                <span className="flex h-full items-center justify-center bg-onyx/85 text-bone">
+                  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden fill="currentColor">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </span>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.url} alt="" loading="lazy" />
+              )}
             </button>
           ))}
         </div>
@@ -120,24 +147,46 @@ export function ProductGallery({ images, title }: { images: GalleryImage[]; titl
       {/* Main frame — desktop */}
       <div
         ref={frameRef}
-        onMouseMove={onMove}
-        onMouseDown={() => setZooming(true)}
+        onMouseMove={current.kind === 'image' ? onMove : undefined}
+        onMouseDown={current.kind === 'image' ? () => setZooming(true) : undefined}
         onMouseUp={() => setZooming(false)}
         onMouseLeave={() => setZooming(false)}
-        className={`media aspect-product hidden flex-1 lg:block ${zooming ? 'cursor-zoom-out' : 'cursor-zoom-in'}`}
+        className={`media aspect-product hidden flex-1 bg-bone2 lg:block ${
+          current.kind === 'image' ? (zooming ? 'cursor-zoom-out' : 'cursor-zoom-in') : ''
+        }`}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={current.url}
-          alt={current.alt || title}
-          fetchPriority="high"
-          className={zooming ? 'scale-[2.1]' : ''}
-          style={zooming ? { transformOrigin: 'var(--zx, 50%) var(--zy, 50%)' } : undefined}
-        />
-        {!zooming && (
-          <span className="label absolute bottom-3 left-3 bg-paper/85 px-2 py-1 !text-[0.6875rem]">
-            Hold to zoom
-          </span>
+        {current.kind === 'video' ? (
+          <video
+            key={current.url}
+            src={current.url}
+            controls
+            playsInline
+            preload="metadata"
+            className="h-full w-full !object-contain"
+          />
+        ) : (
+          <>
+            {/*
+              * object-contain, not cover. Supplier galleries mix square pack
+              * shots with tall spec panels and wide banners, and a cover crop
+              * on those shows the middle of one letter at four times its size.
+              * Containing is automatic: every image, now and in future, is
+              * shown whole whatever shape it arrives in.
+              */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={current.url}
+              alt={current.alt || title}
+              fetchPriority="high"
+              className={`!object-contain ${zooming ? 'scale-[2.1]' : ''}`}
+              style={zooming ? { transformOrigin: 'var(--zx, 50%) var(--zy, 50%)' } : undefined}
+            />
+            {!zooming && (
+              <span className="label absolute bottom-3 left-3 bg-paper/85 px-2 py-1 !text-[0.6875rem]">
+                Hold to zoom
+              </span>
+            )}
+          </>
         )}
       </div>
 
@@ -148,22 +197,36 @@ export function ProductGallery({ images, title }: { images: GalleryImage[]; titl
           className="flex snap-x snap-mandatory overflow-x-auto"
           style={{ scrollbarWidth: 'none' }}
         >
-          {images.map((image, i) => (
-            <div key={image.url + i} className="media aspect-product w-full shrink-0 snap-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={image.url}
-                alt={i === 0 ? image.alt || title : ''}
-                loading={i === 0 ? 'eager' : 'lazy'}
-                fetchPriority={i === 0 ? 'high' : 'auto'}
-              />
+          {items.map((item, i) => (
+            <div
+              key={item.url + i}
+              className="media aspect-product w-full shrink-0 snap-center bg-bone2"
+            >
+              {item.kind === 'video' ? (
+                <video
+                  src={item.url}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="h-full w-full !object-contain"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.url}
+                  alt={i === 0 ? item.alt || title : ''}
+                  loading={i === 0 ? 'eager' : 'lazy'}
+                  fetchPriority={i === 0 ? 'high' : 'auto'}
+                  className="!object-contain"
+                />
+              )}
             </div>
           ))}
         </div>
 
-        {images.length > 1 && (
+        {items.length > 1 && (
           <div className="mt-4 flex justify-center gap-1.5" aria-hidden>
-            {images.map((_, i) => (
+            {items.map((_, i) => (
               <span
                 key={i}
                 className={`h-[3px] w-6 transition-colors duration-2 ${
