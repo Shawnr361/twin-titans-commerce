@@ -108,6 +108,25 @@ export function assessCapture(c: CapturedProduct): CaptureQuality {
       `${c.variants.length - priced.length} of ${c.variants.length} variants have no price.`
     );
   }
+  /*
+   * A supplier sale price is what we would pay today, not what we will pay on
+   * the reorder. Pricing retail against a promotional cost is how a healthy
+   * margin quietly turns into a loss the week the promotion ends — and these
+   * listings run near-permanent countdown sales, so it is the normal case, not
+   * an edge one.
+   */
+  const promo = priced.filter(
+    (v) => v.compareAtPrice != null && v.compareAtPrice > v.price * 1.3
+  );
+  if (promo.length > 0) {
+    const deepest = Math.max(
+      ...promo.map((v) => Math.round((1 - v.price / (v.compareAtPrice as number)) * 100))
+    );
+    problems.push(
+      `${promo.length} of ${priced.length} priced variant(s) are on a supplier promotion, up to ${deepest}% off. That discounted figure is the cost being priced against — confirm it still holds when you reorder.`
+    );
+  }
+
   if (c.images.length === 0) problems.push('No images were captured.');
 
   return {

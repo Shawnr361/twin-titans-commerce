@@ -9,6 +9,7 @@ import { auditMargin, computePrice, gatewayFee, PAYSTACK_NG_FEES } from '../src/
 import { DEFAULT_RULES } from '../src/lib/pricing';
 import { formatMoney, toMinor } from '../src/lib/money';
 import { getRate, sourceCostToBase } from '../src/lib/fx';
+import { assessCapture } from '../src/lib/suppliers/capture';
 
 let failures = 0;
 
@@ -155,6 +156,45 @@ assert('missing cost is never treated as healthy', noCost.ok === false);
 // checks and the final summary run inside one IIFE.
 void (async () => {
   console.log('');
+  console.log('');
+  console.log('── Capture quality ────────────────────────────');
+
+  const captureBase = {
+    sourceUrl: 'https://www.aliexpress.com/item/1.html',
+    platform: 'ALIEXPRESS' as const,
+    title: 'Test',
+    descriptionHtml: '',
+    currency: 'NGN',
+    images: ['a.jpg'],
+    videos: [],
+    reviews: [],
+  };
+
+  // A near-permanent countdown sale is the normal state of these listings, so
+  // pricing against the discounted figure must be called out, not assumed safe.
+  const onPromo = assessCapture({
+    ...captureBase,
+    variants: [{ options: {}, price: 2605, compareAtPrice: 5316 }],
+  });
+  assert(
+    'a promotional supplier cost is flagged',
+    onPromo.problems.some((p) => p.includes('promotion'))
+  );
+  assert('a promotional cost is still importable', onPromo.ok === true);
+
+  // An ordinary markdown must not cry wolf.
+  const mildDiscount = assessCapture({
+    ...captureBase,
+    variants: [{ options: {}, price: 900, compareAtPrice: 1000 }],
+  });
+  assert(
+    'an ordinary markdown is not flagged as promotional',
+    !mildDiscount.problems.some((p) => p.includes('promotion'))
+  );
+
+  const noPrices = assessCapture({ ...captureBase, variants: [{ options: {}, price: 0 }] });
+  assert('a capture with no prices is not ok', noPrices.ok === false);
+
   console.log('── FX safety ───────────────────────────────────');
 
   const sameCcy = await sourceCostToBase(toMinor(5000, 'NGN'), 'NGN', 'NGN');
