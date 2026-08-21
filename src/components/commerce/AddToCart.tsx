@@ -6,6 +6,22 @@ import { Magnetic } from '@/components/motion/Magnetic';
 import { IconBag, IconCheck, IconMinus, IconPlus } from '@/components/icons';
 import { CART_CHANGED_EVENT, openCartDrawer } from './CartDrawer';
 import { Price } from './Price';
+import { useVariantMedia } from './VariantMediaContext';
+
+/**
+ * Variant titles are stored as "Color: Dark Blue / Size: XL". The option name
+ * is already the legend, so repeating it on every button reads as noise —
+ * show the values alone, as the supplier's own picker does.
+ */
+function optionValues(title: string) {
+  return title
+    .split(' / ')
+    .map((part) => {
+      const at = part.indexOf(': ');
+      return at > -1 ? part.slice(at + 2) : part;
+    })
+    .join(' / ');
+}
 
 export interface VariantOption {
   id: string;
@@ -34,6 +50,7 @@ export function AddToCart({
   onVariantChange?: (v: VariantOption) => void;
 }) {
   const router = useRouter();
+  const { showImage } = useVariantMedia();
   const [selectedId, setSelectedId] = useState(
     variants.find((v) => v.available)?.id ?? variants[0]?.id
   );
@@ -47,6 +64,7 @@ export function AddToCart({
   const select = (v: VariantOption) => {
     setSelectedId(v.id);
     setAdded(false);
+    showImage(v.imageUrl);
     onVariantChange?.(v);
   };
 
@@ -113,7 +131,9 @@ export function AddToCart({
         <fieldset>
           <legend className="label mb-3">
             Option
-            <span className="ml-2 normal-case tracking-normal text-onyx">{selected.title}</span>
+            <span className="ml-2 normal-case tracking-normal text-onyx">
+              {optionValues(selected.title)}
+            </span>
           </legend>
           <div className="flex flex-wrap gap-2">
             {variants.map((v) => (
@@ -129,7 +149,7 @@ export function AddToCart({
                     : 'border-ruleStrong text-ink hover:border-onyx'
                 } ${!v.available ? 'cursor-not-allowed text-quiet line-through opacity-50' : ''}`}
               >
-                {v.title}
+                {optionValues(v.title)}
               </button>
             ))}
           </div>

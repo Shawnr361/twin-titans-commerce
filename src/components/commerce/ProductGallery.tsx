@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useVariantMedia } from './VariantMediaContext';
 
 export interface GalleryImage {
   url: string;
@@ -25,6 +26,27 @@ export function ProductGallery({ images, title }: { images: GalleryImage[]; titl
   const [zooming, setZooming] = useState(false);
   const frameRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
+  const { activeUrl } = useVariantMedia();
+
+  /*
+   * Choosing a colour moves the gallery to that colour's photo, the way the
+   * supplier's own page behaves. Variant images are merged into this list
+   * upstream, so the URL is normally present; when it is not — an older import,
+   * or a variant that never carried a photo — the gallery deliberately stays
+   * put rather than blanking out the frame.
+   */
+  useEffect(() => {
+    if (!activeUrl) return;
+    const index = images.findIndex((image) => image.url === activeUrl);
+    if (index < 0) return;
+
+    setActive(index);
+    // The mobile filmstrip is scroll-driven, so it has to be moved to match.
+    const strip = stripRef.current;
+    if (strip) {
+      strip.scrollTo({ left: index * strip.clientWidth, behavior: 'smooth' });
+    }
+  }, [activeUrl, images]);
 
   // Keep the mobile dot indicator in step with the filmstrip.
   useEffect(() => {
