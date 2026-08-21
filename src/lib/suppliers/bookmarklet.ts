@@ -287,6 +287,16 @@ export function buildCaptureScript(endpoint: string, token: string): string {
             }
             if(!vimg && valueImages[vid]) vimg = valueImages[vid];
           });
+          /*
+           * A listing whose properties are known but whose key resolves to no
+           * option at all is a placeholder row, not a buyable SKU. Imported as
+           * one it becomes a "Default" button sitting beside the real colours,
+           * which is what a shopper then has to guess about. Products with no
+           * properties are left alone: there, one optionless SKU IS the
+           * product.
+           */
+          if(sd.ids && sd.ids.length && !Object.keys(opts).length) return;
+
           if(vimg) variantImages.push(vimg);
           out.variants.push({
             skuId: String(rec.skuId || ''),
