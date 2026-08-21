@@ -37,12 +37,6 @@ export function ProductGallery({
    * the page only ever rendered stills. Images lead so the hero stays the hero;
    * clips follow.
    */
-  const items: GalleryItem[] = [
-    ...images
-      .filter((i) => !tooSmall.has(i.url))
-      .map((i) => ({ kind: 'image' as const, url: i.url, alt: i.alt })),
-    ...videos.map((url) => ({ kind: 'video' as const, url, alt: title })),
-  ];
   const [active, setActive] = useState(0);
   const [zooming, setZooming] = useState(false);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -62,6 +56,19 @@ export function ProductGallery({
       setTooSmall((prev) => (prev.has(url) ? prev : new Set(prev).add(url)));
     }
   };
+
+  /*
+   * Built after tooSmall exists, not before it. Referencing the state from up
+   * near the props read past its declaration — the reference sits inside a
+   * filter callback, so TypeScript treated it as deferred and compiled it
+   * happily, and every product page then threw on render.
+   */
+  const items: GalleryItem[] = [
+    ...images
+      .filter((i) => !tooSmall.has(i.url))
+      .map((i) => ({ kind: 'image' as const, url: i.url, alt: i.alt })),
+    ...videos.map((url) => ({ kind: 'video' as const, url, alt: title })),
+  ];
 
   /*
    * Choosing a colour moves the gallery to that colour's photo, the way the
