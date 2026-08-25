@@ -43,8 +43,23 @@ export async function SiteHeader() {
       )}
 
       <div className="shell">
+        {/*
+          Row one: utilities either side of a centred wordmark.
+          Row two: departments, on their own line.
+
+          Departments used to share row one, and the wordmark could not be
+          centred while they did. The numbers are unambiguous at 1536px: the
+          shell is 1216 wide, and the nav (642) plus wordmark (359) plus
+          utilities (404) come to 1405. Forcing the centre with a 1fr/auto/1fr
+          grid did not create the missing 189px — it let the nav overflow its
+          cell and print straight through the wordmark.
+
+          Giving departments their own row removes the competition, so the
+          wordmark is genuinely centred at every width instead of centred
+          only when nothing collides with it.
+        */}
         <div className="grid h-16 grid-cols-[1fr_auto_1fr] items-center gap-3 sm:h-20 sm:gap-6">
-          {/* Left: departments on desktop, menu button on mobile */}
+          {/* Left: menu button on mobile; deliberately light on desktop */}
           <div className="flex min-w-0 items-center gap-7">
             <MobileNav
               links={links}
@@ -52,30 +67,6 @@ export async function SiteHeader() {
               currencies={currencies}
               baseCurrency={settings.baseCurrency}
             />
-            {/*
-              `whitespace-nowrap` is load-bearing: the label style uses 0.14em
-              tracking, which makes multi-word departments ("Home & Living")
-              wrap to two or three lines and wreck the header rhythm. Tracking
-              is also eased off here so more departments fit before the row
-              runs out of room.
-            */}
-            <nav aria-label="Departments" className="hidden min-w-0 items-center gap-6 lg:flex">
-              <Link
-                href="/collections/all"
-                className="label whitespace-nowrap !tracking-[0.1em] transition-colors hover:!text-onyx"
-              >
-                Shop
-              </Link>
-              {links.slice(0, 4).map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className="label whitespace-nowrap !tracking-[0.1em] transition-colors hover:!text-onyx"
-                >
-                  {l.label}
-                </Link>
-              ))}
-            </nav>
           </div>
 
           {/* Centre: wordmark */}
@@ -93,6 +84,34 @@ export async function SiteHeader() {
             <HeaderActions />
           </div>
         </div>
+
+        {/*
+          Departments. `whitespace-nowrap` is load-bearing: the label style uses
+          0.14em tracking, which makes multi-word departments ("Home & Living")
+          wrap and wreck the row. With a full row to itself the nav has ~1216px
+          for ~642px of links, so it fits with room to spare and can simply
+          centre.
+        */}
+        <nav
+          aria-label="Departments"
+          className="hidden items-center justify-center gap-7 pb-3 lg:flex"
+        >
+          <Link
+            href="/collections/all"
+            className="label whitespace-nowrap !tracking-[0.1em] transition-colors hover:!text-onyx"
+          >
+            Shop
+          </Link>
+          {links.slice(0, 5).map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="label whitespace-nowrap !tracking-[0.1em] transition-colors hover:!text-onyx"
+            >
+              {l.label}
+            </Link>
+          ))}
+        </nav>
       </div>
 
       <hr className="rule" />
