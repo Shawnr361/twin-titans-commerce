@@ -287,6 +287,23 @@
   }
 
   /* --- Surfaces ------------------------------------------------------ */
+  /*
+   * Frosted panel.
+   *
+   * The palette is dark-ground, so a solid surface here reads as a bright slab
+   * punched out of the page. A translucent tint over a blur keeps the page dark
+   * and still separates the panel from what is behind it. The tint uses --onyx
+   * (the light ink in this theme) at low alpha rather than a fixed white, so it
+   * follows the palette instead of fighting it.
+   */
+  .glass-panel {
+    background: rgb(var(--onyx) / 0.06);
+    border: 1px solid rgb(var(--onyx) / 0.14);
+    border-radius: var(--radius-1);
+    backdrop-filter: blur(14px) saturate(1.1);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  }
+
   .card {
     background: rgb(var(--paper));
     border: 1px solid rgb(var(--rule));
