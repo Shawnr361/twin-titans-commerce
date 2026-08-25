@@ -20,6 +20,8 @@ import tls from 'node:tls';
 
 export interface MailMessage {
   to: string;
+  /** Envelope sender. Must be a mailbox that really exists — see ehloName(). */
+  from?: string;
   subject: string;
   text: string;
   replyTo?: string;
@@ -30,6 +32,25 @@ const PORT = Number(process.env.SMTP_PORT || 25);
 const USER = process.env.SMTP_USER || '';
 const PASS = process.env.SMTP_PASS || '';
 const TIMEOUT_MS = 15_000;
+
+/**
+ * The name given in EHLO.
+ *
+ * Exim rejects a bare IP outright — "550 R1: HELO should be a FQDN or address
+ * literal" — and then refuses every RCPT with 503, so the whole send fails on
+ * what looks like a recipient problem. An address literal has to be bracketed;
+ * a real domain is better still, so the site's own hostname is preferred.
+ */
+function ehloName(): string {
+  if (process.env.SMTP_EHLO) return process.env.SMTP_EHLO;
+  try {
+    const host = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? '').hostname;
+    if (host.includes('.')) return host;
+  } catch {
+    // No usable site URL — fall through to the literal form.
+  }
+  return /^[0-9.]+$/.test(HOST) ? `[${HOST}]` : HOST;
+}
 
 /**
  * Strip CR and LF from anything that goes into a header.
@@ -126,13 +147,20 @@ export function isMailConfigured(): boolean {
  * and must never report success for a message that was not accepted.
  */
 export async function sendMail(message: MailMessage): Promise<void> {
-  const from = header(process.env.SMTP_FROM || `no-reply@${(message.to.split('@')[1] ?? 'localhost')}`);
+  /*
+   * The envelope sender must be a real mailbox. Exim verifies it and answers
+   * "550 Sender verify failed" for an invented address like no-reply@ — which
+   * again surfaces as every recipient being rejected. Defaulting to the
+   * recipient (the support mailbox) guarantees an address that exists; the
+   * customer's own address rides on Reply-To instead.
+   */
+  const from = header(process.env.SMTP_FROM || message.from || message.to);
   const to = header(message.to);
 
   const conn = await connect();
   try {
     await say(conn, '', 220);
-    const greeting = await say(conn, `EHLO ${HOST}`, 250);
+    const greeting = await say(conn, `EHLO ${ehloName()}`, 250);
 
     if (USER && PASS && /AUTH[ -=]/i.test(greeting)) {
       await say(conn, 'AUTH LOGIN', 334);
