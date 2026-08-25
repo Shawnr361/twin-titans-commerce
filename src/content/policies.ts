@@ -35,9 +35,15 @@ import type { StoreSettings } from '@/lib/settings';
  * sitting on a live policy page reads as an abandoned store.
  */
 export const BUSINESS = {
-  legalName: '',
-  rcNumber: '',
-  address: '',
+  legalName: 'THE TWIN TITANS LTD',
+  rcNumber: '8177973',
+  /*
+   * As filed with the Corporate Affairs Commission on 14 January 2025.
+   * "Prinnacle" is the CAC record's own spelling and is reproduced rather than
+   * corrected — the identity statement should match the register.
+   */
+  address:
+    'Shop 1 and 2, Late Ganiyu Adegboyega Shopping Complex, Prinnacle Junction, Ijaye-Titun Rounder, Ogun State, Nigeria',
 };
 
 const EFFECTIVE = '25 August 2026';
