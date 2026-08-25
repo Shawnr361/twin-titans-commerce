@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { UnauthorizedError, requireAdmin } from '@/lib/auth';
-import { upsertRate } from '@/lib/fx';
+import { getRates, upsertRate } from '@/lib/fx';
 import {
   announcementContradictsShipping,
   getPricingRules,
@@ -79,8 +79,25 @@ export async function POST(request: Request) {
   await writeSetting('store', { ...currentStore, ...store });
   await writeSetting('pricing', { ...currentPricing, ...pricing });
 
+  /*
+   * Only write a rate that actually CHANGED.
+   *
+   * The settings form round-trips every rate on every save, so an
+   * unconditional upsert re-dates the whole FX table whenever the merchant
+   * edits something unrelated like the store name. That is not cosmetic: the
+   * scheduled refresh only acts on rates older than 24h, so re-dating stale
+   * numbers makes them look current and the cron stops correcting them. A
+   * wrong USD rate then survives indefinitely, and every PayPal order is
+   * mispriced against it.
+   */
+  const currentRates = await getRates();
   for (const [code, rate] of Object.entries(rates)) {
-    if (Number.isFinite(rate) && rate > 0) await upsertRate(code, rate);
+    if (!Number.isFinite(rate) || rate <= 0) continue;
+    const existing = currentRates[code.toUpperCase()];
+    // Relative compare: these are tiny reciprocals, so exact equality on a
+    // round-tripped float is not reliable.
+    if (existing != null && existing > 0 && Math.abs(existing - rate) / existing < 1e-9) continue;
+    await upsertRate(code, rate);
   }
 
   return NextResponse.json({ ok: true });
