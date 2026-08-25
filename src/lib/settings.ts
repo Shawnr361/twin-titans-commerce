@@ -23,11 +23,23 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   baseCurrency: 'NGN',
   supportEmail: '',
   supportPhone: '',
-  shippingFlatMinor: 0,
-  freeShippingOverMinor: 0,
+  /*
+   * Delivery. The threshold is the merchant's instruction: free only above
+   * ₦30,000. The flat rate below it is an ASSUMPTION — ₦3,500 — because a
+   * threshold with a zero flat rate means nothing: everything ships free and
+   * the rule is decoration. Both are editable in admin Settings; change the
+   * flat rate there if ₦3,500 is wrong.
+   */
+  shippingFlatMinor: 350_000, // ₦3,500 in kobo
+  freeShippingOverMinor: 3_000_000, // ₦30,000 in kobo
   displayCurrencies: ['NGN', 'USD', 'GBP', 'EUR', 'CAD', 'AUD'],
   paypalCurrency: 'USD',
-  announcement: 'Free delivery nationwide • Pay on delivery available',
+  /*
+   * Must not promise unconditional free delivery while a threshold exists —
+   * that is a false claim in the most prominent line on the site. The settings
+   * route rejects the combination outright.
+   */
+  announcement: 'Free delivery on orders over ₦30,000 • Tracked on every order',
 };
 
 async function readSetting<T>(key: string, fallback: T): Promise<T> {
@@ -55,4 +67,24 @@ export async function writeSetting(key: string, value: unknown): Promise<void> {
     create: { key, value: value as never },
     update: { value: value as never },
   });
+}
+
+/**
+ * Does the announcement promise free delivery the shipping rule does not honour?
+ *
+ * The announcement is the most prominent line on the site, so "free delivery
+ * nationwide" while a threshold exists is a false promise to every customer
+ * below it — the same class of problem as the "pay on delivery" line that had
+ * to be removed. Any qualifier ("over", "above", "when you spend") makes the
+ * claim conditional and therefore honest.
+ */
+export function announcementContradictsShipping(
+  announcement: string,
+  freeShippingOverMinor: number
+): boolean {
+  if (freeShippingOverMinor <= 0) return false;
+  const claim = announcement.toLowerCase();
+  const promisesFree = /(free|complimentary)\s+(delivery|shipping)/.test(claim);
+  const qualified = /(over|above|from|orders? of|when you spend)/.test(claim);
+  return promisesFree && !qualified;
 }

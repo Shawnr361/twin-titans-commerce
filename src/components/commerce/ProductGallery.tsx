@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useVariantMedia } from './VariantMediaContext';
 
 export interface GalleryImage {
@@ -23,6 +23,23 @@ export interface GalleryImage {
  */
 type GalleryItem = { kind: 'image' | 'video'; url: string; alt: string };
 
+/**
+ * Ask the supplier CDN for a thumbnail-sized rendition.
+ *
+ * The rail renders at 80px but was loading the full 800x800 original for every
+ * item — on a listing with twenty-one images that is megabytes of decode work a
+ * phone has to do before the page settles, for pictures the size of a stamp.
+ *
+ * The CDN serves any size from a "_WxH.jpg" suffix, which is the same suffix
+ * normUrl strips during capture to keep the full-size original. Non-supplier
+ * URLs are returned untouched.
+ */
+function thumbSrc(url: string, px = 220): string {
+  if (!/alicdn|aliexpress-media/.test(url)) return url;
+  const ext = url.match(/\.(?:jpg|jpeg|png|webp)$/i);
+  return ext ? `${url}_${px}x${px}${ext[0]}` : url;
+}
+
 export function ProductGallery({
   images,
   videos = [],
@@ -42,6 +59,10 @@ export function ProductGallery({
   const frameRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const { activeUrl } = useVariantMedia();
+  // Read the current index inside effects without making them depend on it.
+  const activeRef = useRef(0);
+  const programmaticScroll = useRef(false);
+  const settleTimer = useRef<number | undefined>(undefined);
   /*
    * Supplier galleries occasionally include a UI icon among the product shots —
    * one 48x48 sprite came through on the neck fan and rendered as a speck in an
@@ -63,12 +84,27 @@ export function ProductGallery({
    * filter callback, so TypeScript treated it as deferred and compiled it
    * happily, and every product page then threw on render.
    */
-  const items: GalleryItem[] = [
-    ...images
-      .filter((i) => !tooSmall.has(i.url))
-      .map((i) => ({ kind: 'image' as const, url: i.url, alt: i.alt })),
-    ...videos.map((url) => ({ kind: 'video' as const, url, alt: title })),
-  ];
+  /*
+   * Memoised, and that is not a micro-optimisation — it is the fix for a
+   * render loop that froze the page on phones.
+   *
+   * This array was rebuilt on every render, and it sits in the dependency list
+   * of the effect below, which calls strip.scrollTo({behavior:'smooth'}). So
+   * every render started another smooth scroll, each smooth scroll emitted a
+   * stream of scroll events, onScroll called setActive, and that rendered
+   * again. Desktop escaped it because the filmstrip is lg:hidden and stripRef
+   * is null; on mobile the strip exists and the loop ran until the renderer
+   * stopped responding. Every image firing noteIfTiny added another turn.
+   */
+  const items = useMemo<GalleryItem[]>(
+    () => [
+      ...images
+        .filter((i) => !tooSmall.has(i.url))
+        .map((i) => ({ kind: 'image' as const, url: i.url, alt: i.alt })),
+      ...videos.map((url) => ({ kind: 'video' as const, url, alt: title })),
+    ],
+    [images, videos, title, tooSmall]
+  );
 
   /*
    * Choosing a colour moves the gallery to that colour's photo, the way the
@@ -80,15 +116,30 @@ export function ProductGallery({
   useEffect(() => {
     if (!activeUrl) return;
     const index = items.findIndex((item) => item.url === activeUrl);
-    if (index < 0) return;
+    // Already there: doing nothing is what stops the loop restarting itself.
+    if (index < 0 || index === activeRef.current) return;
 
     setActive(index);
     // The mobile filmstrip is scroll-driven, so it has to be moved to match.
     const strip = stripRef.current;
     if (strip) {
+      // Our own scrolling must not be read back as the user scrolling, or the
+      // two take turns setting the index for as long as the animation lasts.
+      programmaticScroll.current = true;
+      window.clearTimeout(settleTimer.current);
+      settleTimer.current = window.setTimeout(() => {
+        programmaticScroll.current = false;
+      }, 600);
       strip.scrollTo({ left: index * strip.clientWidth, behavior: 'smooth' });
     }
   }, [activeUrl, items]);
+
+  // activeRef mirrors active so effects can read it without depending on it.
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
+  useEffect(() => () => window.clearTimeout(settleTimer.current), []);
 
   // Keep the mobile dot indicator in step with the filmstrip.
   useEffect(() => {
@@ -97,7 +148,10 @@ export function ProductGallery({
 
     let ticking = false;
     const onScroll = () => {
-      if (ticking) return;
+      // A smooth scroll we started ourselves emits a stream of these. Reading
+      // them back as user intent is what let the effect and the handler take
+      // turns setting the index for the length of every animation.
+      if (programmaticScroll.current || ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
         ticking = false;
@@ -167,7 +221,7 @@ export function ProductGallery({
                 </span>
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.url} alt="" loading="lazy" onLoad={noteIfTiny(item.url)} />
+                <img src={thumbSrc(item.url)} alt="" loading="lazy" onLoad={noteIfTiny(item.url)} />
               )}
             </button>
           ))}

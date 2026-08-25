@@ -12,6 +12,8 @@ import { getRate, sourceCostToBase } from '../src/lib/fx';
 import { assessCapture } from '../src/lib/suppliers/capture';
 import { displayVendor } from '../src/lib/vendor';
 import { categorise } from '../src/lib/categorise';
+import { announcementContradictsShipping, DEFAULT_SETTINGS } from '../src/lib/settings';
+import { FALLBACK_RATES } from '../src/lib/fx';
 
 let failures = 0;
 
@@ -161,6 +163,55 @@ void (async () => {
   console.log('');
   console.log('');
   console.log('');
+  console.log('');
+  console.log('── Delivery promise ───────────────────────');
+
+  // The banner is the most prominent line on the site; an unconditional
+  // promise beside a threshold is a false claim to everyone below it.
+  assert(
+    'unconditional free delivery is refused when a threshold exists',
+    announcementContradictsShipping('Free delivery nationwide - tracked on every order', 3_000_000)
+  );
+  assert(
+    'a qualified promise is allowed',
+    !announcementContradictsShipping('Free delivery on orders over ₦30,000', 3_000_000)
+  );
+  assert(
+    '"complimentary shipping above X" is allowed',
+    !announcementContradictsShipping('Complimentary shipping above ₦30,000', 3_000_000)
+  );
+  assert(
+    'with no threshold, an unconditional promise is fine',
+    !announcementContradictsShipping('Free delivery nationwide', 0)
+  );
+  // The shipped defaults must not contradict each other.
+  assert(
+    'the default banner matches the default threshold',
+    !announcementContradictsShipping(DEFAULT_SETTINGS.announcement, DEFAULT_SETTINGS.freeShippingOverMinor)
+  );
+  // A threshold with a zero flat rate is decoration: everything ships free.
+  assert(
+    'a free-shipping threshold has a flat rate behind it',
+    DEFAULT_SETTINGS.freeShippingOverMinor === 0 || DEFAULT_SETTINGS.shippingFlatMinor > 0,
+    `flat ${DEFAULT_SETTINGS.shippingFlatMinor}, threshold ${DEFAULT_SETTINGS.freeShippingOverMinor}`
+  );
+
+  console.log('');
+  console.log('── FX rate sanity ────────────────────────');
+
+  // Guards against a fat-fingered constant: NGN per unit must be plausible.
+  const ngnPerUsd = 1 / FALLBACK_RATES.USD;
+  assert(
+    'USD is a plausible naira rate, not the old invented 1500',
+    ngnPerUsd > 800 && ngnPerUsd < 2500,
+    `1 USD = ₦${ngnPerUsd.toFixed(2)}`
+  );
+  assert('NGN is the base and equals 1', FALLBACK_RATES.NGN === 1);
+  assert(
+    'every fallback rate is positive and finite',
+    Object.values(FALLBACK_RATES).every((r) => isFinite(r) && r > 0)
+  );
+
   console.log('── Auto-categorisation ──────────────────────');
 
   check('a cat toy files under pets', categorise('Funny Cat Toy Interactive Launch Pet Training Toy'), 'pet-supplies');
@@ -247,8 +298,11 @@ void (async () => {
   const usdConv = await sourceCostToBase(usdCost, 'USD', 'NGN');
   assert(
     'known currency converts at a buy-side rate',
-    usdConv.converted && usdConv.rateUsed > 1400 && usdConv.rateUsed < 1700,
-    `rate ${usdConv.rateUsed.toFixed(2)} (mid 1500 + 3% buffer)`
+    // Derived from the fallback, not a hardcoded band. The previous version
+    // asserted 1400-1700 around the old invented 1/1500, so replacing the
+    // placeholders with real rates failed a check about buffer arithmetic.
+    usdConv.converted && Math.abs(usdConv.rateUsed - (1 / FALLBACK_RATES.USD) * 1.03) < 1,
+    `rate ${usdConv.rateUsed.toFixed(2)} = mid ${(1 / FALLBACK_RATES.USD).toFixed(2)} + 3% buy buffer`
   );
   assert(
     'a USD cost lands materially higher in NGN',

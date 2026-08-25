@@ -12,14 +12,35 @@ import { convertMinor } from './money';
  * Rates are stored as "target units per 1 BASE unit".
  */
 
+/**
+ * Last-resort rates, used only when the FxRate table is empty or unreadable.
+ *
+ * These are a real mid-market snapshot taken 2026-08-25, not invented numbers.
+ * The set they replaced was guessed and out by up to 11% — USD was written as
+ * 1/1500 when the market was 1/1351, which on a PayPal order is money lost on
+ * every sale.
+ *
+ * They still go stale. The live values belong in the FxRate table: refresh them
+ * with POST /api/admin/fx, which fetches the current mid-market set and upserts
+ * it. RATES_SNAPSHOT_DATE lets the admin show how old the fallback is when the
+ * table has not been populated.
+ *
+ * Mid-market is not the rate a Nigerian card is actually charged — the buy side
+ * is worse. sourceCostToBase applies buyBufferPct for that reason when costing
+ * a supplier purchase.
+ */
+export const RATES_SNAPSHOT_DATE = '2026-08-25';
+
 export const FALLBACK_RATES: Record<string, number> = {
   NGN: 1,
-  USD: 1 / 1500,
-  GBP: 1 / 1900,
-  EUR: 1 / 1650,
-  CAD: 1 / 1100,
-  AUD: 1 / 1000,
-  CNY: 1 / 210,
+  USD: 1 / 1351.35,
+  GBP: 1 / 1848.43,
+  EUR: 1 / 1582.28,
+  CAD: 1 / 994.04,
+  AUD: 1 / 968.99,
+  CNY: 1 / 200.4,
+  ZAR: 1 / 84.3,
+  GHS: 1 / 121.12,
 };
 
 export async function getRates(): Promise<Record<string, number>> {
@@ -107,4 +128,26 @@ export async function upsertRate(code: string, rate: number, symbol = ''): Promi
     create: { code: code.toUpperCase(), rate, symbol },
     update: { rate, symbol },
   });
+}
+
+/** How old the stored rates are, so the admin can flag a stale set. */
+export async function getRatesAge(): Promise<{
+  count: number;
+  oldestUpdatedAt: Date | null;
+  daysOld: number | null;
+  usingFallback: boolean;
+}> {
+  try {
+    const rows = await prisma.fxRate.findMany({ orderBy: { updatedAt: 'asc' }, take: 1 });
+    const count = await prisma.fxRate.count();
+    const oldest = rows[0]?.updatedAt ?? null;
+    return {
+      count,
+      oldestUpdatedAt: oldest,
+      daysOld: oldest ? Math.floor((Date.now() - oldest.getTime()) / 86_400_000) : null,
+      usingFallback: count === 0,
+    };
+  } catch {
+    return { count: 0, oldestUpdatedAt: null, daysOld: null, usingFallback: true };
+  }
 }
