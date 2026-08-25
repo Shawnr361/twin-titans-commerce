@@ -47,11 +47,18 @@ export async function getRates(): Promise<Record<string, number>> {
   try {
     const rows = await prisma.fxRate.findMany();
     /*
-     * Ride the refresh check along with a read that was happening anyway. It
-     * never awaits, so the caller is served the rates it asked for at the
-     * speed it expected; a stale set simply becomes fresh a moment later.
+     * NO refresh is triggered here, and that is deliberate.
+     *
+     * An earlier version called maybeAutoRefreshRates() from this function.
+     * getRates runs inside SiteHeader, so it is on the render path of every
+     * page — and Next patches fetch, so the "fire and forget" outbound call was
+     * not fire and forget at all: the render waited on it and every page hung
+     * while /api/admin/fx, which never reaches this line, still answered in
+     * 2.4s. That took the storefront down.
+     *
+     * Refreshing is now driven from request handlers only, never from a render.
+     * See refreshRatesFromProvider and /api/cron/fx.
      */
-    maybeAutoRefreshRates(BASE_FOR_AUTO_REFRESH);
     if (!rows.length) return { ...FALLBACK_RATES };
     const map: Record<string, number> = { ...FALLBACK_RATES };
     for (const r of rows) map[r.code.toUpperCase()] = r.rate;
@@ -61,14 +68,6 @@ export async function getRates(): Promise<Record<string, number>> {
   }
 }
 
-/*
- * The base currency for the automatic refresh.
- *
- * Read from settings would be circular — settings is not what fx depends on,
- * and the store has exactly one base. If the base ever changes, change it here
- * and in DEFAULT_SETTINGS together.
- */
-const BASE_FOR_AUTO_REFRESH = 'NGN';
 
 /**
  * Look up a display rate, or null when the code is unknown.
@@ -243,46 +242,14 @@ export async function refreshRatesFromProvider(baseCurrency: string): Promise<Ra
 }
 
 /*
- * Keep rates current without a cron job.
+ * Refreshing is driven from request handlers only — /api/cron/fx on a schedule,
+ * or /api/admin/fx by hand. There is deliberately no lazy check here.
  *
- * node cannot start on this host — its worker threads count against the LVE
- * process cap — so a scheduled script is not available. Instead the check rides
- * along with reads that already happen: if the stored set is older than a day,
- * one refresh is kicked off in the background while the caller is served the
- * rates it asked for. Nothing waits on the network.
+ * A previous version ran one from getRates(), which sits in SiteHeader and so
+ * on the render path of every page. Next patches fetch, so the "background"
+ * call was awaited by the render: every page hung while /api/admin/fx, which
+ * never reached that code, still answered in 2.4s. It took the store down.
  *
- * The guards matter more than the schedule. `inFlight` stops concurrent
- * requests each starting their own refresh, and `lastAttempt` stops a failing
- * provider being hammered once per page view.
+ * Never start network work on a render path. A request handler is a safe place
+ * to await; a server component is not.
  */
-const REFRESH_AFTER_MS = 24 * 60 * 60 * 1000;
-const RETRY_AFTER_MS = 60 * 60 * 1000;
-let refreshInFlight = false;
-let lastRefreshAttempt = 0;
-
-export function maybeAutoRefreshRates(baseCurrency: string): void {
-  if (refreshInFlight) return;
-  if (Date.now() - lastRefreshAttempt < RETRY_AFTER_MS) return;
-
-  refreshInFlight = true;
-  lastRefreshAttempt = Date.now();
-
-  void (async () => {
-    try {
-      const age = await getRatesAge();
-      const stale =
-        age.usingFallback ||
-        age.oldestUpdatedAt == null ||
-        Date.now() - age.oldestUpdatedAt.getTime() > REFRESH_AFTER_MS;
-      if (!stale) return;
-
-      const result = await refreshRatesFromProvider(baseCurrency);
-      if (!result.ok) console.warn('[fx] automatic refresh failed:', result.error);
-    } catch (err) {
-      // Never let a rate refresh take down the page that triggered it.
-      console.warn('[fx] automatic refresh threw:', err);
-    } finally {
-      refreshInFlight = false;
-    }
-  })();
-}
