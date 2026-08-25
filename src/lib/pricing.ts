@@ -73,7 +73,10 @@ export interface PricingRules {
 
 export const DEFAULT_RULES: PricingRules = {
   strategy: 'MARGIN',
-  marginPct: 45,
+  // Merchant's decision, 2026-08-25: 35% rather than 45%. Applies to everything
+  // imported from here on; existing products were re-priced to match via
+  // POST /api/admin/reprice.
+  marginPct: 35,
   profitMinor: 0,
   multiplier: 2.5,
   minMarginPct: 20,
