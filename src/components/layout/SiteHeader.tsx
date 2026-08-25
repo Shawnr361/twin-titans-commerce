@@ -43,9 +43,9 @@ export async function SiteHeader() {
       )}
 
       <div className="shell">
-        <div className="flex h-16 items-center justify-between gap-3 sm:h-20 sm:gap-6">
+        <div className="grid h-16 grid-cols-[1fr_auto_1fr] items-center gap-3 sm:h-20 sm:gap-6">
           {/* Left: departments on desktop, menu button on mobile */}
-          <div className="flex flex-1 items-center gap-7">
+          <div className="flex min-w-0 items-center gap-7">
             <MobileNav
               links={links}
               storeName={settings.storeName}
@@ -79,12 +79,12 @@ export async function SiteHeader() {
           </div>
 
           {/* Centre: wordmark */}
-          <Link href="/" className="min-w-0 shrink-0" aria-label={`${settings.storeName} home`}>
+          <Link href="/" className="justify-self-center" aria-label={`${settings.storeName} home`}>
             <Wordmark name={settings.storeName} />
           </Link>
 
           {/* Right: currency + icon utilities */}
-          <div className="flex flex-1 items-center justify-end gap-3 sm:gap-4">
+          <div className="flex min-w-0 items-center justify-end gap-3 sm:gap-4">
             {currencies.length > 1 && (
               <div className="hidden sm:block">
                 <CurrencySwitcher options={currencies} baseCurrency={settings.baseCurrency} />

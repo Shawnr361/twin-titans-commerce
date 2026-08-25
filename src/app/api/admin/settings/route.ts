@@ -11,6 +11,13 @@ const schema = z.object({
     supportEmail: z.string().email().or(z.literal('')),
     supportPhone: z.string(),
     announcement: z.string(),
+    /*
+     * Delivery, in MINOR units (kobo). Editable here so the merchant can change
+     * the threshold without a redeploy — and so the announcement bar, which
+     * advertises it, can be corrected in the same place at the same time.
+     */
+    shippingFlatMinor: z.number().int().min(0),
+    freeShippingOverMinor: z.number().int().min(0),
   }),
   pricing: z.object({
     marginPct: z.number().min(0).max(95),

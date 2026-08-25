@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { StoreSettings } from '@/lib/settings';
 import type { PricingRules } from '@/lib/pricing';
+import { fromMinor, toMinor } from '@/lib/money';
 
 export function SettingsForm({
   settings,
@@ -38,6 +39,13 @@ export function SettingsForm({
             supportEmail: String(form.get('supportEmail') ?? ''),
             supportPhone: String(form.get('supportPhone') ?? ''),
             announcement: String(form.get('announcement') ?? ''),
+            // Typed in naira, stored in kobo — every money value in this system
+            // is an integer in minor units.
+            shippingFlatMinor: toMinor(Number(form.get('shippingFlat') ?? 0), settings.baseCurrency),
+            freeShippingOverMinor: toMinor(
+              Number(form.get('freeShippingOver') ?? 0),
+              settings.baseCurrency
+            ),
           },
           pricing: {
             marginPct: Number(form.get('marginPct')),
@@ -115,6 +123,54 @@ export function SettingsForm({
             defaultValue={settings.announcement}
           />
         </div>
+      </fieldset>
+
+      <fieldset className="card space-y-4 p-6">
+        <legend className="px-2 text-sm font-bold uppercase tracking-wide text-greige">
+          Delivery
+        </legend>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="field-label" htmlFor="shippingFlat">
+              Delivery charge ({settings.baseCurrency})
+            </label>
+            <input
+              id="shippingFlat"
+              name="shippingFlat"
+              type="number"
+              min={0}
+              step="any"
+              className="field"
+              defaultValue={fromMinor(settings.shippingFlatMinor, settings.baseCurrency)}
+            />
+            <p className="mt-1 text-micro text-quiet">
+              Charged when the order is below the threshold. 0 means delivery is always free.
+            </p>
+          </div>
+          <div>
+            <label className="field-label" htmlFor="freeShippingOver">
+              Free delivery over ({settings.baseCurrency})
+            </label>
+            <input
+              id="freeShippingOver"
+              name="freeShippingOver"
+              type="number"
+              min={0}
+              step="any"
+              className="field"
+              defaultValue={fromMinor(settings.freeShippingOverMinor, settings.baseCurrency)}
+            />
+            <p className="mt-1 text-micro text-quiet">
+              0 disables the threshold entirely.
+            </p>
+          </div>
+        </div>
+
+        <p className="text-micro leading-relaxed text-warn">
+          If you set a threshold, check the announcement bar above still tells the truth. A header
+          promising free delivery while checkout charges for it is the fastest way to lose trust.
+        </p>
       </fieldset>
 
       <fieldset className="card space-y-4 p-6">
