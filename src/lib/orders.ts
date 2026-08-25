@@ -101,6 +101,38 @@ export async function createOrder(input: CreateOrderInput) {
 }
 
 /**
+ * Describe a provable payment shortfall, or null when the amount is acceptable.
+ *
+ * Overpayment is never blocked — it is the customer's problem to reclaim, not a
+ * reason to withhold their goods.
+ */
+function paymentShortfall(
+  order: { totalMinor: number; currency: string; presentmentCurrency: string | null; presentmentRate: number | null },
+  paidMinor: number,
+  paidCurrency: string
+): string | null {
+  const paid = paidCurrency.toUpperCase();
+  const base = order.currency.toUpperCase();
+
+  if (paid === base) {
+    if (paidMinor >= order.totalMinor) return null;
+    return `Paid ${paidMinor} ${paid} against an order total of ${order.totalMinor} ${base}.`;
+  }
+
+  // Cross-currency: only checkable against the rate quoted at checkout.
+  if (order.presentmentCurrency?.toUpperCase() !== paid) return null;
+  const rate = order.presentmentRate;
+  if (rate == null || rate <= 0) return null;
+
+  const expected = Math.round(order.totalMinor * rate);
+  // Absorb honest FX drift between quoting and capture; still catches a
+  // materially short payment.
+  const tolerance = Math.max(Math.round(expected * 0.05), 100);
+  if (paidMinor + tolerance >= expected) return null;
+  return `Paid ${paidMinor} ${paid} against an expected ${expected} ${paid} for this order.`;
+}
+
+/**
  * Mark an order paid and immediately route it to suppliers.
  *
  * Idempotent by payment reference: gateways retry webhooks, and double-routing
@@ -114,7 +146,7 @@ export async function markOrderPaid(params: {
   currency: string;
   feeMinor?: number;
   raw?: unknown;
-}): Promise<{ alreadyProcessed: boolean; routed: number; issues: string[] }> {
+}): Promise<{ alreadyProcessed: boolean; routed: number; issues: string[]; mismatch?: string }> {
   const existing = await prisma.payment.findUnique({ where: { reference: params.reference } });
   if (existing?.status === 'PAID') {
     return { alreadyProcessed: true, routed: 0, issues: [] };
@@ -122,6 +154,45 @@ export async function markOrderPaid(params: {
 
   const order = await prisma.order.findUnique({ where: { id: params.orderId } });
   if (!order) throw new Error('Order not found.');
+
+  /*
+   * Never mark an order paid for less than it costs.
+   *
+   * Marking paid routes straight to suppliers, which spends real money buying
+   * the goods — so a short payment does not just misreport revenue, it buys
+   * stock at a loss. The signature check upstream makes forgery hard, but it
+   * says nothing about the AMOUNT, and partial payments are a real Paystack
+   * feature.
+   *
+   * The rule is deliberately one-sided: block only a PROVABLE shortfall. Where
+   * the payment is in another currency (PayPal settles in USD against an NGN
+   * order) it can only be checked against the rate recorded at checkout, and
+   * if that is missing the payment is allowed through rather than guessed at.
+   * A false block strands a customer who genuinely paid, which is worse than
+   * the case this defends against.
+   */
+  const shortfall = paymentShortfall(order, params.amountMinor, params.currency);
+  if (shortfall) {
+    await prisma.payment.upsert({
+      where: { reference: params.reference },
+      create: {
+        orderId: order.id,
+        provider: params.provider,
+        reference: params.reference,
+        // Funds exist, but they are not accepted as payment for this order.
+        status: 'AUTHORIZED',
+        amountMinor: params.amountMinor,
+        currency: params.currency,
+        feeMinor: params.feeMinor ?? 0,
+        raw: (params.raw ?? null) as never,
+      },
+      update: { raw: (params.raw ?? null) as never },
+    });
+    await prisma.orderEvent.create({
+      data: { orderId: order.id, kind: 'payment_mismatch', message: shortfall },
+    });
+    return { alreadyProcessed: false, routed: 0, issues: [shortfall], mismatch: shortfall };
+  }
 
   await prisma.payment.upsert({
     where: { reference: params.reference },

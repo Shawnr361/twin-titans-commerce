@@ -15,8 +15,18 @@ function secretKey(): string {
   return key;
 }
 
+/**
+ * Paystack is configured once the secret key is present — and nothing else.
+ *
+ * This used to also require NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY, which no code in
+ * this app ever reads: the whole flow is server-side (initialize -> redirect to
+ * Paystack's hosted page -> verify), so the browser never needs a public key.
+ * Worse, NEXT_PUBLIC_* is inlined at BUILD time, so that gate made switching
+ * payments on require a rebuild rather than an env var and a restart. Requiring
+ * a key nothing consumes is a checkout that stays dark for no reason.
+ */
 export function isPaystackConfigured(): boolean {
-  return Boolean(process.env.PAYSTACK_SECRET_KEY && process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY);
+  return Boolean(process.env.PAYSTACK_SECRET_KEY);
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
