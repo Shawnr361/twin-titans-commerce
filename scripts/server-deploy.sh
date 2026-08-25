@@ -34,7 +34,18 @@ fail() { echo "FATAL: $*" >&2; exit 1; }
 
 echo "==> fetching"
 cd "$REPO"
-git fetch --depth 1 origin deploy
+# pack.threads=1 is not a tuning choice, it is the fix.
+#
+# git resolves deltas with worker threads, and on CloudLinux those threads count
+# against the account's LVE process cap. Once the cap is tight, index-pack dies
+# with "unable to create thread: Resource temporarily unavailable" AFTER the
+# objects have downloaded — so the fetch looks like it worked right up until it
+# doesn't. This single-threaded it and the deploy went through immediately on a
+# host where it had failed four times running.
+#
+# Also set globally on the host (git config --global pack.threads 1); repeated
+# here so a fresh checkout of this repo carries the fix with it.
+git -c pack.threads=1 -c core.preloadIndex=false fetch --depth 1 origin deploy
 git reset --hard -q FETCH_HEAD
 
 NEW_ID="$(cat "$REPO/.next/BUILD_ID")"
