@@ -46,6 +46,12 @@ export const FALLBACK_RATES: Record<string, number> = {
 export async function getRates(): Promise<Record<string, number>> {
   try {
     const rows = await prisma.fxRate.findMany();
+    /*
+     * Ride the refresh check along with a read that was happening anyway. It
+     * never awaits, so the caller is served the rates it asked for at the
+     * speed it expected; a stale set simply becomes fresh a moment later.
+     */
+    maybeAutoRefreshRates(BASE_FOR_AUTO_REFRESH);
     if (!rows.length) return { ...FALLBACK_RATES };
     const map: Record<string, number> = { ...FALLBACK_RATES };
     for (const r of rows) map[r.code.toUpperCase()] = r.rate;
@@ -54,6 +60,15 @@ export async function getRates(): Promise<Record<string, number>> {
     return { ...FALLBACK_RATES };
   }
 }
+
+/*
+ * The base currency for the automatic refresh.
+ *
+ * Read from settings would be circular — settings is not what fx depends on,
+ * and the store has exactly one base. If the base ever changes, change it here
+ * and in DEFAULT_SETTINGS together.
+ */
+const BASE_FOR_AUTO_REFRESH = 'NGN';
 
 /**
  * Look up a display rate, or null when the code is unknown.
@@ -150,4 +165,124 @@ export async function getRatesAge(): Promise<{
   } catch {
     return { count: 0, oldestUpdatedAt: null, daysOld: null, usingFallback: true };
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * Automatic refresh
+ * ------------------------------------------------------------------ */
+
+export const SUPPORTED_RATE_CODES = ['USD', 'GBP', 'EUR', 'CAD', 'AUD', 'CNY', 'ZAR', 'GHS'];
+
+export const RATE_SYMBOLS: Record<string, string> = {
+  USD: '$', GBP: '£', EUR: '€', CAD: 'CA$', AUD: 'A$',
+  CNY: '¥', ZAR: 'R', GHS: '₵', NGN: '₦',
+};
+
+export interface RateRefreshResult {
+  ok: boolean;
+  updated: Record<string, number>;
+  skipped: string[];
+  providerUpdatedAt: string | null;
+  error?: string;
+}
+
+/**
+ * Fetch live mid-market rates and store them.
+ *
+ * Shared by the admin route and the automatic refresh below, so a rate can only
+ * ever enter the system through one set of sanity checks.
+ */
+export async function refreshRatesFromProvider(baseCurrency: string): Promise<RateRefreshResult> {
+  const base = baseCurrency.toUpperCase();
+  const empty: RateRefreshResult = { ok: false, updated: {}, skipped: [], providerUpdatedAt: null };
+
+  let payload: { rates?: Record<string, number>; time_last_update_utc?: string };
+  try {
+    const res = await fetch(`https://open.er-api.com/v6/latest/${base}`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return { ...empty, error: `provider returned ${res.status}` };
+    payload = await res.json();
+  } catch (err) {
+    // Unchanged beats half-updated: a partial set is worse than a stale one.
+    return { ...empty, error: (err as Error).message };
+  }
+
+  const live = payload.rates ?? {};
+  const updated: Record<string, number> = {};
+  const skipped: string[] = [];
+
+  for (const code of SUPPORTED_RATE_CODES) {
+    const perBase = live[code];
+    /*
+     * A bad rate does not look wrong, it just quietly mischarges — so anything
+     * non-numeric, zero, negative, or wildly adrift of the known snapshot is
+     * refused rather than written into pricing.
+     */
+    if (typeof perBase !== 'number' || !isFinite(perBase) || perBase <= 0) {
+      skipped.push(code);
+      continue;
+    }
+    const expected = FALLBACK_RATES[code];
+    if (expected && (perBase > expected * 5 || perBase < expected / 5)) {
+      skipped.push(`${code} (moved >5x from the snapshot — refusing)`);
+      continue;
+    }
+    await upsertRate(code, perBase, RATE_SYMBOLS[code] ?? '');
+    updated[code] = perBase;
+  }
+
+  await upsertRate(base, 1, RATE_SYMBOLS[base] ?? '');
+  return {
+    ok: Object.keys(updated).length > 0,
+    updated,
+    skipped,
+    providerUpdatedAt: payload.time_last_update_utc ?? null,
+  };
+}
+
+/*
+ * Keep rates current without a cron job.
+ *
+ * node cannot start on this host — its worker threads count against the LVE
+ * process cap — so a scheduled script is not available. Instead the check rides
+ * along with reads that already happen: if the stored set is older than a day,
+ * one refresh is kicked off in the background while the caller is served the
+ * rates it asked for. Nothing waits on the network.
+ *
+ * The guards matter more than the schedule. `inFlight` stops concurrent
+ * requests each starting their own refresh, and `lastAttempt` stops a failing
+ * provider being hammered once per page view.
+ */
+const REFRESH_AFTER_MS = 24 * 60 * 60 * 1000;
+const RETRY_AFTER_MS = 60 * 60 * 1000;
+let refreshInFlight = false;
+let lastRefreshAttempt = 0;
+
+export function maybeAutoRefreshRates(baseCurrency: string): void {
+  if (refreshInFlight) return;
+  if (Date.now() - lastRefreshAttempt < RETRY_AFTER_MS) return;
+
+  refreshInFlight = true;
+  lastRefreshAttempt = Date.now();
+
+  void (async () => {
+    try {
+      const age = await getRatesAge();
+      const stale =
+        age.usingFallback ||
+        age.oldestUpdatedAt == null ||
+        Date.now() - age.oldestUpdatedAt.getTime() > REFRESH_AFTER_MS;
+      if (!stale) return;
+
+      const result = await refreshRatesFromProvider(baseCurrency);
+      if (!result.ok) console.warn('[fx] automatic refresh failed:', result.error);
+    } catch (err) {
+      // Never let a rate refresh take down the page that triggered it.
+      console.warn('[fx] automatic refresh threw:', err);
+    } finally {
+      refreshInFlight = false;
+    }
+  })();
 }

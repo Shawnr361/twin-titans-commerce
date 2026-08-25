@@ -53,8 +53,7 @@ export default async function HomePage() {
       <Spotlight as="section" className="overflow-hidden">
         <div className="shell grid items-center gap-14 py-20 md:grid-cols-[1.05fr_0.95fr] md:py-28 lg:gap-20">
           <Reveal className="max-w-xl">
-            <p className="label">Est. Lagos</p>
-            <hr className="rule-gold mt-5" />
+            <hr className="rule-gold" />
 
             <h1 className="display-xl mt-8">
               <span className="reveal-line" style={{ '--i': 0 } as React.CSSProperties}>

@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { UnauthorizedError, requireAdmin } from '@/lib/auth';
-import { FALLBACK_RATES, RATES_SNAPSHOT_DATE, getRates, getRatesAge, upsertRate } from '@/lib/fx';
+import {
+  RATES_SNAPSHOT_DATE,
+  getRates,
+  getRatesAge,
+  refreshRatesFromProvider,
+} from '@/lib/fx';
 import { getStoreSettings } from '@/lib/settings';
 
 /**
@@ -19,20 +24,6 @@ import { getStoreSettings } from '@/lib/settings';
  * sourceCostToBase applies its own buy-side buffer when costing supplier
  * purchases for exactly that reason.
  */
-
-const SUPPORTED = ['USD', 'GBP', 'EUR', 'CAD', 'AUD', 'CNY', 'ZAR', 'GHS'] as const;
-
-const SYMBOLS: Record<string, string> = {
-  USD: '$',
-  GBP: '£',
-  EUR: '€',
-  CAD: 'CA$',
-  AUD: 'A$',
-  CNY: '¥',
-  ZAR: 'R',
-  GHS: '₵',
-  NGN: '₦',
-};
 
 async function guard() {
   try {
@@ -76,67 +67,26 @@ export async function POST() {
   if (denied) return denied;
 
   const settings = await getStoreSettings();
-  const base = settings.baseCurrency.toUpperCase();
+  const result = await refreshRatesFromProvider(settings.baseCurrency);
 
-  let payload: { result?: string; rates?: Record<string, number>; time_last_update_utc?: string };
-  try {
-    const res = await fetch(`https://open.er-api.com/v6/latest/${base}`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) {
-      return NextResponse.json(
-        { error: `Rate provider returned ${res.status}. Rates unchanged.` },
-        { status: 502 }
-      );
-    }
-    payload = await res.json();
-  } catch (err) {
-    // Unchanged beats half-updated: a partial set is worse than a stale one.
+  if (!result.ok) {
     return NextResponse.json(
-      { error: `Could not reach the rate provider (${(err as Error).message}). Rates unchanged.` },
+      { error: `Could not refresh rates (${result.error ?? 'no usable rates'}). Rates unchanged.` },
       { status: 502 }
     );
   }
 
-  const live = payload.rates ?? {};
-  if (!live[base] && payload.result !== 'success') {
-    return NextResponse.json({ error: 'Rate provider sent no usable rates.' }, { status: 502 });
-  }
-
-  const updated: Record<string, number> = {};
-  const skipped: string[] = [];
-
-  for (const code of SUPPORTED) {
-    const perBase = live[code];
-    /*
-     * Sanity-check before storing. A provider returning 0, a negative, or an
-     * absurd value would otherwise be written straight into pricing — and a bad
-     * rate does not look wrong, it just quietly mischarges.
-     */
-    if (typeof perBase !== 'number' || !isFinite(perBase) || perBase <= 0) {
-      skipped.push(code);
-      continue;
-    }
-    const expected = FALLBACK_RATES[code];
-    if (expected && (perBase > expected * 5 || perBase < expected / 5)) {
-      skipped.push(`${code} (moved >5x from the known snapshot — refusing)`);
-      continue;
-    }
-    await upsertRate(code, perBase, SYMBOLS[code] ?? '');
-    updated[code] = perBase;
-  }
-
-  // The base itself is 1 by definition, and the switcher needs it present.
-  await upsertRate(base, 1, SYMBOLS[base] ?? '');
-
+  const base = settings.baseCurrency.toUpperCase();
   return NextResponse.json({
     ok: true,
     base,
-    providerUpdatedAt: payload.time_last_update_utc ?? null,
+    providerUpdatedAt: result.providerUpdatedAt,
     updated: Object.fromEntries(
-      Object.entries(updated).map(([c, r]) => [c, `1 ${c} = ${base} ${(1 / r).toFixed(2)}`])
+      Object.entries(result.updated).map(([code, perBase]) => [
+        code,
+        `1 ${code} = ${base} ${(1 / perBase).toFixed(2)}`,
+      ])
     ),
-    skipped,
+    skipped: result.skipped,
   });
 }
