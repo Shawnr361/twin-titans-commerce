@@ -164,6 +164,21 @@ void (async () => {
   console.log('');
   console.log('');
   console.log('');
+  console.log('');
+  console.log('── Login redirect safety ────────────────');
+
+  // `next` comes from the query string and is handed to window.location, so
+  // an unchecked value sends someone who has just typed their password to
+  // another site — convincing precisely because the login really worked.
+  const safeNext = (next: string | null): string =>
+    !next || !next.startsWith('/') || next.startsWith('//') ? '/admin' : next;
+
+  check('a normal path is kept', safeNext('/admin/products'), '/admin/products');
+  check('an absolute URL is refused', safeNext('https://example.com'), '/admin');
+  check('a protocol-relative URL is refused', safeNext('//example.com'), '/admin');
+  check('a missing next falls back', safeNext(null), '/admin');
+  check('an empty next falls back', safeNext(''), '/admin');
+
   console.log('── Delivery promise ───────────────────────');
 
   // The banner is the most prominent line on the site; an unconditional

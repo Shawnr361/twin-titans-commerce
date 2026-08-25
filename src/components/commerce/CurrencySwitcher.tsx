@@ -183,11 +183,34 @@ export function CurrencySwitcher({
     setOpen(false);
   };
 
+  /*
+   * Open upward when there is not enough room below.
+   *
+   * The menu was pinned to top-full, which is fine in the header but wrong in
+   * the mobile drawer, where the switcher sits at the very bottom: the list
+   * opened downward into the fold and only the first two currencies were
+   * reachable. Measured on open rather than guessed from a breakpoint, so it
+   * stays correct wherever this control is placed.
+   */
+  const [dropUp, setDropUp] = useState(false);
+
+  const toggle = () => {
+    setOpen((wasOpen) => {
+      if (!wasOpen && wrapRef.current) {
+        const { bottom } = wrapRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - bottom;
+        // Roughly the menu's height; flip when it would not clear the fold.
+        setDropUp(spaceBelow < Math.min(options.length * 40 + 16, 280));
+      }
+      return !wasOpen;
+    });
+  };
+
   return (
     <div ref={wrapRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Change currency, currently ${active}`}
@@ -204,7 +227,9 @@ export function CurrencySwitcher({
         <div
           role="listbox"
           aria-label="Currency"
-          className="absolute right-0 top-full z-50 mt-1 min-w-[13rem] border border-ruleStrong bg-paper py-1 shadow-lift"
+          className={`absolute right-0 z-50 max-h-[60vh] min-w-[13rem] overflow-y-auto border border-ruleStrong bg-paper py-1 shadow-lift ${
+            dropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+          }`}
         >
           {options.map((o) => (
             <button

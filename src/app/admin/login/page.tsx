@@ -1,10 +1,23 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
+/**
+ * Only ever return a path on this site.
+ *
+ * `next` comes straight from the query string, and this value is handed to
+ * window.location. Without this, /admin/login?next=https://example.com would
+ * send someone who has just typed their password to another site — the classic
+ * open redirect, and a convincing one because the login itself really worked.
+ * A protocol-relative "//evil.com" is a URL too, so leading slashes are capped.
+ */
+function safeNext(next: string | null): string {
+  if (!next || !next.startsWith('/') || next.startsWith('//')) return '/admin';
+  return next;
+}
+
 function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,8 +40,20 @@ function LoginForm() {
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? 'Sign in failed.');
 
-      router.push(params.get('next') ?? '/admin');
-      router.refresh();
+      /*
+       * A full page load, not router.push.
+       *
+       * The session cookie is set by the response we just awaited. A
+       * client-side RSC navigation can be served from the router cache and
+       * race that cookie, so middleware sees no session and bounces straight
+       * back to /admin/login. Nothing resets `busy` on the success path, so
+       * the button sat on "Signing in…" for ever with no error to show —
+       * which is exactly how this was reported. A real navigation always
+       * carries the new cookie and lets middleware decide with it.
+       */
+      window.location.assign(safeNext(params.get('next')));
+      // Deliberately leaves `busy` set: the page is on its way out, and
+      // flicking back to "Sign in" first reads as a failure.
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed.');
       setBusy(false);
