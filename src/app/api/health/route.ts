@@ -31,6 +31,9 @@ export async function GET() {
   const started = Date.now();
 
   let dbOk = false;
+  let reason: string | null = null;
+  let code: string | null = null;
+
   try {
     await Promise.race([
       prisma.$queryRaw`SELECT 1`,
@@ -39,11 +42,21 @@ export async function GET() {
       ),
     ]);
     dbOk = true;
-  } catch {
+  } catch (err) {
     dbOk = false;
+    /*
+     * Swallowing this was a mistake: "db: false" with no reason is the same
+     * dead end whether the engine died, the credentials broke, or the server
+     * ran out of connections. Prisma's error CODE distinguishes all three
+     * (P1001 unreachable, P1000 auth, P2024 pool exhausted), and the message
+     * is truncated so a connection string can never be echoed back in full.
+     */
+    const e = err as { code?: string; message?: string };
+    code = typeof e.code === 'string' ? e.code : null;
+    reason = (e.message ?? String(err)).replace(/\s+/g, ' ').slice(0, 240);
   }
 
-  const body = { ok: dbOk, db: dbOk, ms: Date.now() - started };
+  const body = { ok: dbOk, db: dbOk, ms: Date.now() - started, code, reason };
 
   return NextResponse.json(body, {
     status: dbOk ? 200 : 503,

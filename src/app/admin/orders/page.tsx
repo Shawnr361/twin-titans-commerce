@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
+import { DeleteOrderButton } from '@/components/admin/DeleteOrderButton';
 import { formatMoney } from '@/lib/money';
 
 export const metadata = { title: 'Orders' };
@@ -48,6 +49,7 @@ export default async function AdminOrdersPage() {
                   <th className="p-4 font-medium">Supplier</th>
                   <th className="p-4 text-right font-medium">Total</th>
                   <th className="p-4 text-right font-medium">Profit</th>
+                  <th className="p-4 text-right font-medium"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -79,7 +81,7 @@ export default async function AdminOrdersPage() {
                         <ul className="space-y-1">
                           {order.lineItems.slice(0, 2).map((item) => (
                             <li key={item.id} className="leading-tight">
-                              <span className="line-clamp-1 text-bone/90">{item.productTitle}</span>
+                              <span className="line-clamp-1 text-onyx">{item.productTitle}</span>
                               <span className="text-xs text-greige">
                                 {item.variantTitle && item.variantTitle !== 'Default'
                                   ? `${item.variantTitle} × ${item.quantity}`
@@ -121,6 +123,9 @@ export default async function AdminOrdersPage() {
                         className={`p-4 text-right font-semibold ${profit <= 0 ? 'text-danger' : 'text-verdigris'}`}
                       >
                         {formatMoney(profit, order.currency)}
+                      </td>
+                      <td className="p-4 text-right">
+                        <DeleteOrderButton orderId={order.id} number={order.number} />
                       </td>
                     </tr>
                   );
