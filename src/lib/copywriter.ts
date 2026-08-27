@@ -103,7 +103,9 @@ function escapeHtml(s: string): string {
  *
  * Never throws: a publish must not fail because copy generation did.
  */
-export async function generateDescription(input: CopyInput): Promise<string | null> {
+export async function generateDescription(
+  input: CopyInput
+): Promise<{ html: string | null; error?: string }> {
   /*
    * No key means write NOTHING, not something weak.
    *
@@ -114,7 +116,7 @@ export async function generateDescription(input: CopyInput): Promise<string | nu
    * mediocre one that blocks its own replacement is not — and the SEO layer
    * already composes a sensible meta description from the title regardless.
    */
-  if (!isCopywriterConfigured()) return null;
+  if (!isCopywriterConfigured()) return { html: null, error: 'no ANTHROPIC_API_KEY' };
 
   const client = new Anthropic({ timeout: TIMEOUT_MS, maxRetries: 1 });
 
@@ -142,7 +144,9 @@ export async function generateDescription(input: CopyInput): Promise<string | nu
       messages: [{ role: 'user', content: facts }],
     });
 
-    if (response.stop_reason === 'refusal') return null;
+    if (response.stop_reason === 'refusal') {
+      return { html: null, error: `refusal: ${response.stop_details?.category ?? 'unknown'}` };
+    }
 
     const text = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -150,19 +154,27 @@ export async function generateDescription(input: CopyInput): Promise<string | nu
       .join('')
       .trim();
 
-    return sanitise(text);
+    const html = sanitise(text);
+    /*
+     * A rejected body is worth reporting verbatim-ish: it is almost always the
+     * model answering in prose or markdown rather than the HTML asked for, and
+     * that is a prompt problem, not an API problem.
+     */
+    return html
+      ? { html }
+      : { html: null, error: `unusable output: ${text.slice(0, 160).replace(/\s+/g, ' ')}` };
   } catch (err) {
     // Typed classes rather than message matching; a failure is never fatal.
     if (err instanceof Anthropic.AuthenticationError) {
-      console.error('[copywriter] ANTHROPIC_API_KEY rejected');
-    } else if (err instanceof Anthropic.RateLimitError) {
-      console.error('[copywriter] rate limited');
-    } else if (err instanceof Anthropic.APIError) {
-      console.error(`[copywriter] API error ${err.status}`);
-    } else {
-      console.error('[copywriter] failed:', err);
+      return { html: null, error: 'ANTHROPIC_API_KEY rejected' };
     }
-    return null;
+    if (err instanceof Anthropic.RateLimitError) {
+      return { html: null, error: 'rate limited' };
+    }
+    if (err instanceof Anthropic.APIError) {
+      return { html: null, error: `API ${err.status}: ${String(err.message).slice(0, 160)}` };
+    }
+    return { html: null, error: String(err).slice(0, 200) };
   }
 }
 
@@ -223,7 +235,7 @@ export async function ensureDescription(productId: string): Promise<{
     0
   );
 
-  const html = await generateDescription({
+  const generated = await generateDescription({
     title: product.title,
     // "Default" is the placeholder for a single-variant product, not a choice.
     options: product.variants
@@ -234,11 +246,11 @@ export async function ensureDescription(productId: string): Promise<{
     currency: 'NGN',
   });
 
-  if (!html) return { written: false, reason: 'no usable copy returned' };
+  if (!generated.html) return { written: false, reason: generated.error ?? 'no copy returned' };
 
   await prisma.product.update({
     where: { id: product.id },
-    data: { descriptionHtml: html },
+    data: { descriptionHtml: generated.html },
   });
-  return { written: true, chars: html.length };
+  return { written: true, chars: generated.html.length };
 }
