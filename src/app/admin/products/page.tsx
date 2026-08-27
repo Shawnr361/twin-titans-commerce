@@ -3,6 +3,7 @@ import { ProductStatusToggle } from '@/components/admin/ProductStatusToggle';
 import { ProductDeleteButton } from '@/components/admin/ProductDeleteButton';
 import { prisma } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
+import { EditPricing } from '@/components/admin/EditPricing';
 import { auditMargin } from '@/lib/pricing';
 import { getPricingRules, getStoreSettings } from '@/lib/settings';
 
@@ -117,6 +118,14 @@ export default async function AdminProductsPage() {
                       );
                     })()}
                   </div>
+
+                  {/*
+                    Re-pricing one product. The bulk reprice route applies the
+                    store default to everything, which is the wrong tool when a
+                    single item is priced badly — without this the only fix was
+                    to move the global margin and re-price the whole catalogue.
+                  */}
+                  <EditPricing productId={product.id} currentMarginPct={rules.marginPct} />
                 </div>
 
                 {worst && (
