@@ -68,10 +68,11 @@ FORMAT — return only HTML, no markdown fence, no commentary:
 Nothing else.`;
 
 /**
- * Deterministic copy for when no API key is configured.
+ * Deterministic copy, for a caller that explicitly wants something rather than
+ * nothing.
  *
- * Deliberately plain. It exists so publishing never depends on a network call
- * and never leaves a product with no description at all — not to be good copy.
+ * NOT used automatically when the key is missing — see generateDescription for
+ * why writing weak copy is worse than writing none.
  */
 export function fallbackDescription(input: CopyInput): string {
   const opts = input.options.filter(Boolean).slice(0, 6);
@@ -103,7 +104,17 @@ function escapeHtml(s: string): string {
  * Never throws: a publish must not fail because copy generation did.
  */
 export async function generateDescription(input: CopyInput): Promise<string | null> {
-  if (!isCopywriterConfigured()) return fallbackDescription(input);
+  /*
+   * No key means write NOTHING, not something weak.
+   *
+   * The fallback looked like a safe default until you follow it through:
+   * ensureDescription never overwrites existing copy, so filling 54 products
+   * with a title and three generic bullets would permanently block the real
+   * copy from ever being written. An empty description is recoverable; a
+   * mediocre one that blocks its own replacement is not — and the SEO layer
+   * already composes a sensible meta description from the title regardless.
+   */
+  if (!isCopywriterConfigured()) return null;
 
   const client = new Anthropic({ timeout: TIMEOUT_MS, maxRetries: 1 });
 

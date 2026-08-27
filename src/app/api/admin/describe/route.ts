@@ -44,6 +44,22 @@ export async function POST(request: Request) {
   }
   const { apply = false, limit = 10, productId, includeDrafts = false } = parsed.data;
 
+  /*
+   * Refuse to write without a key rather than filling the catalogue with the
+   * deterministic fallback: copy is never overwritten once written, so a weak
+   * pass now would lock out the real copy for good.
+   */
+  if (apply && !isCopywriterConfigured()) {
+    return NextResponse.json(
+      {
+        error:
+          'ANTHROPIC_API_KEY is not set on the server, so no copy would be generated. ' +
+          'Add it to the app environment and restart before running this.',
+      },
+      { status: 503 }
+    );
+  }
+
   const products = await prisma.product.findMany({
     where: {
       ...(productId ? { id: productId } : {}),
