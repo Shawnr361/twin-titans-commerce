@@ -118,7 +118,17 @@ export async function generateDescription(
    */
   if (!isCopywriterConfigured()) return { html: null, error: 'no ANTHROPIC_API_KEY' };
 
-  const client = new Anthropic({ timeout: TIMEOUT_MS, maxRetries: 1 });
+  /*
+   * An identity-linked API key is rejected with 400 "anthropic-workspace-id is
+   * required" unless the workspace is named on every request. A plain
+   * workspace-scoped key needs no header, so this is set only when present.
+   */
+  const workspace = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
+  const client = new Anthropic({
+    timeout: TIMEOUT_MS,
+    maxRetries: 1,
+    ...(workspace ? { defaultHeaders: { 'anthropic-workspace-id': workspace } } : {}),
+  });
 
   const facts = [
     `Title: ${input.title}`,
@@ -172,6 +182,15 @@ export async function generateDescription(
       return { html: null, error: 'rate limited' };
     }
     if (err instanceof Anthropic.APIError) {
+      if (String(err.message).includes('anthropic-workspace-id')) {
+        return {
+          html: null,
+          error:
+            'The API key is identity-linked, so it needs a workspace. Set ' +
+            'ANTHROPIC_WORKSPACE_ID in the app environment and restart, or use a ' +
+            'workspace-scoped key instead.',
+        };
+      }
       return { html: null, error: `API ${err.status}: ${String(err.message).slice(0, 160)}` };
     }
     return { html: null, error: String(err).slice(0, 200) };
