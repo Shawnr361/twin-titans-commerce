@@ -1,3 +1,4 @@
+import { variantLabel } from '@/lib/vendor';
 import { prisma } from '../db';
 import { sourceCostToBase } from '../fx';
 import { isMarketplaceName } from '../vendor';
@@ -230,7 +231,11 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
           const priceMinor = input.priceOverrides?.[i] ?? priced?.priceMinor ?? 0;
           if (priceMinor <= costMinor) {
             warnings.push(
-              `Variant "${priced?.optionLabel ?? i}" is priced at or below its landed cost — it is a guaranteed loss and was left in draft.`
+              // "Variant \"Default\"" reads as a bug; a single-variant product
+              // has no option to name.
+              `${
+                variantLabel(priced?.optionLabel) ?? 'This product'
+              } is priced at or below its landed cost — it is a guaranteed loss and was left in draft.`
             );
           }
           return {

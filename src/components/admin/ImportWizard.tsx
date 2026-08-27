@@ -1,5 +1,6 @@
 'use client';
 
+import { variantLabel } from '@/lib/vendor';
 import { useRouter } from 'next/navigation';
 import { forwardRef, useCallback, useImperativeHandle, useState } from 'react';
 import { formatMoney, fromMinor, toMinor } from '@/lib/money';
@@ -365,7 +366,15 @@ export const ImportWizard = forwardRef<
                     return (
                       <tr key={i} className="border-b border-rule/60 last:border-0">
                         <td className="p-4">
-                          <span className="font-medium">{row.optionLabel}</span>
+                          {/*
+                            A single-variant product carries the placeholder
+                            label "Default". Printing it in the pricing table
+                            reads as an option the merchant has to think about,
+                            when in fact there is only one thing to price.
+                          */}
+                          <span className="font-medium">
+                            {variantLabel(row.optionLabel) ?? 'This product'}
+                          </span>
                           {row.warnings.length > 0 && (
                             <ul className="mt-1 space-y-0.5 text-[11px] text-warn">
                               {row.warnings.map((w, j) => (
@@ -386,7 +395,7 @@ export const ImportWizard = forwardRef<
                                 : '')
                             }
                             onChange={(e) => setCosts((prev) => ({ ...prev, [i]: e.target.value }))}
-                            aria-label={`Landed cost for ${row.optionLabel}`}
+                            aria-label={`Landed cost for ${variantLabel(row.optionLabel) ?? 'this product'}`}
                           />
                           {!c.known && (
                             <span className="mt-1 block text-[11px] text-danger">
@@ -402,7 +411,7 @@ export const ImportWizard = forwardRef<
                             onChange={(e) =>
                               setOverrides((prev) => ({ ...prev, [i]: e.target.value }))
                             }
-                            aria-label={`Price for ${row.optionLabel}`}
+                            aria-label={`Price for ${variantLabel(row.optionLabel) ?? 'this product'}`}
                           />
                         </td>
                         {/*

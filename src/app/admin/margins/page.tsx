@@ -1,3 +1,4 @@
+import { variantLabel } from '@/lib/vendor';
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
@@ -98,7 +99,7 @@ export default async function MarginAuditPage() {
                         <span className="text-[11px] text-greige">{variant.product.status}</span>
                       )}
                     </td>
-                    <td className="p-4 text-greige">{variant.title}</td>
+                    <td className="p-4 text-greige">{variantLabel(variant.title) ?? "—"}</td>
                     <td className="p-4 text-greige">
                       {formatMoney(variant.costMinor, settings.baseCurrency)}
                     </td>
