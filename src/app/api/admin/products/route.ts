@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { auditMargin } from '@/lib/pricing';
 import { getPricingRules } from '@/lib/settings';
 import { fileProduct } from '@/lib/filing';
+import { ensureDescription } from '@/lib/copywriter';
 
 const schema = z.object({
   productId: z.string().min(1),
@@ -73,11 +74,19 @@ export async function PATCH(request: Request) {
    * problem than a publish that fails because of a filing error.
    */
   let filing: Awaited<ReturnType<typeof fileProduct>> | null = null;
+  let copy: Awaited<ReturnType<typeof ensureDescription>> | null = null;
   if (parsed.data.status === 'ACTIVE') {
     filing = await fileProduct(product.id).catch(() => null);
+    /*
+     * Imports arrive with an empty description, so without this every product
+     * page shows nothing but a supplier title and the meta description falls
+     * back to repeating it. Like filing, never fatal: a product that publishes
+     * without copy is a smaller problem than a publish that fails.
+     */
+    copy = await ensureDescription(product.id).catch(() => null);
   }
 
-  return NextResponse.json({ ok: true, filing });
+  return NextResponse.json({ ok: true, filing, copy });
 }
 
 const deleteSchema = z.object({
