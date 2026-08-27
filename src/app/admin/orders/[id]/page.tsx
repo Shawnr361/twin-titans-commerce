@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import type { ShippingAddress } from '@/lib/dropship/fulfilment';
+import { CopyShippingDetails } from '@/components/admin/CopyShippingDetails';
 
 export const dynamic = 'force-dynamic';
 
@@ -184,6 +185,22 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
                 </>
               )}
             </address>
+
+            {/*
+              Fulfilment is a copy-paste job into the supplier's checkout, so
+              the address is offered in their field order rather than left to be
+              retyped — retyping an address is how parcels go to the wrong
+              street, and it is the customer who pays for that.
+            */}
+            {address && (
+              <div className="mt-5 border-t border-rule pt-5">
+                <CopyShippingDetails
+                  address={address}
+                  email={order.email}
+                  orderNumber={order.number}
+                />
+              </div>
+            )}
           </section>
 
           <section className="card overflow-hidden">

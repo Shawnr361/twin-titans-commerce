@@ -19,7 +19,7 @@ export default async function AdminProductsPage() {
       include: {
         images: { take: 1, orderBy: { position: 'asc' } },
         variants: true,
-        source: { select: { sourceUrl: true, platform: true } },
+        source: { select: { sourceUrl: true, platform: true, raw: true } },
       },
     })
     .catch(() => []);
@@ -92,6 +92,30 @@ export default async function AdminProductsPage() {
                         · {product.source.platform} source
                       </a>
                     )}
+                    {/*
+                      SOURCING EVIDENCE, ADMIN ONLY.
+                      This is the supplier's rating for the supplier's listing.
+                      It belongs here, where it helps judge what to restock, and
+                      never on the storefront: presenting another seller's
+                      reviews as ours would be a false representation under the
+                      FCCPA and breaches Google's review-snippet policy.
+                    */}
+                    {(() => {
+                      const raw = product.source?.raw as
+                        | { supplierRating?: number | null; supplierReviewCount?: number | null }
+                        | null
+                        | undefined;
+                      if (!raw?.supplierRating) return null;
+                      return (
+                        <span
+                          className="text-quiet"
+                          title="Supplier's rating for their own listing — sourcing evidence, not a review of this shop"
+                        >
+                          · ★ {raw.supplierRating.toFixed(1)}
+                          {raw.supplierReviewCount ? ` (${raw.supplierReviewCount})` : ''} at source
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
 

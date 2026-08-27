@@ -259,7 +259,23 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
           sourcePriceMinor: p.costMinor,
           shippingCostMinor: p.shippingCostMinor,
           importFxRate: preview.fxRateUsed,
-          raw: (p.raw ?? null) as never,
+          /*
+           * Fold the supplier's rating into the stored payload.
+           *
+           * It is captured but was never persisted, so the one number that
+           * says whether a listing is worth stocking died at the import step.
+           * Kept in `raw` rather than a new column because migrations cannot
+           * be run on this host — see the note in src/lib/db.ts.
+           *
+           * SOURCING EVIDENCE ONLY. This is the supplier's rating for the
+           * supplier's listing; it is shown in admin and must never appear on
+           * the storefront, where it would read as a review of our shop.
+           */
+          raw: {
+            ...(p.raw && typeof p.raw === 'object' ? (p.raw as Record<string, unknown>) : {}),
+            supplierRating: p.rating ?? null,
+            supplierReviewCount: p.reviewCount ?? null,
+          } as never,
           lastCheckedAt: new Date(),
         },
       },
