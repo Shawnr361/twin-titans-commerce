@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { productDescription, siteOrigin } from "@/lib/seo";
+import { Price } from "@/components/commerce/Price";
 import { ProductGallery } from "@/components/commerce/ProductGallery";
 import { VariantMediaProvider } from "@/components/commerce/VariantMediaContext";
 import { displayVendor, isPublishableBrand } from "@/lib/vendor";
@@ -13,7 +14,6 @@ import {
   IconReturn,
   IconSearch,
   IconShield,
-  IconSpark,
   IconTruck,
 } from "@/components/icons";
 import { prisma } from "@/lib/db";
@@ -349,11 +349,22 @@ export default async function ProductPage({
                 <dd className="ml-auto text-right text-body text-greige">
                   {settings.shippingFlatMinor > 0 ? (
                     <span className="block text-onyx">
-                      {formatMoney(settings.shippingFlatMinor, settings.baseCurrency)}
+                      {/*
+                        Price, not formatMoney: a shopper who switched to USD
+                        was shown "$18.50" for the item and "₦3,500" for its
+                        delivery on the same line.
+                      */}
+                      <Price
+                        minor={settings.shippingFlatMinor}
+                        currency={settings.baseCurrency}
+                      />
                       {settings.freeShippingOverMinor > 0 && (
                         <>
                           {" · free over "}
-                          {formatMoney(settings.freeShippingOverMinor, settings.baseCurrency)}
+                          <Price
+                            minor={settings.freeShippingOverMinor}
+                            currency={settings.baseCurrency}
+                          />
                         </>
                       )}
                     </span>
@@ -388,19 +399,6 @@ export default async function ProductPage({
                   </Link>
                 </dd>
               </div>
-              {settings.freeShippingOverMinor > 0 && (
-                <div className="flex items-center gap-4 py-4">
-                  <IconSpark size={19} className="shrink-0 text-brass" />
-                  <dt className="label shrink-0">Shipping</dt>
-                  <dd className="ml-auto text-right text-body text-greige">
-                    Complimentary over{" "}
-                    {formatMoney(
-                      settings.freeShippingOverMinor,
-                      settings.baseCurrency,
-                    )}
-                  </dd>
-                </div>
-              )}
             </dl>
 
             {product.descriptionHtml && (

@@ -4,6 +4,7 @@ import { getStoreSettings } from '@/lib/settings';
 import { CurrencySwitcher, type CurrencyOption } from '@/components/commerce/CurrencySwitcher';
 import { HeaderActions } from './HeaderActions';
 import { MobileNav } from './MobileNav';
+import { AnnouncementBar } from './AnnouncementBar';
 import { Wordmark } from './Wordmark';
 
 /**
@@ -37,16 +38,11 @@ export async function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 bg-bone/95 backdrop-blur">
       {settings.announcement && (
-        /*
-          Glass, not a solid band. bg-onyx is the LIGHT ink in this palette, so a
-          solid fill put a cream stripe across the top of an otherwise dark page.
-          A low-alpha tint over a blur keeps the page dark and lets what is
-          behind it show through, while text-onyx keeps the copy light enough to
-          read against it.
-        */
-        <div className="border-b border-onyx/10 bg-onyx/10 py-2.5 text-center backdrop-blur-md">
-          <p className="label !text-onyx/80 px-4">{settings.announcement}</p>
-        </div>
+        <AnnouncementBar
+          text={settings.announcement}
+          freeShippingOverMinor={settings.freeShippingOverMinor}
+          baseCurrency={settings.baseCurrency}
+        />
       )}
 
       <div className="shell">
