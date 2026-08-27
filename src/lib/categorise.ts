@@ -53,6 +53,12 @@ export const CATEGORY_RULES: CategoryRule[] = [
       // no collection at all, which is how this gap was found.
       'perfume', 'parfum', 'fragrance', 'cologne', 'eau de toilette',
       'eau de parfum', 'body mist', 'deodorant', 'body spray',
+      // Gaps found by auditing what the live catalogue failed to match.
+      'shampoo', 'scalp', 'conditioner', 'derma', 'dermaroller', 'micro needling',
+      'microneedling', 'beard', 'toner', 'toning solution', 'lotion', 'cleanser',
+      'exfoliant', 'sunscreen', 'spf', 'acne', 'glycolic', 'hyaluronic',
+      'salicylic', 'retinol', 'manicure', 'pedicure', 'eyeliner', 'mascara',
+      'foundation', 'concealer', 'hair growth', 'hair regrowth',
     ],
     // A pet clipper is a pet product, whatever the blade does.
     exclude: ['pet', 'dog', 'cat'],
@@ -113,11 +119,28 @@ export function categorise(
     const t = term.toLowerCase();
     // Multi-word terms are matched plainly; single words need boundaries.
     if (t.includes(' ')) return hay.includes(t);
-    const i = hay.indexOf(t);
-    if (i < 0) return false;
-    const before = i === 0 ? ' ' : hay[i - 1];
-    const after = i + t.length >= hay.length ? ' ' : hay[i + t.length];
-    return !/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after);
+
+    /*
+     * Every occurrence, not just the first, and allow a plural.
+     *
+     * The old version called indexOf once and gave up if that one position
+     * failed the boundary test. "…gel for nails … extension nail glue" found
+     * "nails" first, rejected it, and never looked at the real "nail" two
+     * words later — so a nail product matched nothing. "wig" likewise never
+     * matched "wigs". Both filed live products into no collection at all,
+     * which is invisible until someone browses a department and finds a gap.
+     */
+    for (let i = hay.indexOf(t); i >= 0; i = hay.indexOf(t, i + 1)) {
+      const before = i === 0 ? ' ' : hay[i - 1];
+      if (/[a-z0-9]/.test(before)) continue;
+
+      let end = i + t.length;
+      // A trailing "s" is part of the same word, not a different one.
+      if (hay[end] === 's') end += 1;
+      const after = end >= hay.length ? ' ' : hay[end];
+      if (!/[a-z0-9]/.test(after)) return true;
+    }
+    return false;
   };
 
   for (const rule of rules) {

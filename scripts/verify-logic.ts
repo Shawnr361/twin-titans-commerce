@@ -270,6 +270,39 @@ void (async () => {
     categorise('LED Light Switch Wall Panel Touch') !== 'gaming'
   );
 
+  /*
+   * Matcher bugs found by auditing the live catalogue: the old version tested
+   * only the FIRST occurrence of a keyword and did not allow a plural, so five
+   * real products were filed nowhere.
+   */
+  check(
+    'a later occurrence still matches when the first is a plural',
+    categorise('100g Solid Patch Adhesive Gel for Nails - Extension Nail Glue Glossy Finish'),
+    'beauty-skincare'
+  );
+  check(
+    'a plural keyword matches',
+    categorise('200 Density 40 Inch 13x6 Deep Wave Hd Lace Frontal Wigs Human Hair'),
+    'beauty-skincare'
+  );
+  check(
+    'a scalp brush is beauty, not home',
+    categorise('Head Wash Clean Care Hair Root Itching Scalp Massage Comb Shampoo Brush'),
+    'beauty-skincare'
+  );
+  check(
+    'a derma roller is beauty',
+    categorise('Micro Needling 540 Roller Derma Roller Titanium Dermaroller Beard Growth'),
+    'beauty-skincare'
+  );
+  check(
+    'an acid toner is beauty',
+    categorise('100ml Glycolic Acid 7% Toning Solution Rejuvenating Lotion'),
+    'beauty-skincare'
+  );
+  // The plural rule must not turn one word into a different one.
+  assert('"cat" still does not match "cats" inside "communicates"', categorise('Communicates Bluetooth Device') !== 'pet-supplies');
+
   console.log('── Vendor display ────────────────────────────');
 
   // The marketplace is not the vendor, and must never reach the storefront.
