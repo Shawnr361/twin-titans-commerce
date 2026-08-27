@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { productDescription, siteOrigin } from "@/lib/seo";
 import { ProductGallery } from "@/components/commerce/ProductGallery";
 import { VariantMediaProvider } from "@/components/commerce/VariantMediaContext";
-import { displayVendor, isMarketplaceName } from "@/lib/vendor";
+import { displayVendor, isPublishableBrand } from "@/lib/vendor";
 import { AddToCart } from "@/components/commerce/AddToCart";
 import { ProductCard } from "@/components/commerce/ProductCard";
 import { SectionHead } from "@/components/layout/SectionHead";
@@ -48,15 +49,50 @@ export async function generateMetadata({
   const product = await getProduct(handle).catch(() => null);
   if (!product) return { title: "Not found" };
 
+  const settings = await getStoreSettings();
+  const description = productDescription(product, settings.storeName);
+  const image = product.images[0]?.url;
+  // Cheapest variant: the figure a share card and a shopper both expect.
+  const priceMinor = product.variants.reduce(
+    (low, v) => (v.priceMinor > 0 && (low === 0 || v.priceMinor < low) ? v.priceMinor : low),
+    0
+  );
+  const title = product.seoTitle ?? product.title;
+
   return {
-    title: product.seoTitle ?? product.title,
-    description: product.seoDescription ?? product.title,
+    title,
+    description,
     alternates: { canonical: `/products/${product.handle}` },
     openGraph: {
-      type: "website",
-      title: product.seoTitle ?? product.title,
-      description: product.seoDescription ?? undefined,
-      images: product.images[0]?.url ? [product.images[0].url] : undefined,
+      title,
+      description,
+      images: image ? [image] : undefined,
+    },
+    /*
+     * og:type and the product:* tags are set here rather than in `openGraph`
+     * because Next's typed OpenGraph union has no "product" member. They are
+     * what lets a share card show a price instead of treating the page as a
+     * generic article, and Next emits `other` verbatim.
+     */
+    other: {
+      "og:type": "product",
+      ...(priceMinor > 0
+        ? {
+            "product:price:amount": (priceMinor / 100).toFixed(2),
+            "product:price:currency": settings.baseCurrency,
+          }
+        : {}),
+    },
+    /*
+     * Without this, Twitter and every scraper that reads twitter:* fell back
+     * to the site-wide card from the root layout - so sharing a product showed
+     * the shop logo instead of the product.
+     */
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: image ? [image] : undefined,
     },
   };
 }
@@ -154,24 +190,80 @@ export default async function ProductPage({
    * is no aggregateRating, because inventing review data is both dishonest
    * and a Google policy violation. It appears once reviews are real.
    */
+  /*
+   * Structured data for Google's merchant listings.
+   *
+   * `brand` stays omitted rather than guessed when the vendor is a marketplace
+   * handle: Google treats brand as recommended, and an omitted field costs a
+   * warning, while asserting a supplier's shop name - or our own - as the
+   * manufacturer is a claim we cannot stand behind.
+   *
+   * shippingDetails and hasMerchantReturnPolicy are read from the same
+   * settings and policy the storefront and the terms page use, so a shipping
+   * change cannot leave Google describing a rule that no longer applies.
+   */
+  const dearest = product.variants.reduce((high, v) => Math.max(high, v.priceMinor), 0);
+  const productUrl = `${siteOrigin()}/products/${product.handle}`;
+  // Same text the meta tags carry, so the page and the structured data agree.
+  const description = productDescription(product, settings.storeName);
+
   const jsonLd = {
     "@context": "https://schema.org/",
     "@type": "Product",
     name: product.title,
-    description: product.seoDescription ?? undefined,
+    description,
     image: product.images.map((i) => i.url).slice(0, 6),
     sku: product.variants[0]?.sku ?? undefined,
-    brand: !isMarketplaceName(product.vendor)
+    brand: isPublishableBrand(product.vendor)
       ? { "@type": "Brand", name: product.vendor }
       : undefined,
     offers: {
       "@type": "AggregateOffer",
       priceCurrency: settings.baseCurrency,
       lowPrice: (cheapest / 100).toFixed(2),
+      // Google wants both bounds once more than one offer is advertised.
+      highPrice: (Math.max(dearest, cheapest) / 100).toFixed(2),
       offerCount: product.variants.length,
+      url: productUrl,
       availability: inStock
         ? "https://schema.org/InStock"
         : "https://schema.org/OutOfStock",
+      shippingDetails: {
+        "@type": "OfferShippingDetails",
+        shippingRate: {
+          "@type": "MonetaryAmount",
+          value: (settings.shippingFlatMinor / 100).toFixed(2),
+          currency: settings.baseCurrency,
+        },
+        shippingDestination: {
+          "@type": "DefinedRegion",
+          addressCountry: "NG",
+        },
+        deliveryTime: {
+          "@type": "ShippingDeliveryTime",
+          handlingTime: {
+            "@type": "QuantitativeValue",
+            minValue: 1,
+            maxValue: 3,
+            unitCode: "DAY",
+          },
+          transitTime: {
+            "@type": "QuantitativeValue",
+            minValue: 7,
+            maxValue: 21,
+            unitCode: "DAY",
+          },
+        },
+      },
+      hasMerchantReturnPolicy: {
+        "@type": "MerchantReturnPolicy",
+        applicableCountry: "NG",
+        returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+        // Mirrors /pages/returns: 7 days, buyer pays return postage.
+        merchantReturnDays: 7,
+        returnMethod: "https://schema.org/ReturnByMail",
+        returnFees: "https://schema.org/ReturnShippingFees",
+      },
     },
   };
 
@@ -244,8 +336,28 @@ export default async function ProductPage({
               <div className="flex items-center gap-4 py-4">
                 <IconTruck size={19} className="shrink-0 text-brass" />
                 <dt className="label shrink-0">Delivery</dt>
+                {/*
+                  The CHARGE belongs here, not only in the basket. Showing the
+                  time but not the cost means a shopper first meets the ₦3,500
+                  at checkout, which is where carts get abandoned.
+                */}
                 <dd className="ml-auto text-right text-body text-greige">
-                  {shipMin}–{shipMax} days after dispatch
+                  {settings.shippingFlatMinor > 0 ? (
+                    <span className="block text-onyx">
+                      {formatMoney(settings.shippingFlatMinor, settings.baseCurrency)}
+                      {settings.freeShippingOverMinor > 0 && (
+                        <>
+                          {" · free over "}
+                          {formatMoney(settings.freeShippingOverMinor, settings.baseCurrency)}
+                        </>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="block text-onyx">Free delivery</span>
+                  )}
+                  <span className="block">
+                    {shipMin}–{shipMax} days after dispatch
+                  </span>
                 </dd>
               </div>
               <div className="flex items-center gap-4 py-4">

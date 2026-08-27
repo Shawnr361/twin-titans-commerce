@@ -31,3 +31,20 @@ export function displayVendor(vendor?: string | null): string {
   const name = (vendor ?? '').trim();
   return isMarketplaceName(name) ? FALLBACK_VENDOR : name;
 }
+
+/**
+ * Whether a vendor may be published as schema.org `brand`.
+ *
+ * Stricter than the storefront rule on purpose. Showing "DAZZLEEX Store" as
+ * the vendor line is honest - that really is who supplies it - but declaring
+ * it as the product's BRAND tells Google the supplier's shop handle is the
+ * manufacturer, and marketplace sellers name themselves "<something> Store"
+ * almost universally. Google treats brand as recommended rather than required,
+ * so omitting it costs a warning while publishing a false one is a claim we
+ * cannot stand behind and cannot easily retract once indexed.
+ */
+export function isPublishableBrand(vendor?: string | null): boolean {
+  const name = (vendor ?? '').trim();
+  if (!name || isMarketplaceName(name)) return false;
+  return !/\sstore$/i.test(name);
+}
