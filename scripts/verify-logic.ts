@@ -246,6 +246,30 @@ void (async () => {
   // Declining is the point: no plausible match means no category.
   check('an unmatched product is left alone', categorise('Ingemark Gold Snake Chain Waist Belt'), null);
 
+  // Fragrance — a live 100ml perfume matched nothing and sat in no collection.
+  check(
+    'a perfume files under beauty',
+    categorise('100ml Parfum Long Lasting Perfume Neutral Citrus Perfumy Fresh Woody'),
+    'beauty-skincare'
+  );
+  check('a body mist files under beauty', categorise('Floral Body Mist Fragrance Spray 250ml'), 'beauty-skincare');
+
+  // Gaming has to beat gadgets, because controllers are also "wireless"/"usb".
+  check(
+    'a controller files under gaming',
+    categorise('Wireless Gaming Controller Gamepad for PS4 PS5 Bluetooth'),
+    'gaming'
+  );
+  check(
+    'an RGB keyboard files under gaming',
+    categorise('RGB Mechanical Gaming Keyboard USB Backlit'),
+    'gaming'
+  );
+  assert(
+    'a light switch is not gaming',
+    categorise('LED Light Switch Wall Panel Touch') !== 'gaming'
+  );
+
   console.log('── Vendor display ────────────────────────────');
 
   // The marketplace is not the vendor, and must never reach the storefront.

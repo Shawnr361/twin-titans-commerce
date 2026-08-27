@@ -4,6 +4,7 @@ import { UnauthorizedError, requireAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { auditMargin } from '@/lib/pricing';
 import { getPricingRules } from '@/lib/settings';
+import { fileProduct } from '@/lib/filing';
 
 const schema = z.object({
   productId: z.string().min(1),
@@ -60,7 +61,23 @@ export async function PATCH(request: Request) {
     },
   });
 
-  return NextResponse.json({ ok: true });
+  /*
+   * File it on the way out the door.
+   *
+   * Categorisation used to run only at import, so anything the rules did not
+   * recognise then stayed uncategorised for good — a live perfume was in no
+   * collection at all and reachable only by search. Publishing is the right
+   * second chance: it is the moment the product becomes navigable.
+   *
+   * Never fatal. A product that publishes but does not get filed is a smaller
+   * problem than a publish that fails because of a filing error.
+   */
+  let filing: Awaited<ReturnType<typeof fileProduct>> | null = null;
+  if (parsed.data.status === 'ACTIVE') {
+    filing = await fileProduct(product.id).catch(() => null);
+  }
+
+  return NextResponse.json({ ok: true, filing });
 }
 
 const deleteSchema = z.object({

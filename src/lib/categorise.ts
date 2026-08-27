@@ -18,6 +18,8 @@
 export interface CategoryRule {
   /** Collection handle to file under. */
   handle: string;
+  /** Shown on the storefront, and used when the collection has to be created. */
+  title: string;
   /** Any of these in the title is a match. */
   keywords: string[];
   /** These veto the rule outright, whatever else matched. */
@@ -33,6 +35,7 @@ export interface CategoryRule {
 export const CATEGORY_RULES: CategoryRule[] = [
   {
     handle: 'pet-supplies',
+    title: 'Pet Supplies',
     keywords: [
       'pet', 'dog', 'cat', 'puppy', 'kitten', 'paw', 'leash', 'collar',
       'aquarium', 'litter', 'chew toy', 'grooming brush', 'bird', 'hamster',
@@ -40,17 +43,40 @@ export const CATEGORY_RULES: CategoryRule[] = [
   },
   {
     handle: 'beauty-skincare',
+    title: 'Beauty & Skincare',
     keywords: [
       'hair clipper', 'hair trimmer', 'trimmer', 'shaver', 'razor', 'skincare',
       'serum', 'moisturiser', 'moisturizer', 'cream', 'facial', 'face', 'lash',
       'nail', 'lipstick', 'makeup', 'cosmetic', 'wig', 'hair dryer', 'straightener',
       'curler', 'massager', 'toothbrush', 'epilator',
+      // Fragrance. A live 100ml perfume matched none of the above and sat in
+      // no collection at all, which is how this gap was found.
+      'perfume', 'parfum', 'fragrance', 'cologne', 'eau de toilette',
+      'eau de parfum', 'body mist', 'deodorant', 'body spray',
     ],
     // A pet clipper is a pet product, whatever the blade does.
     exclude: ['pet', 'dog', 'cat'],
   },
   {
+    /*
+     * Before gadgets-lighting on purpose: almost every gaming accessory is
+     * also "wireless", "usb" or "led", so gadgets would claim the lot.
+     */
+    handle: 'gaming',
+    title: 'Gaming',
+    keywords: [
+      'gaming', 'gamepad', 'game controller', 'joystick', 'joypad', 'console',
+      'playstation', 'ps4', 'ps5', 'xbox', 'nintendo', 'switch controller',
+      'gaming mouse', 'gaming keyboard', 'gaming headset', 'gaming chair',
+      'mousepad', 'mouse pad', 'rgb keyboard', 'mechanical keyboard',
+      'vr headset', 'steering wheel', 'arcade',
+    ],
+    // "Nintendo switch" is gaming; a light switch is not.
+    exclude: ['light switch', 'wall switch'],
+  },
+  {
     handle: 'gadgets-lighting',
+    title: 'Gadgets & Lighting',
     keywords: [
       'led', 'lamp', 'light', 'bulb', 'torch', 'projector', 'charger', 'cable',
       'power bank', 'earbud', 'headphone', 'speaker', 'bluetooth', 'usb',
@@ -60,6 +86,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
   },
   {
     handle: 'home-living',
+    title: 'Home & Living',
     keywords: [
       'kitchen', 'slicer', 'chopper', 'grater', 'cutter', 'peeler', 'storage',
       'organiser', 'organizer', 'cushion', 'curtain', 'bedding', 'towel',

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { UnauthorizedError, requireAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { categorise } from '@/lib/categorise';
+import { ensureCollection } from '@/lib/filing';
 
 /**
  * File existing products into collections.
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
   const planned: { title: string; handle: string }[] = [];
   const unmatched: string[] = [];
   const missingCollection: { title: string; handle: string }[] = [];
+  const createdCollections = new Set<string>();
   let alreadyFiled = 0;
 
   for (const product of products) {
@@ -65,14 +67,33 @@ export async function POST(request: Request) {
       unmatched.push(product.title);
       continue;
     }
-    const collectionId = byHandle.get(handle);
+    /*
+     * Create the department if the rule set defines one we do not have yet.
+     * Adding a rule should be enough to add a category — otherwise "Gaming"
+     * exists as a rule that files products into a collection nobody can
+     * browse, which reads as products silently vanishing.
+     *
+     * Only on apply: a dry run must not write anything.
+     */
+    let collectionId = byHandle.get(handle);
+    if (!collectionId && apply) {
+      const created = await ensureCollection(handle);
+      if (created) {
+        collectionId = created;
+        byHandle.set(handle, created);
+        createdCollections.add(handle);
+      }
+    }
     if (!collectionId) {
       missingCollection.push({ title: product.title, handle });
       continue;
     }
     planned.push({ title: product.title, handle });
     if (apply) {
-      await prisma.collectionProduct.create({ data: { productId: product.id, collectionId } });
+      await prisma.collectionProduct.createMany({
+        data: [{ productId: product.id, collectionId }],
+        skipDuplicates: true,
+      });
     }
   }
 
@@ -85,5 +106,6 @@ export async function POST(request: Request) {
     // Named plainly: these were left alone on purpose, not skipped by accident.
     noMatch: unmatched,
     collectionMissing: missingCollection,
+    createdCollections: [...createdCollections],
   });
 }
