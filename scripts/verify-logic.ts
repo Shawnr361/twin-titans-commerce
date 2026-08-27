@@ -12,6 +12,7 @@ import { getRate, sourceCostToBase } from '../src/lib/fx';
 import { assessCapture } from '../src/lib/suppliers/capture';
 import { displayVendor } from '../src/lib/vendor';
 import { categorise } from '../src/lib/categorise';
+import { pickerLabels } from '../src/lib/vendor';
 import { announcementContradictsShipping, DEFAULT_SETTINGS } from '../src/lib/settings';
 import { FALLBACK_RATES } from '../src/lib/fx';
 

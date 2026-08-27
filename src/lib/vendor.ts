@@ -66,3 +66,47 @@ export function variantLabel(title?: string | null): string | null {
   if (!name || name.toLowerCase() === 'default') return null;
   return name;
 }
+
+/**
+ * Labels for a variant picker that a customer can actually tell apart.
+ *
+ * Captures do not always resolve an option name for every SKU. optionLabel()
+ * falls back to the literal string "Default" per variant, so a listing where
+ * only some colours were readable renders as six identical "Default" buttons
+ * beside Green, Red and Yellow — unusable, and it reads as a broken page.
+ *
+ * Rules:
+ *  - a real, unique name is shown untouched;
+ *  - a placeholder becomes "Option N", numbered by position so it still
+ *    corresponds to the supplier's own ordering;
+ *  - a genuinely repeated name keeps the name and gains an occurrence number,
+ *    because "Red" twice is still more informative than "Option 7".
+ */
+export function pickerLabels(titles: string[]): string[] {
+  const cleaned = titles.map((t) => variantLabel(stripOptionName(t)) ?? '');
+
+  const totals = new Map<string, number>();
+  for (const name of cleaned) {
+    if (name) totals.set(name, (totals.get(name) ?? 0) + 1);
+  }
+
+  const seen = new Map<string, number>();
+  return cleaned.map((name, i) => {
+    if (!name) return `Option ${i + 1}`;
+    if ((totals.get(name) ?? 0) === 1) return name;
+    const n = (seen.get(name) ?? 0) + 1;
+    seen.set(name, n);
+    return `${name} (${n})`;
+  });
+}
+
+/** "Color: Red" -> "Red"; the option NAME is already the picker's legend. */
+function stripOptionName(title: string): string {
+  return title
+    .split(' / ')
+    .map((part) => {
+      const at = part.indexOf(': ');
+      return at > -1 ? part.slice(at + 2) : part;
+    })
+    .join(' / ');
+}

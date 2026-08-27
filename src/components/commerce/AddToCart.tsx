@@ -6,22 +6,9 @@ import { Magnetic } from '@/components/motion/Magnetic';
 import { IconBag, IconCheck, IconMinus, IconPlus } from '@/components/icons';
 import { CART_CHANGED_EVENT, openCartDrawer } from './CartDrawer';
 import { Price } from './Price';
+import { pickerLabels } from '@/lib/vendor';
 import { useVariantMedia } from './VariantMediaContext';
 
-/**
- * Variant titles are stored as "Color: Dark Blue / Size: XL". The option name
- * is already the legend, so repeating it on every button reads as noise —
- * show the values alone, as the supplier's own picker does.
- */
-function optionValues(title: string) {
-  return title
-    .split(' / ')
-    .map((part) => {
-      const at = part.indexOf(': ');
-      return at > -1 ? part.slice(at + 2) : part;
-    })
-    .join(' / ');
-}
 
 export interface VariantOption {
   id: string;
@@ -60,6 +47,13 @@ export function AddToCart({
   const [added, setAdded] = useState(false);
 
   const selected = variants.find((v) => v.id === selectedId) ?? variants[0];
+
+  /*
+   * Computed across the whole set, not per button: telling "Default" from
+   * "Default" requires knowing the others exist.
+   */
+  const labels = pickerLabels(variants.map((v) => v.title));
+  const labelFor = (id: string) => labels[variants.findIndex((v) => v.id === id)] ?? '';
 
   const select = (v: VariantOption) => {
     setSelectedId(v.id);
@@ -132,7 +126,7 @@ export function AddToCart({
           <legend className="label mb-3">
             Option
             <span className="ml-2 normal-case tracking-normal text-onyx">
-              {optionValues(selected.title)}
+              {labelFor(selected.id)}
             </span>
           </legend>
           <div className="flex flex-wrap gap-2">
@@ -149,7 +143,7 @@ export function AddToCart({
                     : 'border-ruleStrong text-ink hover:border-onyx'
                 } ${!v.available ? 'cursor-not-allowed text-quiet line-through opacity-50' : ''}`}
               >
-                {optionValues(v.title)}
+                {labelFor(v.id)}
               </button>
             ))}
           </div>
