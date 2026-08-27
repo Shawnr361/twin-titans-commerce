@@ -65,12 +65,18 @@ export async function generateMetadata({
     alternates: { canonical: `/products/${product.handle}` },
     openGraph: {
       /*
-       * Next's typed OpenGraph union has no "product" member, but Open Graph
-       * itself does — and only `openGraph` is emitted as property="og:type".
-       * Putting it in `other` produced name="og:type", which every OG scraper
-       * ignores, so the cast is what actually makes the tag work.
+       * Deliberately "website", not "product".
+       *
+       * Next validates this value while resolving metadata, so casting
+       * "product" past the type system threw during the SERVER render — every
+       * product page returned 200 and then rendered the error boundary, which
+       * is the worst kind of break: the status code says fine.
+       *
+       * og:type=product would only improve a Facebook share card. Google reads
+       * the JSON-LD Product offer below, which is what actually drives search
+       * results, so the trade is not worth a route that can crash.
        */
-      type: "product" as never,
+      type: "website",
       title,
       description,
       images: image ? [image] : undefined,
