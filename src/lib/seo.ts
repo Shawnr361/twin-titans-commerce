@@ -69,7 +69,15 @@ export function productDescription(product: {
    */
   if (body.length >= 60) return truncate(body);
 
-  return truncate(`${product.title}. Sourced, checked and delivered across Nigeria by ${storeName}.`);
+  /*
+   * Last resort. Repeating a 120-character supplier title and truncating it
+   * back to 155 leaves the title with a full stop on the end — which is what
+   * this function exists to avoid. Trimming the name to a readable fragment
+   * leaves room for the part a searcher actually wants: who sells it and how
+   * it arrives.
+   */
+  const short = product.title.length > 62 ? `${product.title.slice(0, 62).trimEnd()}…` : product.title;
+  return truncate(`${short} — sourced, checked and delivered across Nigeria by ${storeName}. Tracked on every order.`);
 }
 
 /**

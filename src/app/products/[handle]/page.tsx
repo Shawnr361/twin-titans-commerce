@@ -64,25 +64,30 @@ export async function generateMetadata({
     description,
     alternates: { canonical: `/products/${product.handle}` },
     openGraph: {
+      /*
+       * Next's typed OpenGraph union has no "product" member, but Open Graph
+       * itself does — and only `openGraph` is emitted as property="og:type".
+       * Putting it in `other` produced name="og:type", which every OG scraper
+       * ignores, so the cast is what actually makes the tag work.
+       */
+      type: "product" as never,
       title,
       description,
       images: image ? [image] : undefined,
     },
     /*
-     * og:type and the product:* tags are set here rather than in `openGraph`
-     * because Next's typed OpenGraph union has no "product" member. They are
-     * what lets a share card show a price instead of treating the page as a
-     * generic article, and Next emits `other` verbatim.
+     * product:* are OG-namespaced too, so they carry the same caveat: emitted
+     * via `other` they appear as name=, which Facebook does not read. They are
+     * kept because they cost nothing and some scrapers are lenient, but the
+     * figure search engines actually rely on is in the JSON-LD offer below.
      */
-    other: {
-      "og:type": "product",
-      ...(priceMinor > 0
+    other:
+      priceMinor > 0
         ? {
             "product:price:amount": (priceMinor / 100).toFixed(2),
             "product:price:currency": settings.baseCurrency,
           }
-        : {}),
-    },
+        : {},
     /*
      * Without this, Twitter and every scraper that reads twitter:* fell back
      * to the site-wide card from the root layout - so sharing a product showed
