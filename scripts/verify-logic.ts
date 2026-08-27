@@ -302,6 +302,16 @@ void (async () => {
   );
   // The plural rule must not turn one word into a different one.
   assert('"cat" still does not match "cats" inside "communicates"', categorise('Communicates Bluetooth Device') !== 'pet-supplies');
+  check(
+    'eyelashes file under beauty',
+    categorise('Fadvan 3D 4D 5D W Shaped Black Eyelashes 0.07mm'),
+    'beauty-skincare'
+  );
+  check(
+    'a collagen eye mask files under beauty',
+    categorise('60pcs Gold Crystal Collagen Eye Mask Anti Dark Circles Eye Patches'),
+    'beauty-skincare'
+  );
 
   console.log('── Vendor display ────────────────────────────');
 

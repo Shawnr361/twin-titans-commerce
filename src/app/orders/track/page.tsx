@@ -1,3 +1,4 @@
+import { variantLabel } from '@/lib/vendor';
 import { prisma } from '@/lib/db';
 import { Price } from '@/components/commerce/Price';
 
@@ -115,7 +116,9 @@ export default async function TrackPage({
                   <div className="min-w-0 flex-1">
                     <p className="text-body text-onyx">{item.productTitle}</p>
                     <p className="text-label text-quiet">
-                      {item.variantTitle} · {item.quantity}
+                      {variantLabel(item.variantTitle)
+                        ? `${variantLabel(item.variantTitle)} · ${item.quantity}`
+                        : `× ${item.quantity}`}
                     </p>
                   </div>
                 </li>

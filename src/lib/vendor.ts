@@ -48,3 +48,21 @@ export function isPublishableBrand(vendor?: string | null): boolean {
   if (!name || isMarketplaceName(name)) return false;
   return !/\sstore$/i.test(name);
 }
+
+/**
+ * A variant title fit to show a customer, or null when there is nothing to say.
+ *
+ * Single-variant products are stored with the placeholder title "Default",
+ * because a variant row has to be called something. That is an internal
+ * detail: printing "Default" beside a product tells a shopper nothing and
+ * reads like a bug.
+ *
+ * Four surfaces already tested for it by hand and four did not, which is how
+ * "Default" reached the order confirmation, the tracking page and the order
+ * detail. One helper so a new surface cannot forget.
+ */
+export function variantLabel(title?: string | null): string | null {
+  const name = (title ?? '').trim();
+  if (!name || name.toLowerCase() === 'default') return null;
+  return name;
+}

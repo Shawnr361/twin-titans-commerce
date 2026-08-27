@@ -59,6 +59,13 @@ export const CATEGORY_RULES: CategoryRule[] = [
       'exfoliant', 'sunscreen', 'spf', 'acne', 'glycolic', 'hyaluronic',
       'salicylic', 'retinol', 'manicure', 'pedicure', 'eyeliner', 'mascara',
       'foundation', 'concealer', 'hair growth', 'hair regrowth',
+      /*
+       * "lash" cannot match inside "eyelashes" — the boundary rule is right,
+       * the vocabulary was not. Same for eye masks and patches, which are
+       * skincare rather than the "mask" a face covering implies.
+       */
+      'eyelash', 'eyelashes', 'lashes', 'eye mask', 'eye patch', 'collagen',
+      'face mask', 'sheet mask', 'dark circles', 'anti-wrinkle', 'whitening',
     ],
     // A pet clipper is a pet product, whatever the blade does.
     exclude: ['pet', 'dog', 'cat'],

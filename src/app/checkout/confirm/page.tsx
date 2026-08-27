@@ -1,3 +1,4 @@
+import { variantLabel } from '@/lib/vendor';
 import Link from 'next/link';
 import { clearCart } from '@/lib/cart';
 import { prisma } from '@/lib/db';
@@ -99,7 +100,9 @@ export default async function ConfirmPage({
               <div className="min-w-0 flex-1">
                 <p className="text-body text-onyx">{item.productTitle}</p>
                 <p className="text-label text-quiet">
-                  {item.variantTitle} · {item.quantity}
+                  {variantLabel(item.variantTitle)
+                    ? `${variantLabel(item.variantTitle)} · ${item.quantity}`
+                    : `× ${item.quantity}`}
                 </p>
               </div>
               <Price

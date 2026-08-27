@@ -426,11 +426,19 @@ export default async function ProductPage({
                       </dd>
                     </div>
                   ))}
-                  <div className="flex gap-5 py-4">
+                  <div
+                    className={`flex gap-5 py-4 ${product.variants.length > 1 ? '' : 'hidden'}`}
+                  >
                     <dt className="label w-28 shrink-0 pt-0.5">Choices</dt>
                     <dd className="min-w-0 text-body text-greige">
-                      {product.variants.length}{' '}
-                      {product.variants.length === 1 ? 'option' : 'options'} available
+                      {/*
+                        "1 option available" is not information — a product with
+                        one variant simply has no choice to make, and saying so
+                        invites the shopper to look for a picker that is not
+                        there. Same reason the placeholder variant is never
+                        printed as "Default".
+                      */}
+                      {product.variants.length} options available
                     </dd>
                   </div>
                   <div className="flex gap-5 py-4">

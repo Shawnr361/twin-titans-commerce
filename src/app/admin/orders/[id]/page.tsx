@@ -1,3 +1,4 @@
+import { variantLabel } from '@/lib/vendor';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
@@ -62,7 +63,9 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-1 text-sm font-medium">{item.productTitle}</p>
                     <p className="text-xs text-greige">
-                      {item.variantTitle} × {item.quantity}
+                      {variantLabel(item.variantTitle)
+                        ? `${variantLabel(item.variantTitle)} × ${item.quantity}`
+                        : `× ${item.quantity}`}
                       {item.sku ? ` · ${item.sku}` : ''}
                     </p>
                     {item.sourceUrl && (
