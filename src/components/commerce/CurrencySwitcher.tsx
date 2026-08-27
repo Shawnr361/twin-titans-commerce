@@ -1,16 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { IconCheck, IconChevronDown, IconGlobe } from '@/components/icons';
+import { useCurrency, type CurrencyOption } from './CurrencyContext';
 
-export interface CurrencyOption {
-  code: string;
-  symbol: string;
-  /** Units of this currency per 1 unit of the store's base currency. */
-  rate: number;
-}
+export type { CurrencyOption } from './CurrencyContext';
 
-const STORAGE_KEY = 'tt_currency';
 
 /**
  * Flag per currency, as a regional-indicator pair.
@@ -59,105 +54,17 @@ export function CurrencySwitcher({
   options: CurrencyOption[];
   baseCurrency: string;
 }) {
-  const [active, setActive] = useState(baseCurrency);
+  const ctx = useCurrency();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const applyCurrency = useCallback(
-    (code: string) => {
-      const option = options.find((o) => o.code === code);
-      const nodes = document.querySelectorAll<HTMLElement>('.tt-price');
-
-      nodes.forEach((node) => {
-        const baseMinor = Number(node.dataset.baseMinor);
-        const base = node.dataset.baseCurrency ?? baseCurrency;
-        if (!Number.isFinite(baseMinor)) return;
-
-        // Preserve any prefix ("From ") that the Price component rendered.
-        const prefix = node.querySelector('span');
-        const prefixText = prefix?.textContent ?? '';
-
-        if (!option || code === base) {
-          node.textContent = '';
-          if (prefixText) {
-            const span = document.createElement('span');
-            span.className = 'text-quiet';
-            span.textContent = prefixText;
-            node.appendChild(span);
-          }
-          node.append(
-            new Intl.NumberFormat('en-NG', {
-              style: 'currency',
-              currency: base,
-              maximumFractionDigits: 0,
-            }).format(baseMinor / 100)
-          );
-          return;
-        }
-
-        const converted = (baseMinor / 100) * option.rate;
-        node.textContent = '';
-        if (prefixText) {
-          const span = document.createElement('span');
-          span.className = 'text-quiet';
-          span.textContent = prefixText;
-          node.appendChild(span);
-        }
-        node.append(
-          new Intl.NumberFormat(undefined, {
-            style: 'currency',
-            currency: option.code,
-            maximumFractionDigits: converted >= 100 ? 0 : 2,
-          }).format(converted)
-        );
-      });
-    },
-    [options, baseCurrency]
-  );
-
-  // Restore the visitor's choice, or suggest one from their locale.
-  useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored && options.some((o) => o.code === stored)) {
-      setActive(stored);
-      applyCurrency(stored);
-      return;
-    }
-
-    // Locale-based suggestion — no third-party geo-IP request, no tracking.
-    const region = new Intl.Locale(navigator.language).maximize().region;
-    const byRegion: Record<string, string> = {
-      US: 'USD', GB: 'GBP', CA: 'CAD', AU: 'AUD', NZ: 'AUD',
-      IE: 'EUR', DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR',
-      NL: 'EUR', PT: 'EUR', BE: 'EUR', AT: 'EUR', FI: 'EUR',
-      ZA: 'USD', GH: 'USD', KE: 'USD',
-    };
-    const suggested = region ? byRegion[region] : undefined;
-    if (suggested && options.some((o) => o.code === suggested)) {
-      setActive(suggested);
-      applyCurrency(suggested);
-    }
-  }, [options, applyCurrency]);
-
   /*
-   * Prices arrive after navigation and inside newly opened drawers, so a
-   * one-shot pass is not enough. This re-applies to any price element added
-   * later — the failure mode otherwise is a cart drawer showing naira while
-   * the page shows dollars.
+   * The currency lives in context now, not in this component and not in the
+   * DOM. This control only reads and sets it — see CurrencyContext for why
+   * rewriting price text in place was unsafe.
    */
-  useEffect(() => {
-    const observer = new MutationObserver((records) => {
-      const touched = records.some((r) =>
-        Array.from(r.addedNodes).some(
-          (n) => n instanceof HTMLElement && (n.matches?.('.tt-price') || n.querySelector?.('.tt-price'))
-        )
-      );
-      if (touched) applyCurrency(active);
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, [active, applyCurrency]);
+  const active = ctx?.active ?? baseCurrency;
+  const setActive = ctx?.setActive;
 
   // Close on outside click and on Escape.
   useEffect(() => {
@@ -177,9 +84,7 @@ export function CurrencySwitcher({
   }, [open]);
 
   const choose = (code: string) => {
-    setActive(code);
-    window.localStorage.setItem(STORAGE_KEY, code);
-    applyCurrency(code);
+    setActive?.(code);
     setOpen(false);
   };
 

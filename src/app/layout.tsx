@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Fraunces, Hanken_Grotesk } from 'next/font/google';
+import { prisma } from '@/lib/db';
+import { CurrencyProvider } from '@/components/commerce/CurrencyContext';
 import { SiteHeader } from '@/components/layout/SiteHeader';
 import { SiteFooter } from '@/components/layout/SiteFooter';
 import { CartDrawer } from '@/components/commerce/CartDrawer';
@@ -63,10 +65,26 @@ export const viewport: Viewport = {
   maximumScale: 5, // never trap pinch-zoom; it is an accessibility failure
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  /*
+   * The display currency has to wrap the whole tree, not just the header:
+   * prices render inside pages, the cart drawer and the search overlay, and
+   * every one of them must agree with the switcher. Failing softly matters
+   * here — a rates query that throws must not take the storefront down, it
+   * should just leave everything in the base currency.
+   */
+  const [settings, rates] = await Promise.all([
+    getStoreSettings(),
+    prisma.fxRate.findMany({ orderBy: { code: 'asc' } }).catch(() => []),
+  ]);
+  const currencies = rates
+    .filter((r) => r.rate > 0)
+    .map((r) => ({ code: r.code, symbol: r.symbol, rate: r.rate }));
+
   return (
     <html lang="en" className={`${fraunces.variable} ${hanken.variable}`}>
       <body className="flex min-h-screen flex-col bg-bone">
+        <CurrencyProvider options={currencies} baseCurrency={settings.baseCurrency}>
         {/* Warm washes + grain + vignette. Fixed, so it never repaints on scroll. */}
         <div className="ground" aria-hidden />
 
@@ -85,6 +103,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Mounted once each; opened from anywhere via their exported helpers. */}
         <CartDrawer />
         <SearchOverlay />
+        </CurrencyProvider>
       </body>
     </html>
   );
