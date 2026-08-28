@@ -32,7 +32,7 @@ import { htmlToText } from './seo';
  */
 
 /** Roughly the longest copy that still reads as a product blurb. */
-const MAX_TOKENS = 1200;
+const MAX_TOKENS = 3000;
 /** Publishing must not hang on this. */
 const TIMEOUT_MS = 25_000;
 
@@ -348,7 +348,10 @@ async function viaOpenRouter(facts: string): Promise<{ html: string | null; erro
     });
 
     const body = (await res.json().catch(() => null)) as {
-      choices?: Array<{ message?: { content?: string } }>;
+      choices?: Array<{
+        message?: { content?: string; reasoning?: string };
+        finish_reason?: string;
+      }>;
       error?: { message?: string };
     } | null;
 
@@ -357,8 +360,24 @@ async function viaOpenRouter(facts: string): Promise<{ html: string | null; erro
       return { html: null, error: `OpenRouter (${model}): ${String(detail).slice(0, 160)}` };
     }
 
-    const text = body?.choices?.[0]?.message?.content?.trim() ?? '';
-    if (!text) return { html: null, error: `OpenRouter (${model}) returned no content` };
+    const choice = body?.choices?.[0];
+    const text = choice?.message?.content?.trim() ?? '';
+    if (!text) {
+      /*
+       * Reasoning models put their chain of thought in `reasoning` and the
+       * answer in `content`. Given a small budget they spend it all thinking
+       * and return an empty answer — which looks like a broken integration
+       * unless the reason is named. finish_reason "length" says exactly that.
+       */
+      const reasoned = (choice?.message?.reasoning ?? '').length;
+      const why = reasoned
+        ? `it is a reasoning model and spent the ${MAX_TOKENS}-token budget thinking (${reasoned} chars of reasoning, finish_reason=${choice?.finish_reason})`
+        : `finish_reason=${choice?.finish_reason ?? 'unknown'}`;
+      return {
+        html: null,
+        error: `OpenRouter (${model}) returned no content — ${why}. Try a plain instruct model.`,
+      };
+    }
 
     const html = sanitise(text);
     /*
