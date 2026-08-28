@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { CurrencyProvider } from '@/components/commerce/CurrencyContext';
 import { SiteHeader } from '@/components/layout/SiteHeader';
 import { SiteFooter } from '@/components/layout/SiteFooter';
+import { ChatWidget } from '@/components/layout/ChatWidget';
 import { CartDrawer } from '@/components/commerce/CartDrawer';
 import { SearchOverlay } from '@/components/commerce/SearchOverlay';
 import { getStoreSettings } from '@/lib/settings';
@@ -99,6 +100,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
         </main>
         <SiteFooter />
+        <ChatWidget />
 
         {/* Mounted once each; opened from anywhere via their exported helpers. */}
         <CartDrawer />
