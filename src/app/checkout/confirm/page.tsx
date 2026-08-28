@@ -1,7 +1,7 @@
 import { variantLabel } from '@/lib/vendor';
 import Link from 'next/link';
-import { clearCart } from '@/lib/cart';
 import { prisma } from '@/lib/db';
+import { ClearCartOnMount } from '@/components/commerce/ClearCartOnMount';
 import { markOrderPaid } from '@/lib/orders';
 import { verifyTransaction } from '@/lib/payments/paystack';
 import { Price } from '@/components/commerce/Price';
@@ -56,9 +56,13 @@ export default async function ConfirmPage({
         .catch(() => null)
     : null;
 
-  if (order?.paymentStatus === 'PAID') {
-    await clearCart();
-  }
+  /*
+   * The basket is cleared by a client component below, NOT here. clearCart()
+   * deletes a cookie, and Next only allows that in a Server Action or Route
+   * Handler — doing it during render threw, and because it sat behind this
+   * exact condition it threw only when a payment had SUCCEEDED.
+   */
+  const paid = order?.paymentStatus === 'PAID';
 
   if (failure || !order) {
     return (
@@ -80,6 +84,8 @@ export default async function ConfirmPage({
 
   return (
     <div className="shell py-16 md:py-24">
+      {/* Renders nothing; empties the basket once the receipt is on screen. */}
+      {paid && <ClearCartOnMount />}
       <div className="mx-auto max-w-2xl">
         <hr className="rule-gold" />
         <p className="label mt-5">Order {order.number}</p>
