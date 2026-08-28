@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { ClearCartOnMount } from '@/components/commerce/ClearCartOnMount';
 import { markOrderPaid } from '@/lib/orders';
-import { verifyTransaction } from '@/lib/payments/paystack';
+import { verifyByReference, verifyTransaction } from '@/lib/payments/flutterwave';
 import { Price } from '@/components/commerce/Price';
 
 export const metadata = { title: 'Order confirmed', robots: { index: false } };
@@ -20,26 +20,50 @@ export const dynamic = 'force-dynamic';
 export default async function ConfirmPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ref?: string; order?: string; paypal?: string }>;
+  /*
+   * `tx_ref` / `transaction_id` / `status` are appended by Flutterwave on its
+   * redirect back; `ref` is kept so links issued before the Paystack->
+   * Flutterwave switch still resolve rather than 404-ing a paying customer.
+   */
+  searchParams: Promise<{
+    tx_ref?: string;
+    transaction_id?: string;
+    status?: string;
+    ref?: string;
+    order?: string;
+    paypal?: string;
+  }>;
 }) {
   const params = await searchParams;
   let orderId = params.order ?? null;
   let failure: string | null = null;
 
-  if (params.ref) {
+  const reference = params.tx_ref ?? params.ref ?? null;
+
+  if (params.transaction_id || reference) {
     try {
-      const verification = await verifyTransaction(params.ref);
+      /*
+       * Verify against Flutterwave rather than trusting `?status=` in the URL,
+       * which the customer can edit. Prefer the numeric transaction id; fall
+       * back to our own tx_ref when the redirect did not carry one.
+       */
+      const verification = params.transaction_id
+        ? await verifyTransaction(params.transaction_id)
+        : await verifyByReference(reference as string);
+
       const metaOrderId = (verification.metadata as { orderId?: string } | null)?.orderId;
 
-      if (verification.status === 'success' && metaOrderId) {
+      // Flutterwave says "successful"; Paystack said "success".
+      if (verification.status === 'successful' && metaOrderId) {
         orderId = metaOrderId;
         await markOrderPaid({
           orderId: metaOrderId,
-          provider: 'PAYSTACK',
+          provider: 'FLUTTERWAVE',
           reference: verification.reference,
-          amountMinor: verification.amount,
+          // Already minor units — the adapter converted at the API boundary.
+          amountMinor: verification.amountMinor,
           currency: verification.currency,
-          feeMinor: verification.fees ?? 0,
+          feeMinor: verification.feeMinor,
           raw: verification,
         });
       } else {

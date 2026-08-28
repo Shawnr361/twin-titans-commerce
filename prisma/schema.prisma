@@ -347,7 +347,11 @@ model OrderLineItem {
 }
 
 enum PaymentProvider {
+  // Retired in favour of FLUTTERWAVE, but KEPT: existing Payment rows still
+  // carry it, and removing an enum value orphans the history that proves those
+  // orders were paid.
   PAYSTACK
+  FLUTTERWAVE
   PAYPAL
   BANK_TRANSFER
   CASH_ON_DELIVERY

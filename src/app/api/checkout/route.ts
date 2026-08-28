@@ -5,13 +5,13 @@ import { getRate } from '@/lib/fx';
 import { convertMinor } from '@/lib/money';
 import { createOrder } from '@/lib/orders';
 import { createPaypalOrder, isPaypalConfigured } from '@/lib/payments/paypal';
-import { initTransaction, isPaystackConfigured } from '@/lib/payments/paystack';
+import { createPaymentLink, isFlutterwaveConfigured } from '@/lib/payments/flutterwave';
 import { getStoreSettings } from '@/lib/settings';
 
 const schema = z.object({
   email: z.string().email(),
   phone: z.string().optional(),
-  method: z.enum(['PAYSTACK', 'PAYPAL']),
+  method: z.enum(['FLUTTERWAVE', 'PAYPAL']),
   note: z.string().max(500).optional(),
   shippingAddress: z.object({
     name: z.string().min(1),
@@ -59,21 +59,33 @@ export async function POST(request: Request) {
   const reference = `TT-${order.number}-${Date.now().toString(36).toUpperCase()}`;
 
   try {
-    if (method === 'PAYSTACK') {
-      if (!isPaystackConfigured()) {
+    if (method === 'FLUTTERWAVE') {
+      if (!isFlutterwaveConfigured()) {
         return NextResponse.json({ error: 'Card payment is not available yet.' }, { status: 503 });
       }
 
-      const init = await initTransaction({
+      /*
+       * amountMinor stays in MINOR units here. The adapter converts to the
+       * major units Flutterwave expects — doing it at the call site is how a
+       * ₦35,997 order becomes a ₦3,599,700 charge.
+       */
+      const init = await createPaymentLink({
         email: order.email,
+        name: rest.shippingAddress.name,
+        phone: rest.phone ?? rest.shippingAddress.phone,
         amountMinor: order.totalMinor,
         reference,
         currency: settings.baseCurrency,
-        callbackUrl: `${siteUrl()}/checkout/confirm?ref=${encodeURIComponent(reference)}`,
+        storeName: settings.storeName,
+        /*
+         * No query string of ours: Flutterwave appends its own status, tx_ref
+         * and transaction_id to this URL, and the confirm page reads those.
+         */
+        redirectUrl: `${siteUrl()}/checkout/confirm`,
         metadata: { orderId: order.id, orderNumber: order.number },
       });
 
-      return NextResponse.json({ redirectUrl: init.authorization_url, reference });
+      return NextResponse.json({ redirectUrl: init.link, reference });
     }
 
     if (!isPaypalConfigured()) {

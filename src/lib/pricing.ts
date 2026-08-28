@@ -26,7 +26,24 @@ export interface GatewayFeeModel {
   capMinor: number;
 }
 
-/** Paystack Nigeria, as of the last time it was checked against their pricing page. */
+/**
+ * Flutterwave Nigeria, local transactions — CHECK THIS against their current
+ * pricing page before trusting it; gateway pricing changes and a stale model
+ * quietly eats margin on every product priced after it drifts.
+ *
+ * Unlike Paystack there is no flat component, so the waiver threshold is nil.
+ */
+export const FLUTTERWAVE_NG_FEES: GatewayFeeModel = {
+  percent: 0.014,
+  flatMinor: 0,
+  flatWaivedBelowMinor: 0,
+  capMinor: toMinor(2000, 'NGN'),
+};
+
+/**
+ * Retained for reference and for re-pricing history: products priced before
+ * the switch were costed against this model, so it explains their margins.
+ */
 export const PAYSTACK_NG_FEES: GatewayFeeModel = {
   percent: 0.015,
   flatMinor: toMinor(100, 'NGN'),
@@ -82,7 +99,7 @@ export const DEFAULT_RULES: PricingRules = {
   minMarginPct: 20,
   overheadMinor: 0,
   overheadPct: 0,
-  fees: PAYSTACK_NG_FEES,
+  fees: FLUTTERWAVE_NG_FEES,
   roundToMinor: toMinor(1000, 'NGN'),
   roundEndingMinor: toMinor(999, 'NGN'),
   compareAtMultiplier: 1.45,

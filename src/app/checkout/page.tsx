@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { CheckoutForm } from '@/components/commerce/CheckoutForm';
 import { hydrateCart, readCart } from '@/lib/cart';
 import { isPaypalConfigured } from '@/lib/payments/paypal';
-import { isPaystackConfigured } from '@/lib/payments/paystack';
+import { isFlutterwaveConfigured } from '@/lib/payments/flutterwave';
 import { getStoreSettings } from '@/lib/settings';
 
 export const metadata = { title: 'Checkout', robots: { index: false } };
@@ -35,7 +35,7 @@ export default async function CheckoutPage() {
         <CheckoutForm
           cart={cart}
           baseCurrency={settings.baseCurrency}
-          paystackEnabled={isPaystackConfigured()}
+          flutterwaveEnabled={isFlutterwaveConfigured()}
           paypalEnabled={isPaypalConfigured()}
         />
       </div>

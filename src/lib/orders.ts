@@ -140,7 +140,7 @@ function paymentShortfall(
  */
 export async function markOrderPaid(params: {
   orderId: string;
-  provider: 'PAYSTACK' | 'PAYPAL' | 'BANK_TRANSFER' | 'CASH_ON_DELIVERY';
+  provider: 'FLUTTERWAVE' | 'PAYSTACK' | 'PAYPAL' | 'BANK_TRANSFER' | 'CASH_ON_DELIVERY';
   reference: string;
   amountMinor: number;
   currency: string;

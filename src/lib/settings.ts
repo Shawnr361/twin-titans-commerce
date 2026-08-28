@@ -1,5 +1,5 @@
 import { prisma } from './db';
-import { DEFAULT_RULES, PAYSTACK_NG_FEES, type PricingRules } from './pricing';
+import { DEFAULT_RULES, FLUTTERWAVE_NG_FEES, type PricingRules } from './pricing';
 
 export interface StoreSettings {
   storeName: string;
@@ -58,7 +58,7 @@ export function getStoreSettings(): Promise<StoreSettings> {
 }
 
 export function getPricingRules(): Promise<PricingRules> {
-  return readSetting('pricing', { ...DEFAULT_RULES, fees: PAYSTACK_NG_FEES });
+  return readSetting('pricing', { ...DEFAULT_RULES, fees: FLUTTERWAVE_NG_FEES });
 }
 
 export async function writeSetting(key: string, value: unknown): Promise<void> {

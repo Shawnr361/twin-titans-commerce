@@ -25,20 +25,20 @@ const COUNTRIES = [
 export function CheckoutForm({
   cart,
   baseCurrency,
-  paystackEnabled,
+  flutterwaveEnabled,
   paypalEnabled,
 }: {
   cart: HydratedCart;
   baseCurrency: string;
-  paystackEnabled: boolean;
+  flutterwaveEnabled: boolean;
   paypalEnabled: boolean;
 }) {
   // Which button is mid-flight, so only that one shows a spinner label.
-  const [pending, setPending] = useState<'PAYSTACK' | 'PAYPAL' | null>(null);
+  const [pending, setPending] = useState<'FLUTTERWAVE' | 'PAYPAL' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const noPaymentConfigured = !paystackEnabled && !paypalEnabled;
+  const noPaymentConfigured = !flutterwaveEnabled && !paypalEnabled;
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -50,8 +50,8 @@ export function CheckoutForm({
      * the previous method. There is no separate "selected" step to get wrong.
      */
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-    const chosen: 'PAYSTACK' | 'PAYPAL' =
-      submitter?.value === 'PAYPAL' ? 'PAYPAL' : 'PAYSTACK';
+    const chosen: 'FLUTTERWAVE' | 'PAYPAL' =
+      submitter?.value === 'PAYPAL' ? 'PAYPAL' : 'FLUTTERWAVE';
 
     setPending(chosen);
     setBusy(true);
@@ -293,21 +293,21 @@ export function CheckoutForm({
         */}
         {noPaymentConfigured ? (
           <p role="alert" className="mt-8 border border-warn/40 p-4 text-body text-warn">
-            No payment provider is configured yet. Add your Paystack or PayPal keys before taking
+            No payment provider is configured yet. Add your Flutterwave or PayPal keys before taking
             real orders.
           </p>
         ) : (
           <div className="mt-8 space-y-3">
-            {paystackEnabled && (
+            {flutterwaveEnabled && (
               <button
                 type="submit"
                 name="method"
-                value="PAYSTACK"
+                value="FLUTTERWAVE"
                 disabled={busy}
                 className="btn btn-primary sheen w-full !flex-col gap-0.5 !py-3.5 !rounded-full disabled:opacity-60"
               >
                 <span className="text-body font-medium">
-                  {pending === 'PAYSTACK' ? 'Redirecting…' : 'Pay with Paystack'}
+                  {pending === 'FLUTTERWAVE' ? 'Redirecting…' : 'Pay with Flutterwave'}
                 </span>
                 <span className="text-micro !normal-case !tracking-normal opacity-75">
                   Charged in {baseCurrency}

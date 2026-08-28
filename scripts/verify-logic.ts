@@ -5,7 +5,13 @@
  *   npx tsx scripts/verify-logic.ts
  */
 import { parseSupplierUrl, stripTracking } from '../src/lib/suppliers/parse';
-import { auditMargin, computePrice, gatewayFee, PAYSTACK_NG_FEES } from '../src/lib/pricing';
+import {
+  auditMargin,
+  computePrice,
+  gatewayFee,
+  FLUTTERWAVE_NG_FEES,
+  PAYSTACK_NG_FEES,
+} from '../src/lib/pricing';
 import { DEFAULT_RULES } from '../src/lib/pricing';
 import { formatMoney, toMinor } from '../src/lib/money';
 import { getRate, sourceCostToBase } from '../src/lib/fx';
@@ -68,7 +74,7 @@ assert(
   stripped
 );
 
-console.log('\n── Gateway fees (Paystack NG) ────────────────────────');
+console.log('\n── Gateway fees (Paystack NG, historical) ────────────────────────');
 
 check('fee waived under ₦2,500', gatewayFee(toMinor(2000, 'NGN'), PAYSTACK_NG_FEES), toMinor(30, 'NGN'));
 check(
@@ -80,6 +86,28 @@ assert(
   'fee capped at ₦2,000 on large orders',
   gatewayFee(toMinor(1000000, 'NGN'), PAYSTACK_NG_FEES) === toMinor(2000, 'NGN'),
   String(gatewayFee(toMinor(1000000, 'NGN'), PAYSTACK_NG_FEES))
+);
+
+console.log('\n── Gateway fees (Flutterwave NG, live) ───────────────');
+/*
+ * 1.4% with NO flat component. Paystack added a flat ₦100 above ₦2,500; if that
+ * were still being applied the store would be over-estimating its own costs on
+ * every order and pricing itself high for no reason.
+ */
+check(
+  'no flat fee on a small order',
+  gatewayFee(toMinor(2000, 'NGN'), FLUTTERWAVE_NG_FEES),
+  toMinor(28, 'NGN')
+);
+check(
+  'fee = 1.4% at ₦10,000',
+  gatewayFee(toMinor(10000, 'NGN'), FLUTTERWAVE_NG_FEES),
+  toMinor(140, 'NGN')
+);
+assert(
+  'fee capped at ₦2,000 on large orders',
+  gatewayFee(toMinor(1000000, 'NGN'), FLUTTERWAVE_NG_FEES) === toMinor(2000, 'NGN'),
+  String(gatewayFee(toMinor(1000000, 'NGN'), FLUTTERWAVE_NG_FEES))
 );
 
 console.log('\n── Pricing engine ────────────────────────────────────');
