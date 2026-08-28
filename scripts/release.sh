@@ -54,6 +54,31 @@ git worktree add --detach "$WT" >/dev/null
   git rm -rqf . >/dev/null 2>&1 || true
   cp -a "$REPO/.next" .next
 
+  # ------------------------------------------------------------------------
+  # The generated Prisma client, and the schema it was generated from.
+  #
+  # Next EXTERNALISES @prisma/client — it stays a runtime require() so it can
+  # load its binary engine — so the client is NOT bundled into .next. Shipping
+  # only .next therefore cannot carry a schema change: the server keeps calling
+  # an older generated client, and any new model comes back undefined, which
+  # surfaces as "Application error" on the pages that use it. That is exactly
+  # how the Subscriber and Review models shipped broken.
+  #
+  # The engines are excluded deliberately. They are ~21MB each, they are
+  # platform-specific (the local ones are Windows and useless on the server),
+  # and the server's Linux engine is pinned by PRISMA_QUERY_ENGINE_BINARY in
+  # .env. Only the generated JavaScript and the datamodel travel.
+  # ------------------------------------------------------------------------
+  mkdir -p prisma prisma-client
+  cp "$REPO/prisma/schema.prisma" prisma/schema.prisma
+  for f in "$REPO"/node_modules/.prisma/client/*; do
+    base="$(basename "$f")"
+    case "$base" in
+      query_engine-*|*.node|*.node.tmp*|*.wasm) continue ;;
+    esac
+    [ -f "$f" ] && cp "$f" "prisma-client/$base"
+  done
+
   # .next/cache is build-time only and enormous - the webpack server pack alone
   # is ~59MB, past GitHub's file-size warning. The tarball deploys always
   # excluded it; publishing it here was an oversight that bloats every release.
@@ -67,7 +92,7 @@ git worktree add --detach "$WT" >/dev/null
     exit 1
   fi
 
-  git add -f .next
+  git add -f .next prisma prisma-client
   git -c user.name="release" -c user.email="release@twintitanemporium.com" \
       commit -qm "build $BUILD_ID"
   git push -qf origin "HEAD:deploy"
