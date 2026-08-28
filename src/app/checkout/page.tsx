@@ -34,7 +34,6 @@ export default async function CheckoutPage() {
       <div className="mt-12">
         <CheckoutForm
           cart={cart}
-          baseCurrency={settings.baseCurrency}
           flutterwaveEnabled={isFlutterwaveConfigured()}
           paypalEnabled={isPaypalConfigured()}
         />

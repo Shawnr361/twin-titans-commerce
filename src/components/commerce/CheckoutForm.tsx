@@ -24,12 +24,10 @@ const COUNTRIES = [
 
 export function CheckoutForm({
   cart,
-  baseCurrency,
   flutterwaveEnabled,
   paypalEnabled,
 }: {
   cart: HydratedCart;
-  baseCurrency: string;
   flutterwaveEnabled: boolean;
   paypalEnabled: boolean;
 }) {
@@ -304,30 +302,39 @@ export function CheckoutForm({
                 name="method"
                 value="FLUTTERWAVE"
                 disabled={busy}
-                className="btn btn-primary sheen w-full !flex-col gap-0.5 !py-3.5 !rounded-full disabled:opacity-60"
+                className="btn btn-primary sheen w-full !py-4 !rounded-full disabled:opacity-60"
               >
                 <span className="text-body font-medium">
-                  {pending === 'FLUTTERWAVE' ? 'Redirecting…' : 'Pay with Flutterwave'}
-                </span>
-                <span className="text-micro !normal-case !tracking-normal opacity-75">
-                  Charged in {baseCurrency}
+                  {pending === 'FLUTTERWAVE' ? (
+                    'Redirecting…'
+                  ) : (
+                    <>
+                      Pay with{' '}
+                      <span className="font-display italic tracking-tight">flutterwave</span>
+                    </>
+                  )}
                 </span>
               </button>
             )}
 
             {paypalEnabled && (
               /*
-                PayPal's own navy, with the wordmark set in type. Their real mark is
-                a trademarked asset from PayPal's brand centre; an approximation
-                drawn here would be visibly off and a trademark risk, so the button
-                shape is right and the artwork does not pretend to be theirs.
+                PayPal's own navy, with the wordmark set in type — as with
+                Flutterwave above.
+
+                Both real marks are trademarked assets from the providers' own
+                brand pages. Redrawing one by hand lands somewhere visibly wrong
+                AND is a trademark risk, so these buttons carry the right colour,
+                shape and name without pretending the artwork is theirs. To use
+                the genuine logos, drop the official SVGs into /public and swap
+                the type for an <img>.
               */
               <button
                 type="submit"
                 name="method"
                 value="PAYPAL"
                 disabled={busy}
-                className="flex w-full flex-col items-center gap-0.5 rounded-full bg-[#003087] py-3.5 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                className="flex w-full items-center justify-center rounded-full bg-[#003087] py-4 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
               >
                 <span className="text-body font-medium">
                   {pending === 'PAYPAL' ? (
@@ -342,7 +349,6 @@ export function CheckoutForm({
                     </>
                   )}
                 </span>
-                <span className="text-micro opacity-75">Charged in USD</span>
               </button>
             )}
           </div>
