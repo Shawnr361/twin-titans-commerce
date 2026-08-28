@@ -282,135 +282,71 @@ export function CheckoutForm({
           </p>
         )}
 
-
         {/*
-
           Under the total, not beside the address form. A shopper commits once they
-
           have seen what they are being charged, so the button belongs at the
-
           figure rather than several screens above it.
 
-
           Each button now says only its own currency. The longer "use this if you
-
           bank in Nigeria" line was accurate but crowded the moment of paying, and
-
           the currency carries the same meaning.
-
         */}
-
         {noPaymentConfigured ? (
-
           <p role="alert" className="mt-8 border border-warn/40 p-4 text-body text-warn">
-
             No payment provider is configured yet. Add your Paystack or PayPal keys before taking
-
             real orders.
-
           </p>
-
         ) : (
-
           <div className="mt-8 space-y-3">
-
             {paystackEnabled && (
-
               <button
-
                 type="submit"
-
                 name="method"
-
                 value="PAYSTACK"
-
                 disabled={busy}
-
-                className="btn btn-primary sheen w-full !flex-col gap-0.5 !py-3.5 disabled:opacity-60"
-
+                className="btn btn-primary sheen w-full !flex-col gap-0.5 !py-3.5 !rounded-full disabled:opacity-60"
               >
-
                 <span className="text-body font-medium">
-
                   {pending === 'PAYSTACK' ? 'Redirecting…' : 'Pay with Paystack'}
-
                 </span>
-
                 <span className="text-micro !normal-case !tracking-normal opacity-75">
-
                   Charged in {baseCurrency}
-
                 </span>
-
               </button>
-
             )}
-
 
             {paypalEnabled && (
-
               /*
-
                 PayPal's own navy, with the wordmark set in type. Their real mark is
-
                 a trademarked asset from PayPal's brand centre; an approximation
-
                 drawn here would be visibly off and a trademark risk, so the button
-
                 shape is right and the artwork does not pretend to be theirs.
-
               */
-
               <button
-
                 type="submit"
-
                 name="method"
-
                 value="PAYPAL"
-
                 disabled={busy}
-
                 className="flex w-full flex-col items-center gap-0.5 rounded-full bg-[#003087] py-3.5 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-
               >
-
                 <span className="text-body font-medium">
-
                   {pending === 'PAYPAL' ? (
-
                     'Redirecting…'
-
                   ) : (
-
                     <>
-
                       Pay with{' '}
-
                       <span className="font-display italic tracking-tight">
-
                         <span className="text-white">Pay</span>
-
                         <span className="text-[#8bc4f0]">Pal</span>
-
                       </span>
-
                     </>
-
                   )}
-
                 </span>
-
                 <span className="text-micro opacity-75">Charged in USD</span>
-
               </button>
-
             )}
-
           </div>
-
         )}
-
         <p className="mt-4 text-label text-quiet">
           By ordering you agree to our terms. Tracking follows by email once your parcel ships.
         </p>
