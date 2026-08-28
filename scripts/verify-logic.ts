@@ -13,7 +13,7 @@ import {
   PAYSTACK_NG_FEES,
 } from '../src/lib/pricing';
 import { DEFAULT_RULES } from '../src/lib/pricing';
-import { formatMoney, toMinor } from '../src/lib/money';
+import { formatMoney, fromMinor, toMinor } from '../src/lib/money';
 import { getRate, sourceCostToBase } from '../src/lib/fx';
 import { assessCapture } from '../src/lib/suppliers/capture';
 import { displayVendor } from '../src/lib/vendor';
@@ -108,6 +108,23 @@ assert(
   'fee capped at ₦2,000 on large orders',
   gatewayFee(toMinor(1000000, 'NGN'), FLUTTERWAVE_NG_FEES) === toMinor(2000, 'NGN'),
   String(gatewayFee(toMinor(1000000, 'NGN'), FLUTTERWAVE_NG_FEES))
+);
+
+console.log('\n── Flutterwave amount units ────────────────────────');
+/*
+ * THE 100x BUG, GUARDED.
+ *
+ * Paystack took kobo, so its adapter passed our minor units straight through.
+ * Flutterwave takes NAIRA. If anyone ever "simplifies" the adapter by dropping
+ * the conversion, a ₦35,997 order silently becomes a ₦3,599,700 charge on a
+ * real customer's card. These checks are the tripwire.
+ */
+check('order total to Flutterwave major units', fromMinor(toMinor(35997, 'NGN'), 'NGN'), 35997);
+check('Flutterwave amount back to minor units', toMinor(35997, 'NGN'), 3599700);
+assert(
+  'major and minor are NOT interchangeable',
+  fromMinor(toMinor(35997, 'NGN'), 'NGN') !== toMinor(35997, 'NGN'),
+  'conversion collapsed - the adapter would overcharge 100x'
 );
 
 console.log('\n── Pricing engine ────────────────────────────────────');
