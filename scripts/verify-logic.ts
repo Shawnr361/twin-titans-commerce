@@ -13,6 +13,7 @@ import { assessCapture } from '../src/lib/suppliers/capture';
 import { displayVendor } from '../src/lib/vendor';
 import { categorise } from '../src/lib/categorise';
 import { pickerLabels } from '../src/lib/vendor';
+import { stripInventedClaims } from '../src/lib/copywriter';
 import { announcementContradictsShipping, DEFAULT_SETTINGS } from '../src/lib/settings';
 import { FALLBACK_RATES } from '../src/lib/fx';
 
@@ -141,6 +142,39 @@ assert(
   `${floored.marginPct.toFixed(1)}%`
 );
 assert('floor raise is reported as a warning', floored.warnings.length > 0);
+
+// --- generated copy may not assert specs the supplier title never gave -------
+//
+// gemini-2.5-flash published "Recharges via USB for ease" for a clipper whose
+// title said only "Cordless". The prompt forbids it twice, by rule and by that
+// exact example, and the model did it anyway — so the guarantee lives here.
+const clipper = 'Vintage Cordless Hair Cutting Machine Portable Hair Clipper';
+const invented = stripInventedClaims(
+  '<p>A trimmer for home use.</p><ul><li>Cordless operation for flexible use.</li>' +
+    '<li>Recharges via USB for ease.</li><li>Available in several styles.</li></ul>',
+  clipper
+);
+check('USB claim stripped when the title never said it', invented?.includes('USB'), false);
+check('cordless survives — it IS in the title', invented?.includes('Cordless'), true);
+check('innocent bullet survives', invented?.includes('several styles'), true);
+
+check(
+  'measurement absent from the title is stripped',
+  stripInventedClaims('<p>A jug for the kitchen.</p><ul><li>Holds 500ml of liquid.</li></ul>', 'Water Jug')
+    ?.includes('500ml'),
+  false
+);
+check(
+  'measurement PRESENT in the title survives',
+  stripInventedClaims('<p>A jug for the kitchen.</p><ul><li>Holds 500ml of liquid.</li></ul>', '500ml Water Jug')
+    ?.includes('500ml'),
+  true
+);
+check(
+  'copy that is nothing but invented specs is rejected outright',
+  stripInventedClaims('<p>Made of stainless steel and charges over USB.</p>', 'Kitchen Tool'),
+  null
+);
 
 console.log('\n── Margin audit ──────────────────────────────────────');
 

@@ -157,7 +157,7 @@ export async function generateDescription(
     .filter(Boolean)
     .join('\n');
 
-  if (provider === 'openrouter') return viaOpenRouter(facts);
+  if (provider === 'openrouter') return viaOpenRouter(facts, input.title);
 
   /*
    * An identity-linked API key is rejected with 400 "anthropic-workspace-id is
@@ -196,7 +196,7 @@ export async function generateDescription(
       .join('')
       .trim();
 
-    const html = sanitise(text);
+    const html = sanitise(text, input.title);
     /*
      * A rejected body is worth reporting verbatim-ish: it is almost always the
      * model answering in prose or markdown rather than the HTML asked for, and
@@ -230,6 +230,69 @@ export async function generateDescription(
 }
 
 /**
+ * Words that assert a specification. Each is allowed ONLY if the supplier
+ * title actually contains it.
+ *
+ * Prompting alone does not hold. The rule was stated plainly, then restated
+ * naming this exact failure ("cordless does not tell you how it charges"), and
+ * the model still published "Recharges via USB for ease" for a clipper whose
+ * title says nothing about charging. The store's terms commit us to accurate
+ * descriptions, so a claim like that is a return we would have to honour.
+ *
+ * Deliberately narrow: materials, power, connectivity, certification and
+ * measurement. Ordinary use-language ("for salads", "keep clean") is what the
+ * copy is supposed to be made of and must survive.
+ */
+const SPEC_WORDS = [
+  'usb', 'rechargeable', 'recharge', 'recharges', 'recharging', 'charge', 'charges',
+  'charging', 'battery', 'batteries', 'mains', 'plug', 'bluetooth', 'wireless', 'wifi',
+  'waterproof', 'water-resistant', 'dishwasher', 'microwave', 'stainless', 'steel',
+  'aluminium', 'aluminum', 'silicone', 'plastic', 'ceramic', 'leather', 'cotton',
+  'bamboo', 'glass', 'rubber', 'bpa', 'warranty', 'guarantee', 'certified', 'waterproofing',
+];
+
+/** A number joined to a unit — "500ml", "20 cm", "2000mAh" — is a measurement. */
+const MEASUREMENT = /\b\d+(?:\.\d+)?\s?(?:ml|l|cl|cm|mm|m|in|inch|inches|ft|kg|g|mg|w|v|mah|hz|rpm)\b/i;
+
+function assertsUnsupportedSpec(text: string, title: string): boolean {
+  const lower = text.toLowerCase();
+  const inTitle = title.toLowerCase();
+  if (MEASUREMENT.test(text) && !MEASUREMENT.test(title)) return true;
+  return SPEC_WORDS.some(
+    (w) => new RegExp(`\\b${w}\\b`, 'i').test(lower) && !inTitle.includes(w)
+  );
+}
+
+/**
+ * Remove any sentence or bullet that asserts something the title never said.
+ *
+ * Stripping rather than rejecting the whole answer: one bad bullet out of four
+ * is a bullet to drop, not a reason to spend another model call. If the opening
+ * paragraph does not survive, there is no description left worth writing and
+ * the caller is told nothing came back.
+ */
+export function stripInventedClaims(html: string, title: string): string | null {
+  const para = /<p>([\s\S]*?)<\/p>/i.exec(html);
+  if (!para) return null;
+
+  const kept = htmlToText(para[1])
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => sentence.trim() && !assertsUnsupportedSpec(sentence, title));
+  if (kept.length === 0) return null;
+
+  const bullets = [...html.matchAll(/<li>([\s\S]*?)<\/li>/gi)]
+    .map((m) => m[1].trim())
+    .filter((b) => b && !assertsUnsupportedSpec(htmlToText(b), title));
+
+  return [
+    `<p>${kept.join(' ')}</p>`,
+    bullets.length ? `<ul>${bullets.map((b) => `<li>${b}</li>`).join('')}</ul>` : '',
+  ]
+    .join('')
+    .trim();
+}
+
+/**
  * Keep only the tags the product page renders, and reject anything that came
  * back as prose instead of HTML.
  *
@@ -237,7 +300,7 @@ export async function generateDescription(
  * onerror attribute would execute. Stripping to a fixed tag set is the only
  * safe way to accept generated markup.
  */
-function sanitise(html: string): string | null {
+function sanitise(html: string, title: string): string | null {
   const stripped = html
     .replace(/```html?/gi, '')
     .replace(/```/g, '')
@@ -250,7 +313,10 @@ function sanitise(html: string): string | null {
 
   // A model that answered in prose gives no tags; that is not usable copy.
   if (!stripped.includes('<p>') || htmlToText(stripped).length < 40) return null;
-  return stripped;
+
+  const honest = stripInventedClaims(stripped, title);
+  if (!honest || htmlToText(honest).length < 40) return null;
+  return honest;
 }
 
 /**
@@ -329,7 +395,10 @@ export async function ensureDescription(
  * come and go, and a hard-coded one turns into a 404 nobody can fix without a
  * deploy. Set OPENROUTER_MODEL to whatever is currently free and good.
  */
-async function viaOpenRouter(facts: string): Promise<{ html: string | null; error?: string }> {
+async function viaOpenRouter(
+  facts: string,
+  title: string
+): Promise<{ html: string | null; error?: string }> {
   const key = process.env.OPENROUTER_API_KEY?.trim();
   const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_OPENROUTER_MODEL;
 
@@ -396,7 +465,7 @@ async function viaOpenRouter(facts: string): Promise<{ html: string | null; erro
       };
     }
 
-    const html = sanitise(text);
+    const html = sanitise(text, title);
     /*
      * Free models follow formatting instructions less reliably than paid ones,
      * so a rejection here is expected often enough to be worth naming — it is
