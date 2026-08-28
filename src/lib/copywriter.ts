@@ -83,10 +83,13 @@ RULES — these matter more than style:
 - Do not mention price, delivery, shipping, returns or payment — the page states those separately.
 - Do not use the words "premium", "high-quality", "amazing", "perfect" or "must-have".
 - British English. Plain, calm, concrete. No exclamation marks.
+- Do not restate the title. The title is printed directly above your text on the page, so repeating it wastes the only space you have. No bullet may reuse a phrase from the title.
 
 FORMAT — return only HTML, no markdown fence, no commentary:
-- One <p> of 2–3 sentences saying what the thing is and who it suits.
-- Then <ul> with 3–4 <li> points, each a short phrase drawn from what the title actually says.
+- One <p> of 2–3 sentences: what the thing is, and the everyday situation it suits.
+- Then <ul> with 3–4 <li> points about LIVING WITH it, not about what it is: when or where you would reach for it, who it suits, what it saves you doing, how to keep it in good order. Each 6–12 words.
+- Where options are given, one bullet may mention that a choice of colour or style is available — never name a colour that was not listed.
+- Aim for 450–700 characters in total.
 Nothing else.`;
 
 /**
