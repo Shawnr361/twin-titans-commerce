@@ -78,8 +78,10 @@ You will be given only a supplier's product title, the options it comes in, and 
 
 RULES — these matter more than style:
 - Never state a fact you were not given. No materials, dimensions, weights, capacities, battery life, wattage, certifications, brand names, country of origin, or contents of the box.
+- Never infer one fact from another. "Cordless" does not tell you how it charges — do not write "charge over USB". "Slicer" does not tell you what the blades are made of. If a detail is not written in the title, it does not exist.
 - Never invent claims about performance, safety, medical or cosmetic benefit.
 - If the title is vague, write copy that stays vague rather than guessing.
+- Do not pad. A bullet that would be true of almost any product ("suitable for various settings", "aids in everyday tasks") is worse than no bullet. Write fewer, truer points.
 - Do not mention price, delivery, shipping, returns or payment — the page states those separately.
 - Do not use the words "premium", "high-quality", "amazing", "perfect" or "must-have".
 - British English. Plain, calm, concrete. No exclamation marks.
@@ -87,7 +89,7 @@ RULES — these matter more than style:
 
 FORMAT — return only HTML, no markdown fence, no commentary:
 - One <p> of 2–3 sentences: what the thing is, and the everyday situation it suits.
-- Then <ul> with 3–4 <li> points about LIVING WITH it, not about what it is: when or where you would reach for it, who it suits, what it saves you doing, how to keep it in good order. Each 6–12 words.
+- Then <ul> with 2–4 <li> points about LIVING WITH it, not about what it is: when or where you would reach for it, who it suits, what it saves you doing, how to keep it in good order. Each 6–12 words.
 - Where options are given, one bullet may mention that a choice of colour or style is available — never name a colour that was not listed.
 - Aim for 450–700 characters in total.
 Nothing else.`;
@@ -257,7 +259,19 @@ function sanitise(html: string): string | null {
  * Never overwrites existing copy: a merchant who wrote their own outranks a
  * generated paragraph, and re-running the backfill must be safe.
  */
-export async function ensureDescription(productId: string): Promise<{
+export async function ensureDescription(
+  productId: string,
+  /*
+   * Replace copy that is already there.
+   *
+   * Off by default and deliberately awkward to reach: publishing calls this on
+   * every product, and copy a human has edited must survive that. It exists
+   * because a bad prompt can put a wrong fact on a live page — the first run
+   * here claimed a clipper charged over USB, which the title never said — and
+   * without this there is no way to take that back.
+   */
+  rewrite = false
+): Promise<{
   written: boolean;
   reason?: string;
   chars?: number;
@@ -275,7 +289,7 @@ export async function ensureDescription(productId: string): Promise<{
     },
   });
   if (!product) return { written: false, reason: 'product not found' };
-  if (htmlToText(product.descriptionHtml ?? '').length > 40) {
+  if (!rewrite && htmlToText(product.descriptionHtml ?? '').length > 40) {
     return { written: false, reason: 'already has copy' };
   }
 

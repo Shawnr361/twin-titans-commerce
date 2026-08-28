@@ -26,6 +26,15 @@ const schema = z.object({
   /** Restrict to one product, for checking the prompt before a bulk run. */
   productId: z.string().optional(),
   includeDrafts: z.boolean().optional(),
+  /*
+   * Replace copy that already exists, instead of only filling gaps.
+   *
+   * Needed when the prompt itself was wrong rather than the run: the first
+   * live pass wrote "charge with a USB connection" for a clipper whose title
+   * never mentioned charging. Without this the only way to correct a published
+   * misdescription would be by hand, product by product.
+   */
+  rewrite: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -42,7 +51,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   }
-  const { apply = false, limit = 10, productId, includeDrafts = false } = parsed.data;
+  const { apply = false, limit = 10, productId, includeDrafts = false, rewrite = false } = parsed.data;
 
   /*
    * Refuse to write without a key rather than filling the catalogue with the
@@ -69,18 +78,23 @@ export async function POST(request: Request) {
     orderBy: { createdAt: 'asc' },
   });
 
-  const missing = products.filter((p) => htmlToText(p.descriptionHtml ?? '').length <= 40);
+  const missing = rewrite
+    ? products
+    : products.filter((p) => htmlToText(p.descriptionHtml ?? '').length <= 40);
 
   const results: Array<Record<string, unknown>> = [];
   let written = 0;
 
   for (const product of missing.slice(0, limit)) {
     if (!apply) {
-      results.push({ title: product.title.slice(0, 60), action: 'would write' });
+      results.push({
+        title: product.title.slice(0, 60),
+        action: rewrite ? 'would REPLACE' : 'would write',
+      });
       continue;
     }
 
-    const result = await ensureDescription(product.id);
+    const result = await ensureDescription(product.id, rewrite);
     if (result.written) written++;
     results.push({
       title: product.title.slice(0, 60),
@@ -99,6 +113,7 @@ export async function POST(request: Request) {
     scope: includeDrafts ? 'all products' : 'live products only',
     productsScanned: products.length,
     missingCopy: missing.length,
+    rewriting: rewrite,
     processed: results.length,
     written,
     results,
