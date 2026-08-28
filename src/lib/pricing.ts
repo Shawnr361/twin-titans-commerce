@@ -40,17 +40,6 @@ export const FLUTTERWAVE_NG_FEES: GatewayFeeModel = {
   capMinor: toMinor(2000, 'NGN'),
 };
 
-/**
- * Retained for reference and for re-pricing history: products priced before
- * the switch were costed against this model, so it explains their margins.
- */
-export const PAYSTACK_NG_FEES: GatewayFeeModel = {
-  percent: 0.015,
-  flatMinor: toMinor(100, 'NGN'),
-  flatWaivedBelowMinor: toMinor(2500, 'NGN'),
-  capMinor: toMinor(2000, 'NGN'),
-};
-
 export const NO_FEES: GatewayFeeModel = {
   percent: 0,
   flatMinor: 0,

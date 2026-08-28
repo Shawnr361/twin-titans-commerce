@@ -10,7 +10,7 @@ import {
   computePrice,
   gatewayFee,
   FLUTTERWAVE_NG_FEES,
-  PAYSTACK_NG_FEES,
+  type GatewayFeeModel,
 } from '../src/lib/pricing';
 import { DEFAULT_RULES } from '../src/lib/pricing';
 import { formatMoney, fromMinor, toMinor } from '../src/lib/money';
@@ -76,16 +76,29 @@ assert(
 
 console.log('\n── Gateway fees (Paystack NG, historical) ────────────────────────');
 
-check('fee waived under ₦2,500', gatewayFee(toMinor(2000, 'NGN'), PAYSTACK_NG_FEES), toMinor(30, 'NGN'));
+/*
+ * Paystack's old fee shape, kept HERE and not in src/: no gateway the store
+ * uses has a flat component any more, so this exists only to exercise the
+ * waiver branch of gatewayFee(), which Flutterwave's model (flat = 0) can
+ * never reach. Production code should not carry a constant nothing prices with.
+ */
+const FLAT_FEE_FIXTURE: GatewayFeeModel = {
+  percent: 0.015,
+  flatMinor: toMinor(100, 'NGN'),
+  flatWaivedBelowMinor: toMinor(2500, 'NGN'),
+  capMinor: toMinor(2000, 'NGN'),
+};
+
+check('fee waived under ₦2,500', gatewayFee(toMinor(2000, 'NGN'), FLAT_FEE_FIXTURE), toMinor(30, 'NGN'));
 check(
   'fee = 1.5% + ₦100 at ₦10,000',
-  gatewayFee(toMinor(10000, 'NGN'), PAYSTACK_NG_FEES),
+  gatewayFee(toMinor(10000, 'NGN'), FLAT_FEE_FIXTURE),
   toMinor(250, 'NGN')
 );
 assert(
   'fee capped at ₦2,000 on large orders',
-  gatewayFee(toMinor(1000000, 'NGN'), PAYSTACK_NG_FEES) === toMinor(2000, 'NGN'),
-  String(gatewayFee(toMinor(1000000, 'NGN'), PAYSTACK_NG_FEES))
+  gatewayFee(toMinor(1000000, 'NGN'), FLAT_FEE_FIXTURE) === toMinor(2000, 'NGN'),
+  String(gatewayFee(toMinor(1000000, 'NGN'), FLAT_FEE_FIXTURE))
 );
 
 console.log('\n── Gateway fees (Flutterwave NG, live) ───────────────');

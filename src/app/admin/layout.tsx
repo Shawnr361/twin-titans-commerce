@@ -11,6 +11,7 @@ const NAV = [
   ['/admin/orders', 'Orders'],
   ['/admin/fulfilment', 'Supplier queue'],
   ['/admin/margins', 'Margin audit'],
+  ['/admin/reviews', 'Reviews'],
   ['/admin/subscribers', 'Mailing list'],
   ['/admin/settings', 'Settings'],
 ] as const;
