@@ -158,14 +158,19 @@ export function CurrencySwitcher({
           ))}
 
           {/*
-            Display currency and settlement currency are different things, and
-            saying "you are charged in NGN" is only true for the card route.
-            PayPal cannot process NGN at all, so it settles in USD. Stating
-            both here means no customer is surprised at the payment step.
+            Display currency and settlement currency are different things, so
+            this names the two payment routes exactly as the checkout buttons
+            do, with the currency each one charges in.
+
+            "By card" was the old wording and it read as a limitation. It is
+            the charge CURRENCY that is fixed at NGN, not the card: Flutterwave
+            accepts international cards, and a foreign bank simply converts.
+            Naming the provider instead of the instrument avoids implying that
+            an overseas customer cannot pay this way.
           */}
           <p className="border-t border-rule px-4 pb-1 pt-3 text-micro leading-relaxed text-quiet">
-            Shown for convenience. At checkout you pay in {baseCurrency} by card, or in USD via
-            PayPal.
+            Shown for convenience. At checkout you pay with Flutterwave in {baseCurrency}, or with
+            PayPal in USD.
           </p>
         </div>
       )}
