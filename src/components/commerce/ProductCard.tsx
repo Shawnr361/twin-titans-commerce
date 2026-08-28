@@ -74,20 +74,7 @@ export function ProductCard({
           )}
 
           {reduced > 0 && (
-            /*
-              See-through, not invisible. `.tag` is already frosted glass; the
-              opaque `bg-paper` that used to be here overrode it, because a
-              Tailwind utility beats the component layer. Reopened to a light
-              tint over the existing blur.
-
-              Not fully transparent: the sale colour (#D67A6A) is chosen to be
-              "legible on dark", and most product shots are on white, so with no
-              tint at all the figure washes out on exactly the images it sits on
-              most often. The blur plus a thin scrim is what keeps it readable.
-            */
-            <span className="tag tag-sale absolute left-3 top-3 z-[2] bg-[rgb(var(--bg)/0.38)]">
-              −{reduced}%
-            </span>
+            <span className="tag tag-sale absolute left-3 top-3 z-[2] bg-paper">−{reduced}%</span>
           )}
         </TiltCard>
 
