@@ -210,83 +210,6 @@ export function CheckoutForm({
             </div>
           </div>
         </fieldset>
-
-        <fieldset>
-          <legend className="label">Payment</legend>
-          <hr className="rule mt-4" />
-
-          {noPaymentConfigured && (
-            <p role="alert" className="mt-6 border border-warn/40 p-4 text-body text-warn">
-              No payment provider is configured yet. Add your Paystack or PayPal keys before taking
-              real orders.
-            </p>
-          )}
-
-          {/*
-            Two buttons, not a radio plus a generic "Pay now". A shopper who has
-            chosen how to pay should not then have to hunt for a second control,
-            and "Pay now" never said which rail it would use.
-
-            The guidance that lived under each radio moves onto the button:
-            "use this if you bank in Nigeria" is the sentence that prevents a
-            failed payment for a store pricing in NGN but selling abroad.
-          */}
-          <div className="mt-6 space-y-3">
-            {paystackEnabled && (
-              <button
-                type="submit"
-                name="method"
-                value="PAYSTACK"
-                disabled={busy}
-                className="btn btn-primary sheen w-full !flex-col !items-start gap-1 !py-4 text-left disabled:opacity-60"
-              >
-                <span className="text-body font-medium">
-                  {pending === 'PAYSTACK' ? 'Redirecting to Paystack…' : 'Pay with Paystack'}
-                </span>
-                <span className="text-label !normal-case !tracking-normal opacity-80">
-                  Card, bank transfer or USSD · charged in {baseCurrency} · use this if you bank in
-                  Nigeria
-                </span>
-              </button>
-            )}
-
-            {paypalEnabled && (
-              /*
-                PayPal's own blue, with the wordmark set in type rather than a
-                drawn logo: an approximated mark is both visibly wrong and a
-                trademark risk. Drop their official asset in here for the real
-                one.
-              */
-              <button
-                type="submit"
-                name="method"
-                value="PAYPAL"
-                disabled={busy}
-                className="flex w-full flex-col items-start gap-1 border border-[#003087] bg-[#003087] px-6 py-4 text-left text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-              >
-                <span className="text-body font-medium">
-                  {pending === 'PAYPAL' ? (
-                    'Redirecting to PayPal…'
-                  ) : (
-                    <>
-                      Pay with <span className="italic">Pay</span>
-                      <span className="italic text-[#5ab6f0]">Pal</span>
-                    </>
-                  )}
-                </span>
-                <span className="text-label !normal-case !tracking-normal opacity-80">
-                  {/*
-                    PayPal cannot process NGN under any circumstance — a hard
-                    platform limit, not a configuration choice — so it always
-                    settles in USD, and the customer is told before approving.
-                  */}
-                  Or international card · charged in USD at today&apos;s rate · use this if you bank
-                  outside Nigeria
-                </span>
-              </button>
-            )}
-          </div>
-        </fieldset>
       </div>
 
       <aside className="h-fit lg:sticky lg:top-28">
@@ -357,6 +280,135 @@ export function CheckoutForm({
           <p role="alert" className="mt-6 border border-danger/40 p-4 text-body text-danger">
             {error}
           </p>
+        )}
+
+
+        {/*
+
+          Under the total, not beside the address form. A shopper commits once they
+
+          have seen what they are being charged, so the button belongs at the
+
+          figure rather than several screens above it.
+
+
+          Each button now says only its own currency. The longer "use this if you
+
+          bank in Nigeria" line was accurate but crowded the moment of paying, and
+
+          the currency carries the same meaning.
+
+        */}
+
+        {noPaymentConfigured ? (
+
+          <p role="alert" className="mt-8 border border-warn/40 p-4 text-body text-warn">
+
+            No payment provider is configured yet. Add your Paystack or PayPal keys before taking
+
+            real orders.
+
+          </p>
+
+        ) : (
+
+          <div className="mt-8 space-y-3">
+
+            {paystackEnabled && (
+
+              <button
+
+                type="submit"
+
+                name="method"
+
+                value="PAYSTACK"
+
+                disabled={busy}
+
+                className="btn btn-primary sheen w-full !flex-col gap-0.5 !py-3.5 disabled:opacity-60"
+
+              >
+
+                <span className="text-body font-medium">
+
+                  {pending === 'PAYSTACK' ? 'Redirecting…' : 'Pay with Paystack'}
+
+                </span>
+
+                <span className="text-micro !normal-case !tracking-normal opacity-75">
+
+                  Charged in {baseCurrency}
+
+                </span>
+
+              </button>
+
+            )}
+
+
+            {paypalEnabled && (
+
+              /*
+
+                PayPal's own navy, with the wordmark set in type. Their real mark is
+
+                a trademarked asset from PayPal's brand centre; an approximation
+
+                drawn here would be visibly off and a trademark risk, so the button
+
+                shape is right and the artwork does not pretend to be theirs.
+
+              */
+
+              <button
+
+                type="submit"
+
+                name="method"
+
+                value="PAYPAL"
+
+                disabled={busy}
+
+                className="flex w-full flex-col items-center gap-0.5 rounded-full bg-[#003087] py-3.5 text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+
+              >
+
+                <span className="text-body font-medium">
+
+                  {pending === 'PAYPAL' ? (
+
+                    'Redirecting…'
+
+                  ) : (
+
+                    <>
+
+                      Pay with{' '}
+
+                      <span className="font-display italic tracking-tight">
+
+                        <span className="text-white">Pay</span>
+
+                        <span className="text-[#8bc4f0]">Pal</span>
+
+                      </span>
+
+                    </>
+
+                  )}
+
+                </span>
+
+                <span className="text-micro opacity-75">Charged in USD</span>
+
+              </button>
+
+            )}
+
+          </div>
+
         )}
 
         <p className="mt-4 text-label text-quiet">
