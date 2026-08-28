@@ -36,6 +36,14 @@ const MAX_TOKENS = 1200;
 /** Publishing must not hang on this. */
 const TIMEOUT_MS = 25_000;
 
+/**
+ * Default OpenRouter model.
+ *
+ * A free-tier id, overridable with OPENROUTER_MODEL. Free ids are renamed and
+ * retired regularly, so treat a 404 here as "pick another model", not a bug.
+ */
+const DEFAULT_OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+
 export interface CopyInput {
   title: string;
   /** Option values actually offered, e.g. ["Pink", "Gray"]. */
@@ -46,8 +54,22 @@ export interface CopyInput {
   currency: string;
 }
 
+/**
+ * Which provider will be used, if any.
+ *
+ * OpenRouter wins when its key is present: it is the cheaper route and offers
+ * free models, so a store backfilling a whole catalogue should not have to
+ * remove the Anthropic key to stop paying for it. Anthropic remains the
+ * fallback so switching back is a config change, not a code change.
+ */
+export function copywriterProvider(): 'openrouter' | 'anthropic' | null {
+  if (process.env.OPENROUTER_API_KEY?.trim()) return 'openrouter';
+  if (process.env.ANTHROPIC_API_KEY?.trim()) return 'anthropic';
+  return null;
+}
+
 export function isCopywriterConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return copywriterProvider() !== null;
 }
 
 const SYSTEM = `You write product descriptions for Twin Titans Emporium, an online shop in Nigeria.
@@ -116,7 +138,21 @@ export async function generateDescription(
    * mediocre one that blocks its own replacement is not — and the SEO layer
    * already composes a sensible meta description from the title regardless.
    */
-  if (!isCopywriterConfigured()) return { html: null, error: 'no ANTHROPIC_API_KEY' };
+  const provider = copywriterProvider();
+  if (!provider) {
+    return { html: null, error: 'no OPENROUTER_API_KEY or ANTHROPIC_API_KEY' };
+  }
+
+  const facts = [
+    `Title: ${input.title}`,
+    input.options.length ? `Options: ${input.options.slice(0, 12).join(', ')}` : 'Options: none',
+    input.category ? `Category: ${input.category.replace(/-/g, ' ')}` : null,
+    `Price: ${formatMoney(input.priceMinor, input.currency)}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  if (provider === 'openrouter') return viaOpenRouter(facts);
 
   /*
    * An identity-linked API key is rejected with 400 "anthropic-workspace-id is
@@ -129,15 +165,6 @@ export async function generateDescription(
     maxRetries: 1,
     ...(workspace ? { defaultHeaders: { 'anthropic-workspace-id': workspace } } : {}),
   });
-
-  const facts = [
-    `Title: ${input.title}`,
-    input.options.length ? `Options: ${input.options.slice(0, 12).join(', ')}` : 'Options: none',
-    input.category ? `Category: ${input.category.replace(/-/g, ' ')}` : null,
-    `Price: ${formatMoney(input.priceMinor, input.currency)}`,
-  ]
-    .filter(Boolean)
-    .join('\n');
 
   try {
     const response = await client.messages.create({
@@ -272,4 +299,83 @@ export async function ensureDescription(productId: string): Promise<{
     data: { descriptionHtml: generated.html },
   });
   return { written: true, chars: generated.html.length };
+}
+
+/**
+ * OpenRouter — an OpenAI-shaped endpoint in front of many models.
+ *
+ * Written with fetch rather than an SDK: this is one POST, and OpenRouter's
+ * wire format is the OpenAI chat-completions shape, so a client library would
+ * add a dependency for nothing.
+ *
+ * The model is configurable because OpenRouter's free tier changes: model ids
+ * come and go, and a hard-coded one turns into a 404 nobody can fix without a
+ * deploy. Set OPENROUTER_MODEL to whatever is currently free and good.
+ */
+async function viaOpenRouter(facts: string): Promise<{ html: string | null; error?: string }> {
+  const key = process.env.OPENROUTER_API_KEY?.trim();
+  const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_OPENROUTER_MODEL;
+
+  /*
+   * fetch has no timeout of its own, and publishing waits on this call — an
+   * unbounded request would hang the publish rather than fail it.
+   */
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
+
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      signal: abort.signal,
+      headers: {
+        authorization: `Bearer ${key}`,
+        'content-type': 'application/json',
+        // OpenRouter attributes usage to the calling site; harmless, and it
+        // makes the dashboard readable.
+        'http-referer': 'https://twintitanemporium.com',
+        'x-title': 'Twin Titans Emporium',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: MAX_TOKENS,
+        // Copy, not reasoning: a little variation reads better than none.
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'user', content: facts },
+        ],
+      }),
+    });
+
+    const body = (await res.json().catch(() => null)) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      error?: { message?: string };
+    } | null;
+
+    if (!res.ok) {
+      const detail = body?.error?.message ?? `HTTP ${res.status}`;
+      return { html: null, error: `OpenRouter (${model}): ${String(detail).slice(0, 160)}` };
+    }
+
+    const text = body?.choices?.[0]?.message?.content?.trim() ?? '';
+    if (!text) return { html: null, error: `OpenRouter (${model}) returned no content` };
+
+    const html = sanitise(text);
+    /*
+     * Free models follow formatting instructions less reliably than paid ones,
+     * so a rejection here is expected often enough to be worth naming — it is
+     * usually markdown or a preamble, which means try another model rather
+     * than debug the code.
+     */
+    return html
+      ? { html }
+      : { html: null, error: `unusable output from ${model}: ${text.slice(0, 160).replace(/\s+/g, ' ')}` };
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { html: null, error: `OpenRouter timed out after ${TIMEOUT_MS / 1000}s` };
+    }
+    return { html: null, error: String(err).slice(0, 200) };
+  } finally {
+    clearTimeout(timer);
+  }
 }

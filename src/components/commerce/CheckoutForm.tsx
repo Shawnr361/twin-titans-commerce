@@ -33,9 +33,8 @@ export function CheckoutForm({
   paystackEnabled: boolean;
   paypalEnabled: boolean;
 }) {
-  const [method, setMethod] = useState<'PAYSTACK' | 'PAYPAL'>(
-    paystackEnabled ? 'PAYSTACK' : 'PAYPAL'
-  );
+  // Which button is mid-flight, so only that one shows a spinner label.
+  const [pending, setPending] = useState<'PAYSTACK' | 'PAYPAL' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +42,18 @@ export function CheckoutForm({
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    /*
+     * Which button was pressed IS the choice — read from the submitter rather
+     * than from state. Setting state in the button's onClick and reading it
+     * here races: React batches the update, so the first click would submit
+     * the previous method. There is no separate "selected" step to get wrong.
+     */
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const chosen: 'PAYSTACK' | 'PAYPAL' =
+      submitter?.value === 'PAYPAL' ? 'PAYPAL' : 'PAYSTACK';
+
+    setPending(chosen);
     setBusy(true);
     setError(null);
 
@@ -50,7 +61,7 @@ export function CheckoutForm({
     const payload = {
       email: String(form.get('email') ?? ''),
       phone: String(form.get('phone') ?? ''),
-      method,
+      method: chosen,
       shippingAddress: {
         name: String(form.get('name') ?? ''),
         phone: String(form.get('phone') ?? ''),
@@ -211,54 +222,68 @@ export function CheckoutForm({
             </p>
           )}
 
+          {/*
+            Two buttons, not a radio plus a generic "Pay now". A shopper who has
+            chosen how to pay should not then have to hunt for a second control,
+            and "Pay now" never said which rail it would use.
+
+            The guidance that lived under each radio moves onto the button:
+            "use this if you bank in Nigeria" is the sentence that prevents a
+            failed payment for a store pricing in NGN but selling abroad.
+          */}
           <div className="mt-6 space-y-3">
             {paystackEnabled && (
-              <label className="flex cursor-pointer items-start gap-4 border border-ruleStrong p-5 transition-colors duration-1 has-[:checked]:border-onyx">
-                <input
-                  type="radio"
-                  name="method"
-                  value="PAYSTACK"
-                  checked={method === 'PAYSTACK'}
-                  onChange={() => setMethod('PAYSTACK')}
-                  className="mt-1 accent-onyx"
-                />
-                <span>
-                  <span className="block text-body font-medium text-onyx">
-                    Card, bank transfer or USSD
-                  </span>
-                  <span className="mt-1 block text-label !normal-case !tracking-normal text-greige">
-                    Secured by Paystack. Charged in {baseCurrency} — use this if you bank in
-                    Nigeria.
-                  </span>
+              <button
+                type="submit"
+                name="method"
+                value="PAYSTACK"
+                disabled={busy}
+                className="btn btn-primary sheen w-full !flex-col !items-start gap-1 !py-4 text-left disabled:opacity-60"
+              >
+                <span className="text-body font-medium">
+                  {pending === 'PAYSTACK' ? 'Redirecting to Paystack…' : 'Pay with Paystack'}
                 </span>
-              </label>
+                <span className="text-label !normal-case !tracking-normal opacity-80">
+                  Card, bank transfer or USSD · charged in {baseCurrency} · use this if you bank in
+                  Nigeria
+                </span>
+              </button>
             )}
 
             {paypalEnabled && (
-              <label className="flex cursor-pointer items-start gap-4 border border-ruleStrong p-5 transition-colors duration-1 has-[:checked]:border-onyx">
-                <input
-                  type="radio"
-                  name="method"
-                  value="PAYPAL"
-                  checked={method === 'PAYPAL'}
-                  onChange={() => setMethod('PAYPAL')}
-                  className="mt-1 accent-onyx"
-                />
-                <span>
-                  <span className="block text-body font-medium text-onyx">
-                    PayPal or international card
-                  </span>
+              /*
+                PayPal's own blue, with the wordmark set in type rather than a
+                drawn logo: an approximated mark is both visibly wrong and a
+                trademark risk. Drop their official asset in here for the real
+                one.
+              */
+              <button
+                type="submit"
+                name="method"
+                value="PAYPAL"
+                disabled={busy}
+                className="flex w-full flex-col items-start gap-1 border border-[#003087] bg-[#003087] px-6 py-4 text-left text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+              >
+                <span className="text-body font-medium">
+                  {pending === 'PAYPAL' ? (
+                    'Redirecting to PayPal…'
+                  ) : (
+                    <>
+                      Pay with <span className="italic">Pay</span>
+                      <span className="italic text-[#5ab6f0]">Pal</span>
+                    </>
+                  )}
+                </span>
+                <span className="text-label !normal-case !tracking-normal opacity-80">
                   {/*
                     PayPal cannot process NGN under any circumstance — a hard
-                    platform limit, not a configuration choice. So it always
-                    settles in USD, and the customer is told the exact figure
-                    before they are sent to approve it.
+                    platform limit, not a configuration choice — so it always
+                    settles in USD, and the customer is told before approving.
                   */}
-                  <span className="mt-1 block text-label !normal-case !tracking-normal text-greige">
-                    Charged in USD at today&apos;s rate. Use this if you bank outside Nigeria.
-                  </span>
+                  Or international card · charged in USD at today&apos;s rate · use this if you bank
+                  outside Nigeria
                 </span>
-              </label>
+              </button>
             )}
           </div>
         </fieldset>
@@ -333,16 +358,6 @@ export function CheckoutForm({
             {error}
           </p>
         )}
-
-        <Magnetic className="mt-8 block w-full">
-          <button
-            type="submit"
-            disabled={busy || noPaymentConfigured}
-            className="btn btn-primary sheen w-full"
-          >
-            {busy ? 'Redirecting to payment…' : 'Pay now'}
-          </button>
-        </Magnetic>
 
         <p className="mt-4 text-label text-quiet">
           By ordering you agree to our terms. Tracking follows by email once your parcel ships.
