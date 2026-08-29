@@ -392,8 +392,21 @@ export default async function ProductPage({
               <div className="flex items-center gap-4 py-4">
                 <IconShield size={19} className="shrink-0 text-brass" />
                 <dt className="label shrink-0">Payment</dt>
+                {/*
+                  Names the rails a shopper will actually meet at checkout.
+                  The old line ("Card, transfer or USSD in NGN") described
+                  Paystack, which the store no longer uses, and omitted PayPal
+                  entirely — so an overseas visitor reading prices in USD was
+                  told the only option was a naira payment method.
+
+                  The currency shown is always the BASE currency, never the
+                  visitor's display currency: Flutterwave charges in naira
+                  whatever the storefront is showing, and implying otherwise
+                  would be a promise about money that checkout then breaks.
+                */}
                 <dd className="ml-auto text-right text-body text-greige">
-                  Card, transfer or USSD in {settings.baseCurrency}
+                  Card or bank transfer in {settings.baseCurrency} via Flutterwave,
+                  {' '}or PayPal in {settings.paypalCurrency}
                 </dd>
               </div>
               <div className="flex items-center gap-4 py-4">
