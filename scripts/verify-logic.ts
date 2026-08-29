@@ -19,6 +19,7 @@ import { assessCapture } from '../src/lib/suppliers/capture';
 import { displayVendor } from '../src/lib/vendor';
 import { categorise } from '../src/lib/categorise';
 import { pickerLabels } from '../src/lib/vendor';
+import { currencyForCountry } from '../src/lib/geo';
 import { stripInventedClaims } from '../src/lib/copywriter';
 import { announcementContradictsShipping, DEFAULT_SETTINGS } from '../src/lib/settings';
 import { FALLBACK_RATES } from '../src/lib/fx';
@@ -233,6 +234,30 @@ check(
   stripInventedClaims('<p>Made of stainless steel and charges over USB.</p>', 'Kitchen Tool'),
   null
 );
+
+// --- Geo currency suggestion ---------------------------------------------
+const OFFERED = ['NGN', 'USD', 'GBP', 'EUR', 'GHS', 'ZAR', 'CAD', 'AUD', 'CNY'];
+
+check('NG suggests naira', currencyForCountry('NG', OFFERED), 'NGN');
+check('lowercase header still resolves', currencyForCountry('gb', OFFERED), 'GBP');
+check('euro area maps to EUR', currencyForCountry('DE', OFFERED), 'EUR');
+
+// These two were mapped to USD before the switcher offered their own currency.
+check('ZA suggests rand, not dollars', currencyForCountry('ZA', OFFERED), 'ZAR');
+check('GH suggests cedi, not dollars', currencyForCountry('GH', OFFERED), 'GHS');
+
+/*
+ * The failure that matters: never suggest a currency with no FX rate loaded.
+ * Doing so would leave the switcher on a code it cannot convert.
+ */
+check('unoffered currency is not suggested', currencyForCountry('GB', ['NGN', 'USD']), null);
+
+// Cloudflare's "we do not know" values must not be read as countries.
+check('XX (anonymous proxy) suggests nothing', currencyForCountry('XX', OFFERED), null);
+check('T1 (Tor) suggests nothing', currencyForCountry('T1', OFFERED), null);
+check('absent header suggests nothing', currencyForCountry(null, OFFERED), null);
+check('unmapped country falls through', currencyForCountry('KE', OFFERED), null);
+
 
 console.log('\n── Margin audit ──────────────────────────────────────');
 

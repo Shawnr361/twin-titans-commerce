@@ -66,6 +66,9 @@ export const viewport: Viewport = {
   maximumScale: 5, // never trap pinch-zoom; it is an accessibility failure
 };
 
+import { headers } from 'next/headers';
+import { countryFromHeaders, currencyForCountry } from '@/lib/geo';
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   /*
    * The display currency has to wrap the whole tree, not just the header:
@@ -82,10 +85,27 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     .filter((r) => r.rate > 0)
     .map((r) => ({ code: r.code, symbol: r.symbol, rate: r.rate }));
 
+  /*
+   * Cloudflare tells us the visitor's country for free, on every request. It is
+   * only a SUGGESTION: it is applied after mount, below the shopper's own saved
+   * choice, and it never changes what the payment providers actually charge.
+   *
+   * Absent when the site is not behind Cloudflare, in which case this is null
+   * and the browser-locale guess takes over exactly as it did before.
+   */
+  const geoCurrency = currencyForCountry(
+    countryFromHeaders(await headers()),
+    currencies.map((c) => c.code)
+  );
+
   return (
     <html lang="en" className={`${fraunces.variable} ${hanken.variable}`}>
       <body className="flex min-h-screen flex-col bg-bone">
-        <CurrencyProvider options={currencies} baseCurrency={settings.baseCurrency}>
+        <CurrencyProvider
+          options={currencies}
+          baseCurrency={settings.baseCurrency}
+          geoCurrency={geoCurrency}
+        >
         {/* Warm washes + grain + vignette. Fixed, so it never repaints on scroll. */}
         <div className="ground" aria-hidden />
 

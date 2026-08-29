@@ -44,10 +44,17 @@ const CurrencyCtx = createContext<CurrencyState | null>(null);
 export function CurrencyProvider({
   options,
   baseCurrency,
+  geoCurrency,
   children,
 }: {
   options: CurrencyOption[];
   baseCurrency: string;
+  /**
+   * Suggested from the visitor's country by the CDN in front of the app, or
+   * null when that is unknown. Ranks BELOW a saved choice and above the
+   * browser-locale guess — see the effect.
+   */
+  geoCurrency?: string | null;
   children: React.ReactNode;
 }) {
   /*
@@ -67,15 +74,24 @@ export function CurrencyProvider({
       // Private browsing can throw on access; the base currency is fine.
     }
 
+    /*
+     * Country beats locale: a Nigerian shopper on an en-GB phone is in Nigeria,
+     * not Britain, and language has never been a reliable proxy for where
+     * somebody is. It still loses to an explicit choice above.
+     */
+    if (!chosen && geoCurrency && options.some((o) => o.code === geoCurrency)) {
+      chosen = geoCurrency;
+    }
+
     if (!chosen) {
-      // Locale-based suggestion — no third-party geo-IP request, no tracking.
+      // Locale fallback — used when the CDN did not tell us the country.
       try {
         const region = new Intl.Locale(navigator.language).maximize().region;
         const byRegion: Record<string, string> = {
           US: 'USD', GB: 'GBP', CA: 'CAD', AU: 'AUD', NZ: 'AUD',
           IE: 'EUR', DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR',
           NL: 'EUR', PT: 'EUR', BE: 'EUR', AT: 'EUR', FI: 'EUR',
-          ZA: 'USD', GH: 'USD', KE: 'USD',
+          ZA: 'ZAR', GH: 'GHS',
         };
         const suggested = region ? byRegion[region] : undefined;
         if (suggested && options.some((o) => o.code === suggested)) chosen = suggested;
@@ -85,7 +101,7 @@ export function CurrencyProvider({
     }
 
     if (chosen) setActiveState(chosen);
-  }, [options]);
+  }, [options, geoCurrency]);
 
   const setActive = useCallback((code: string) => {
     setActiveState(code);
