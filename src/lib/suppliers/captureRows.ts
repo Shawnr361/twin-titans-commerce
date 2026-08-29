@@ -30,10 +30,45 @@ export async function listCaptureRows(take = 300): Promise<CaptureRow[]> {
     .map((r) => r.importedProductId)
     .filter((id): id is string => Boolean(id));
 
-  const products = importedIds.length
+  /*
+   * RESOLVING HISTORY.
+   *
+   * importedProductId is only written from now on — every capture taken before
+   * that fix has it null, including products that are live and selling. Rather
+   * than a one-off backfill script, the link is recovered here: SupplierProduct
+   * and SupplierCapture both carry (platform, externalId), and SupplierProduct
+   * has a unique index on exactly that pair. So the product a capture became
+   * can be found precisely, with no string matching on URLs.
+   *
+   * Self-healing rather than a migration: it also covers any future capture
+   * whose commit-time update failed.
+   */
+  const unlinked = rows.filter((r) => !r.importedProductId && r.externalId);
+
+  const supplierLinks = unlinked.length
+    ? await prisma.supplierProduct
+        .findMany({
+          where: {
+            OR: unlinked.map((r) => ({
+              platform: r.platform,
+              externalId: r.externalId as string,
+            })),
+          },
+          select: { productId: true, platform: true, externalId: true },
+        })
+        .catch(() => [])
+    : [];
+
+  const productIdByKey = new Map(
+    supplierLinks.map((l) => [`${l.platform}:${l.externalId}`, l.productId])
+  );
+
+  const allProductIds = [...new Set([...importedIds, ...productIdByKey.values()])];
+
+  const products = allProductIds.length
     ? await prisma.product
         .findMany({
-          where: { id: { in: importedIds } },
+          where: { id: { in: allProductIds } },
           select: { id: true, status: true, handle: true },
         })
         .catch(() => [])
@@ -43,7 +78,10 @@ export async function listCaptureRows(take = 300): Promise<CaptureRow[]> {
 
   return rows.map((r) => {
     const payload = r.payload as { images?: string[] } | null;
-    const product = r.importedProductId ? productById.get(r.importedProductId) : undefined;
+    const resolvedId =
+      r.importedProductId ??
+      (r.externalId ? (productIdByKey.get(`${r.platform}:${r.externalId}`) ?? null) : null);
+    const product = resolvedId ? productById.get(resolvedId) : undefined;
 
     return {
       id: r.id,
@@ -56,7 +94,7 @@ export async function listCaptureRows(take = 300): Promise<CaptureRow[]> {
       imageCount: r.imageCount,
       videoCount: r.videoCount,
       reviewCount: r.reviewCount,
-      importedProductId: r.importedProductId,
+      importedProductId: resolvedId,
       /*
        * null when the capture was never imported, and ALSO null when it was
        * imported into a product since deleted. The two are told apart by

@@ -299,6 +299,31 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
     });
   }
 
+  /*
+   * Close the loop back to the capture this product came from.
+   *
+   * SupplierCapture.importedProductId existed from the start but NOTHING ever
+   * wrote it, so the import queue showed every capture as un-imported forever —
+   * including products long since live and selling. previewFromCapture already
+   * puts captureId on the preview and the client posts that preview straight
+   * back here, so the link was available the whole time and simply unused.
+   *
+   * Deliberately not fatal: the product is created and the customer-facing work
+   * is done. Failing the whole import because a bookkeeping field would not
+   * update would be the wrong trade.
+   */
+  const captureId = (preview as { captureId?: string }).captureId;
+  if (captureId) {
+    await prisma.supplierCapture
+      .update({
+        where: { id: captureId },
+        data: { importedProductId: created.id, importedAt: new Date() },
+      })
+      .catch(() => {
+        warnings.push('Product created, but the capture could not be marked as imported.');
+      });
+  }
+
   return {
     productId: created.id,
     handle: created.handle,
