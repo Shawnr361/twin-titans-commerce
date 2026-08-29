@@ -51,7 +51,20 @@ export async function generateMetadata({
 
   const settings = await getStoreSettings();
   const description = productDescription(product, settings.storeName);
-  const image = product.images[0]?.url;
+  /*
+   * Share cards get the image through our own domain, not the supplier CDN.
+   *
+   * The CDN answers image/webp despite a .jpg URL, and WhatsApp will not render
+   * a WebP preview — every shared product link showed a card with no picture.
+   * The proxy asks for JPEG and serves it from twintitanemporium.com.
+   *
+   * Absolute, because a share crawler has no page context to resolve a relative
+   * URL against.
+   */
+  const rawImage = product.images[0]?.url;
+  const image = rawImage
+    ? `${siteOrigin()}/api/og-image?src=${encodeURIComponent(rawImage)}`
+    : undefined;
   // Cheapest variant: the figure a share card and a shopper both expect.
   const priceMinor = product.variants.reduce(
     (low, v) => (v.priceMinor > 0 && (low === 0 || v.priceMinor < low) ? v.priceMinor : low),

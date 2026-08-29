@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { DeleteOrderButton } from '@/components/admin/DeleteOrderButton';
+import { CancelOrderButton } from '@/components/admin/CancelOrderButton';
 import { formatMoney } from '@/lib/money';
 
 export const metadata = { title: 'Orders' };
@@ -125,7 +126,14 @@ export default async function AdminOrdersPage() {
                         {formatMoney(profit, order.currency)}
                       </td>
                       <td className="p-4 text-right">
-                        <DeleteOrderButton orderId={order.id} number={order.number} />
+                        <div className="flex items-center justify-end gap-3">
+                          <CancelOrderButton
+                            orderId={order.id}
+                            number={order.number}
+                            status={order.status}
+                          />
+                          <DeleteOrderButton orderId={order.id} number={order.number} />
+                        </div>
                       </td>
                     </tr>
                   );
