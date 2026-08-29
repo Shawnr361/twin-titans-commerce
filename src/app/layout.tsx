@@ -120,7 +120,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
         </main>
         <SiteFooter />
-        <ChatWidget />
+        <ChatWidget storeName={settings.storeName} />
 
         {/* Mounted once each; opened from anywhere via their exported helpers. */}
         <CartDrawer />

@@ -7,8 +7,13 @@ interface Turn {
   content: string;
 }
 
-const OPENING =
-  'Hello — ask me about delivery, returns, payment, or finding something in the shop. For where your order is, use Track an order.';
+/**
+ * The greeting names the shop, taken from settings rather than typed here, so
+ * it cannot drift out of date if the store is ever renamed.
+ */
+function opening(storeName: string): string {
+  return `Hello — I'm the ${storeName} assistant. Ask me about delivery, returns, payment, or help finding something. For where your order has got to, use Track an order.`;
+}
 
 /**
  * Floating customer assistant.
@@ -16,9 +21,11 @@ const OPENING =
  * Renders nothing until opened, so the storefront's first paint carries no cost
  * for a panel most visitors never touch.
  */
-export function ChatWidget() {
+export function ChatWidget({ storeName }: { storeName: string }) {
   const [open, setOpen] = useState(false);
-  const [turns, setTurns] = useState<Turn[]>([{ role: 'assistant', content: OPENING }]);
+  const [turns, setTurns] = useState<Turn[]>([
+    { role: 'assistant', content: opening(storeName) },
+  ]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -72,7 +79,7 @@ export function ChatWidget() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Ask a question"
+        aria-label={`Ask ${storeName} a question`}
         className="fixed bottom-5 right-5 z-40 rounded-full bg-gold px-5 py-3 text-sm font-semibold text-bg shadow-lg transition-transform hover:-translate-y-0.5"
       >
         Ask us
@@ -83,7 +90,7 @@ export function ChatWidget() {
   return (
     <div
       role="dialog"
-      aria-label="Customer assistant"
+      aria-label={`${storeName} assistant`}
       className="fixed bottom-5 right-5 z-40 flex h-[30rem] w-[min(23rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-rule bg-paper shadow-2xl"
     >
       <div className="flex items-center justify-between border-b border-rule px-4 py-3">
