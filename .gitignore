@@ -14,3 +14,10 @@ tsconfig.tsbuildinfo
 .vercel
 prisma/dev.db*
 /data
+
+# Scratch files from capture-script generation — these embed the capture
+# bearer token derived from AUTH_SECRET and must never be committed.
+capture-raw.js
+capture-script.js
+capture-payload.txt
+scratch-gen.ts
