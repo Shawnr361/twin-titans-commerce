@@ -53,6 +53,35 @@ function isAllowed(raw: string): URL | null {
   return ALLOWED_HOST_SUFFIXES.some((s) => host.endsWith(s)) ? url : null;
 }
 
+/**
+ * Ask the CDN for a share-sized copy.
+ *
+ * Measured across all 100 live products: originals ran to 1.8MB and the proxy
+ * took 6–11 SECONDS to serve one. WhatsApp's crawler gives up long before
+ * that, which is why previews appeared on some products and not others — it
+ * was a race against the crawler's timeout, not a rule, and that is exactly
+ * why it looked random.
+ *
+ * The AliExpress CDN resizes on demand from a filename suffix. The same image
+ * came back in ~0.3–1s at 31KB instead of 274KB. 720px is comfortably above
+ * the 600px that Facebook and WhatsApp want for a large card.
+ *
+ * The suffix does NOT remove the need for this proxy: tested with a WhatsApp
+ * user agent and Accept: * / *, the suffixed URL still answers image/webp.
+ * Only sending an explicit Accept gets JPEG, and a crawler will not do that.
+ */
+function shareSized(url: URL): URL {
+  const host = url.hostname.toLowerCase();
+  if (!host.endsWith('.aliexpress-media.com') && !host.endsWith('.alicdn.com')) return url;
+  // Already carries a size suffix — leave a deliberate choice alone.
+  if (/_\d+x\d+(q\d+)?\.(jpg|jpeg|png|webp)$/i.test(url.pathname)) return url;
+  if (!/\.(jpg|jpeg|png)$/i.test(url.pathname)) return url;
+
+  const sized = new URL(url.toString());
+  sized.pathname = `${url.pathname}_720x720q75.jpg`;
+  return sized;
+}
+
 export async function GET(request: Request) {
   const src = new URL(request.url).searchParams.get('src');
   if (!src) return new NextResponse('Missing src', { status: 400 });
@@ -64,14 +93,19 @@ export async function GET(request: Request) {
   const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
 
   try {
-    const upstream = await fetch(target, {
+    const upstream = await fetch(shareSized(target), {
       signal: abort.signal,
+      /*
+       * Let Next cache the upstream body. A product image never changes, and
+       * every share re-crawls this URL — without the cache each crawl pays the
+       * full round trip to China on a single-worker host.
+       */
+      cache: 'force-cache',
       // The whole point: omit webp so the CDN returns a format WhatsApp renders.
       headers: { accept: 'image/jpeg,image/png' },
       // Never forward our cookies to a third party.
       credentials: 'omit',
       redirect: 'follow',
-      cache: 'no-store',
     });
 
     if (!upstream.ok) {
