@@ -23,7 +23,19 @@ import { writeSetting } from '@/lib/settings';
  * order.
  */
 
-const GATEWAY = 'https://api-sg.aliexpress.com/rest';
+const HOST = 'https://api-sg.aliexpress.com';
+/** System APIs (token create/refresh) live under /rest and route on the path. */
+const GATEWAY = `${HOST}/rest`;
+/**
+ * Business APIs live at the ROOT /sync and route on a `method` PARAMETER.
+ *
+ * This bit cost a cycle: /sync was tried first and rejected with
+ * InvalidApiPath, which read as "wrong shape" — but GATEWAY already ends in
+ * /rest, so the request had actually gone to /rest/sync. The shape was right
+ * and the URL was wrong. Confirmed against the console's own API list, which
+ * shows these as dotted method names, not paths.
+ */
+const SYNC = `${HOST}/sync`;
 const AUTH_URL = 'https://api-sg.aliexpress.com/oauth/authorize';
 const TOKEN_SETTING = 'aliexpress_token';
 const TIMEOUT_MS = 20_000;
@@ -91,19 +103,24 @@ export function authorizeUrl(redirectUri: string, state: string): string {
   return `${AUTH_URL}?${q.toString()}`;
 }
 
-async function post(apiPath: string, extra: Record<string, string>) {
+/**
+ * @param url     absolute endpoint to POST to
+ * @param signPath path prefixed to the signature base — '' for /sync, where
+ *                 the gateway signs the parameters alone.
+ */
+async function post(url: string, signPath: string, extra: Record<string, string>) {
   const params: Record<string, string> = {
     app_key: appKey(),
     timestamp: String(Date.now()),
     sign_method: 'sha256',
     ...extra,
   };
-  params.sign = signRequest(apiPath, params, appSecret());
+  params.sign = signRequest(signPath, params, appSecret());
 
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(GATEWAY + apiPath, {
+    const res = await fetch(url, {
       method: 'POST',
       signal: abort.signal,
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -125,7 +142,7 @@ async function post(apiPath: string, extra: Record<string, string>) {
 
 /** Exchange the one-time `code` from the callback for a token pair. */
 export async function exchangeCode(code: string): Promise<StoredToken> {
-  const { body } = await post('/auth/token/create', { code });
+  const { body } = await post(`${GATEWAY}/auth/token/create`, '/auth/token/create', { code });
 
   const d = body as Record<string, unknown>;
   const accessToken = String(d.access_token ?? '');
@@ -178,7 +195,11 @@ export async function accessToken(): Promise<string | null> {
   if (!token) return null;
   if (Date.now() < token.expiresAt) return token.accessToken;
 
-  const { body } = await post('/auth/token/refresh', { refresh_token: token.refreshToken });
+  const { body } = await post(
+    `${GATEWAY}/auth/token/refresh`,
+    '/auth/token/refresh',
+    { refresh_token: token.refreshToken }
+  );
   const d = body as Record<string, unknown>;
   const fresh = String(d.access_token ?? '');
   if (!fresh) return null;
@@ -193,21 +214,6 @@ export async function accessToken(): Promise<string | null> {
   return fresh;
 }
 
-/**
- * Turn a dotted API name into this gateway's path.
- *
- * `/sync` with a `method` parameter is the OLD TOP gateway style and this
- * gateway rejects it outright with InvalidApiPath — confirmed against the live
- * API, which is also how we know the signature itself is correct: a bad
- * signature fails before path routing is ever reached.
- *
- * api-sg.aliexpress.com/rest routes on the path, exactly as /auth/token/create
- * already showed.
- */
-function methodPath(method: string): string {
-  return '/' + method.replace(/\./g, '/');
-}
-
 /** Call a business API. `method` is the dotted name, e.g. aliexpress.ds.product.get. */
 export async function call(
   method: string,
@@ -217,7 +223,11 @@ export async function call(
   if (!token) {
     return { ok: false, status: 401, body: { error: 'AliExpress is not connected.' } };
   }
-  return post(methodPath(method), { access_token: token, ...args });
+  /*
+   * Empty sign path: /sync signs the parameters alone, unlike the /rest
+   * endpoints which prefix their own path.
+   */
+  return post(SYNC, '', { method, access_token: token, ...args });
 }
 
 /**
@@ -240,9 +250,9 @@ export async function ping(): Promise<{ ok: boolean; detail: string }> {
    * the others cost nothing.
    */
   const candidates = [
-    'aliexpress.ds.address.get',
+    // Taken from the App Console's own AE-Dropshipper list, not guessed.
     'aliexpress.ds.member.benefit.get',
-    'aliexpress.ds.recommend.feed.get',
+    'aliexpress.ds.category.get',
   ];
 
   const tried: string[] = [];
