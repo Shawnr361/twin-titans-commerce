@@ -82,12 +82,53 @@ function shareSized(url: URL): URL {
   return sized;
 }
 
+/**
+ * In-process cache of already-fetched share images.
+ *
+ * Next's fetch cache did not help here: measured after deploying the resize,
+ * a repeat crawl still took 3.4-14.5s, because on this host every request pays
+ * Passenger and Next overhead before the route even runs (a cold storefront
+ * warm-up alone measured 13.5s). A crawler will not wait for that.
+ *
+ * These bytes are perfectly cacheable — the response is already declared
+ * immutable for a year, since the URL contains the supplier's own
+ * content-addressed filename. Holding them in the worker means the first crawl
+ * pays and every later one is instant.
+ *
+ * Bounded, and oldest-out: an unbounded Map on a long-lived worker is a slow
+ * memory leak, and this box is already tight on resources.
+ */
+const MAX_CACHED = 60;
+const memo = new Map<string, { body: ArrayBuffer; type: string }>();
+
+function remember(key: string, value: { body: ArrayBuffer; type: string }): void {
+  if (memo.size >= MAX_CACHED) {
+    const oldest = memo.keys().next().value;
+    if (oldest) memo.delete(oldest);
+  }
+  memo.set(key, value);
+}
+
+function served(value: { body: ArrayBuffer; type: string }): NextResponse {
+  return new NextResponse(value.body, {
+    headers: {
+      'content-type': value.type,
+      'content-length': String(value.body.byteLength),
+      'cache-control': 'public, max-age=31536000, immutable',
+      'x-content-type-options': 'nosniff',
+    },
+  });
+}
+
 export async function GET(request: Request) {
   const src = new URL(request.url).searchParams.get('src');
   if (!src) return new NextResponse('Missing src', { status: 400 });
 
   const target = isAllowed(src);
   if (!target) return new NextResponse('Host not allowed', { status: 400 });
+
+  const cached = memo.get(src);
+  if (cached) return served(cached);
 
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
@@ -127,19 +168,8 @@ export async function GET(request: Request) {
       return new NextResponse('Image too large', { status: 413 });
     }
 
-    return new NextResponse(body, {
-      headers: {
-        'content-type': type,
-        'content-length': String(body.byteLength),
-        /*
-         * Long cache: a product image does not change, and crawlers re-fetch
-         * these on every share. Immutable because the URL contains the
-         * supplier's own content-addressed filename.
-         */
-        'cache-control': 'public, max-age=31536000, immutable',
-        'x-content-type-options': 'nosniff',
-      },
-    });
+    remember(src, { body, type });
+    return served({ body, type });
   } catch {
     return new NextResponse('Could not fetch image', { status: 504 });
   } finally {
