@@ -3,6 +3,12 @@ import { z } from 'zod';
 import { UnauthorizedError, requireAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 
+/** Prisma errors are multi-line; the last line is the part a human needs. */
+function lastLine(message: string): string {
+  const parts = message.split(/\s*\n\s*/).filter((l) => l.trim());
+  return (parts[parts.length - 1] ?? message).trim();
+}
+
 const patchSchema = z.object({
   status: z.enum(['CANCELLED', 'FULFILLING', 'SHIPPED', 'DELIVERED', 'REFUNDED', 'PAID']),
   reason: z.string().max(300).optional(),
@@ -97,9 +103,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 /**
  * Delete an order.
  *
- * Every relation on Order cascades, so this also removes its line items,
- * payments, supplier orders and event history. That is the point — a half
- * deleted order leaves payment rows pointing at nothing.
+ * Removes its line items, payments, supplier orders, reviews and event
+ * history as well — a half deleted order leaves payment rows pointing at
+ * nothing. Done explicitly rather than relying on cascade, because these
+ * tables were created by hand and the constraints are not uniform.
  *
  * A PAID order is refused. It is a financial record: it reconciles against what
  * the gateway actually settled, against what was bought from the supplier, and
@@ -142,7 +149,54 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     );
   }
 
-  await prisma.order.delete({ where: { id } });
+  /*
+   * Children are removed explicitly, in foreign-key order, inside one
+   * transaction.
+   *
+   * The comment above used to say "every relation on Order cascades" — that is
+   * true of the PRISMA schema, but the tables on this host were created by hand
+   * in phpMyAdmin and do not all carry ON DELETE CASCADE. So `order.delete()`
+   * alone threw a foreign-key error, and because the call had no try/catch the
+   * route answered an EMPTY 500. The button reported "Could not delete that
+   * order" with no reason, which is exactly the symptom that was reported.
+   *
+   * Doing it explicitly is also correct where the constraints DO cascade: the
+   * rows are already gone by the time the parent delete runs, so it is a no-op
+   * rather than a conflict.
+   */
+  try {
+    const supplierOrders = await prisma.supplierOrder.findMany({
+      where: { orderId: id },
+      select: { id: true },
+    });
+    const supplierOrderIds = supplierOrders.map((s) => s.id);
+
+    await prisma.$transaction([
+      prisma.supplierOrderItem.deleteMany({
+        where: { supplierOrderId: { in: supplierOrderIds } },
+      }),
+      prisma.supplierOrder.deleteMany({ where: { orderId: id } }),
+      prisma.review.deleteMany({ where: { orderId: id } }),
+      prisma.orderEvent.deleteMany({ where: { orderId: id } }),
+      prisma.payment.deleteMany({ where: { orderId: id } }),
+      prisma.orderLineItem.deleteMany({ where: { orderId: id } }),
+      prisma.order.delete({ where: { id } }),
+    ]);
+  } catch (err) {
+    /*
+     * Never an empty 500 again. Whatever the database objected to, the admin
+     * sees it — a delete that fails silently is indistinguishable from a
+     * permissions bug.
+     */
+    return NextResponse.json(
+      {
+        error:
+          `Order #${order.number} could not be deleted: ` +
+          (err instanceof Error ? lastLine(err.message) : 'unknown error'),
+      },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({ ok: true, deleted: order.number });
 }
