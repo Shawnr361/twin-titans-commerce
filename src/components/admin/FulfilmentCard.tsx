@@ -6,11 +6,20 @@ import { formatMoney } from '@/lib/money';
 
 interface Sheet {
   supplierOrderId: string;
+  /** The customer order — a refund is recorded against this, not the purchase. */
+  orderId: string;
   supplierName: string;
   platform: string;
   orderNumber: number;
   status: string;
-  lines: { url: string; sku: string; variant: string; quantity: number }[];
+  lines: {
+    url: string;
+    sku: string;
+    variant: string;
+    quantity: number;
+    title: string | null;
+    imageUrl: string | null;
+  }[];
   shipTo: {
     name: string;
     phone?: string;
@@ -31,6 +40,7 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
 
   const copy = async () => {
     try {
@@ -42,23 +52,56 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
     }
   };
 
-  const act = async (action: 'place' | 'ship', payload: Record<string, string>) => {
+  const act = async (
+    action: 'place' | 'ship' | 'cancel' | 'refund',
+    payload: Record<string, string>
+  ) => {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch('/api/admin/fulfilment', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action, supplierOrderId: sheet.supplierOrderId, ...payload }),
+        /*
+         * Refund acts on the customer ORDER, cancel on this one supplier
+         * purchase — an order can split across suppliers, so they are not
+         * interchangeable and must not send the same id.
+         */
+        body: JSON.stringify(
+          action === 'refund'
+            ? { action, orderId: sheet.orderId, ...payload }
+            : { action, supplierOrderId: sheet.supplierOrderId, ...payload }
+        ),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error ?? 'Could not update.');
+      /*
+       * Shown rather than swallowed: neither action moves money or reaches the
+       * supplier, and the merchant has to do that part by hand.
+       */
+      if (Array.isArray(body?.warnings) && body.warnings.length) {
+        setWarnings(body.warnings as string[]);
+      }
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Update failed.');
     } finally {
       setBusy(false);
     }
+  };
+
+  const onCancelSupplier = () => {
+    const reason = window.prompt('Why is this supplier purchase being cancelled?');
+    if (!reason?.trim()) return;
+    act('cancel', { reason: reason.trim() });
+  };
+
+  const onRefund = () => {
+    const reason = window.prompt(
+      'Reason for the refund? (This records it in the books — issue the money in Flutterwave or PayPal.)'
+    );
+    if (!reason?.trim()) return;
+    act('refund', { reason: reason.trim() });
   };
 
   const onPlace = (event: React.FormEvent<HTMLFormElement>) => {
@@ -100,14 +143,35 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
           <h3 className="field-label">Buy these</h3>
           {sheet.lines.map((line, i) => (
             <div key={i} className="rounded-sm border border-rule bg-bone2 p-4 text-sm">
-              <a
-                href={line.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="line-clamp-2 break-all text-verdigris underline-offset-2 hover:underline"
-              >
-                {line.url}
-              </a>
+              {/*
+                Picture first. This card is read while buying from the supplier,
+                and matching a colour by eye is far more reliable than matching
+                an option label like "1PCS" or "Option 3".
+              */}
+              <div className="flex items-start gap-3">
+                {line.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={line.imageUrl}
+                    alt=""
+                    loading="lazy"
+                    className="h-16 w-16 flex-none rounded border border-rule object-cover"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  {line.title && (
+                    <p className="line-clamp-2 text-onyx">{line.title}</p>
+                  )}
+                  <a
+                    href={line.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 line-clamp-2 block break-all text-verdigris underline-offset-2 hover:underline"
+                  >
+                    {line.url}
+                  </a>
+                </div>
+              </div>
               <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
                 <div>
                   <dt className="text-greige">Variant</dt>
@@ -191,6 +255,42 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
             Shipped
           </button>
         </form>
+
+        {/*
+          The two ways an order ends without a parcel. Kept visually quieter
+          than Placed/Shipped — they are the exception, and neither should be
+          a click away from the happy path.
+        */}
+        {sheet.status !== 'CANCELLED' && (
+          <div className="flex flex-wrap items-center gap-4 border-t border-rule pt-3">
+            <button
+              type="button"
+              onClick={onCancelSupplier}
+              disabled={busy}
+              className="text-micro text-greige transition-colors hover:text-warn disabled:opacity-50"
+            >
+              Cancel this supplier order
+            </button>
+            <button
+              type="button"
+              onClick={onRefund}
+              disabled={busy}
+              className="text-micro text-greige transition-colors hover:text-warn disabled:opacity-50"
+            >
+              Mark customer refunded
+            </button>
+          </div>
+        )}
+
+        {warnings.length > 0 && (
+          <div className="border border-warn/40 bg-warn/5 p-3">
+            {warnings.map((w) => (
+              <p key={w} className="text-micro text-warn">
+                {w}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
     </article>
   );

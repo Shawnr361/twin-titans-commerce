@@ -138,6 +138,8 @@ export async function routeOrderToSuppliers(orderId: string): Promise<{
  */
 export interface OrderSheet {
   supplierOrderId: string;
+  /** The customer order this purchase belongs to — needed to record a refund. */
+  orderId: string;
   supplierName: string;
   platform: Platform;
   orderNumber: number;
@@ -146,6 +148,9 @@ export interface OrderSheet {
     sku: string;
     variant: string;
     quantity: number;
+    /** From the customer's line item, so the picker can see what was bought. */
+    title: string | null;
+    imageUrl: string | null;
   }[];
   shipTo: ShippingAddress;
   /** Copy-paste block for the supplier's checkout / chat. */
@@ -161,7 +166,16 @@ export async function buildOrderSheet(supplierOrderId: string): Promise<OrderShe
     include: {
       supplier: true,
       order: { select: { number: true } },
-      items: true,
+      /*
+       * The image and title live on the customer's line item, not on the
+       * supplier item — so pull them through. Buying the wrong colour is the
+       * easy mistake to make from a URL and an option label alone.
+       */
+      items: {
+        include: {
+          orderLineItem: { select: { imageUrl: true, productTitle: true } },
+        },
+      },
     },
   });
   if (!so) throw new Error('Supplier order not found.');
@@ -173,6 +187,8 @@ export async function buildOrderSheet(supplierOrderId: string): Promise<OrderShe
     sku: i.externalVariantId ?? '—',
     variant: i.variantLabel ?? 'Default',
     quantity: i.quantity,
+    title: i.orderLineItem?.productTitle ?? null,
+    imageUrl: i.orderLineItem?.imageUrl ?? null,
   }));
 
   const addressBlock = [
@@ -204,6 +220,7 @@ export async function buildOrderSheet(supplierOrderId: string): Promise<OrderShe
 
   return {
     supplierOrderId: so.id,
+    orderId: so.orderId,
     supplierName: so.supplier.name,
     platform: so.platform as Platform,
     orderNumber: so.order.number,
@@ -291,4 +308,105 @@ export async function markShipped(
       message: `Tracking ${trackingNumber}${carrier ? ` (${carrier})` : ''}.`,
     },
   });
+}
+
+/**
+ * Cancel one supplier order — we are not buying this from the supplier.
+ *
+ * Scoped to the SUPPLIER side only. An order can split across several
+ * suppliers, and cancelling one purchase says nothing about whether the
+ * customer still wants the rest, so the customer's order status is left alone.
+ * Use the order's own Cancel for that.
+ *
+ * `reason` is required by the caller rather than optional: a cancelled purchase
+ * with no recorded reason is the row that nobody can explain a week later.
+ */
+export async function markSupplierCancelled(
+  supplierOrderId: string,
+  reason: string
+): Promise<{ orderNumber: number; wasPlaced: boolean }> {
+  const existing = await prisma.supplierOrder.findUnique({
+    where: { id: supplierOrderId },
+    select: { status: true, externalOrderNo: true, order: { select: { number: true } } },
+  });
+  if (!existing) throw new Error('That supplier order no longer exists.');
+
+  /*
+   * Already placed means money may already have left for the supplier.
+   * Cancelling here only records OUR intent — it cannot reach into AliExpress
+   * and stop the parcel, so the caller is told to do that themselves.
+   */
+  const wasPlaced = existing.status === 'PLACED' || existing.status === 'SHIPPED';
+
+  const so = await prisma.supplierOrder.update({
+    where: { id: supplierOrderId },
+    data: { status: 'CANCELLED' },
+  });
+
+  await prisma.orderEvent.create({
+    data: {
+      orderId: so.orderId,
+      kind: 'supplier_cancelled',
+      message:
+        `Supplier order cancelled: ${reason}` +
+        (existing.externalOrderNo ? ` (supplier ref ${existing.externalOrderNo})` : ''),
+      data: { from: existing.status, reason, externalOrderNo: existing.externalOrderNo },
+    },
+  });
+
+  return { orderNumber: existing.order.number, wasPlaced };
+}
+
+/**
+ * Record that the customer has been refunded.
+ *
+ * Bookkeeping only. This does NOT move money: refunds happen in Flutterwave or
+ * PayPal, and pretending otherwise here would mark a customer repaid who is
+ * still out of pocket. The caller is told so explicitly.
+ *
+ * Both statuses move together, unlike cancellation. A refund is the end of the
+ * line for the whole order, so leaving `status` behind would keep it sitting in
+ * the fulfilment queue as work still to do.
+ */
+export async function markOrderRefunded(
+  orderId: string,
+  reason: string
+): Promise<{ orderNumber: number; supplierOrdersOpen: number }> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      number: true,
+      paymentStatus: true,
+      supplierOrders: { select: { status: true } },
+    },
+  });
+  if (!order) throw new Error('That order no longer exists.');
+
+  if (order.paymentStatus !== 'PAID' && order.paymentStatus !== 'PARTIALLY_REFUNDED') {
+    throw new Error(
+      `Order #${order.number} is ${order.paymentStatus}, so there is nothing to refund.`
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.order.update({
+      where: { id: orderId },
+      data: { paymentStatus: 'REFUNDED', status: 'REFUNDED' },
+    }),
+    prisma.orderEvent.create({
+      data: {
+        orderId,
+        kind: 'refunded',
+        message: `Marked refunded by an admin: ${reason}`,
+        data: { reason },
+      },
+    }),
+  ]);
+
+  return {
+    orderNumber: order.number,
+    supplierOrdersOpen: order.supplierOrders.filter(
+      (s) => s.status !== 'CANCELLED' && s.status !== 'DELIVERED'
+    ).length,
+  };
 }

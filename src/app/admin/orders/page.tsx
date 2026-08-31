@@ -20,7 +20,13 @@ export default async function AdminOrdersPage() {
          * later edited or deleted.
          */
         lineItems: {
-          select: { id: true, productTitle: true, variantTitle: true, quantity: true },
+          select: {
+            id: true,
+            productTitle: true,
+            variantTitle: true,
+            quantity: true,
+            imageUrl: true,
+          },
         },
         supplierOrders: { select: { status: true } },
       },
@@ -81,12 +87,32 @@ export default async function AdminOrdersPage() {
                         */}
                         <ul className="space-y-1">
                           {order.lineItems.slice(0, 2).map((item) => (
-                            <li key={item.id} className="leading-tight">
-                              <span className="line-clamp-1 text-onyx">{item.productTitle}</span>
-                              <span className="text-xs text-greige">
-                                {item.variantTitle && item.variantTitle !== 'Default'
-                                  ? `${item.variantTitle} × ${item.quantity}`
-                                  : `× ${item.quantity}`}
+                            <li key={item.id} className="flex items-start gap-2.5 leading-tight">
+                              {/*
+                                Snapshotted at sale, like the titles beside it —
+                                so the thumbnail keeps showing what was actually
+                                bought even if the product is later re-imaged or
+                                deleted. Plain <img>: these are supplier CDN URLs
+                                and next/image would need every host whitelisted.
+                              */}
+                              {item.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={item.imageUrl}
+                                  alt=""
+                                  loading="lazy"
+                                  className="mt-0.5 h-10 w-10 flex-none rounded border border-rule object-cover"
+                                />
+                              ) : (
+                                <span className="mt-0.5 h-10 w-10 flex-none rounded border border-rule" />
+                              )}
+                              <span className="min-w-0">
+                                <span className="line-clamp-1 text-onyx">{item.productTitle}</span>
+                                <span className="block text-xs text-greige">
+                                  {item.variantTitle && item.variantTitle !== 'Default'
+                                    ? `${item.variantTitle} × ${item.quantity}`
+                                    : `× ${item.quantity}`}
+                                </span>
                               </span>
                             </li>
                           ))}
