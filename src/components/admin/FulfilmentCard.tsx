@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { formatMoney } from '@/lib/money';
+import { PlaceWithSupplier } from '@/components/admin/PlaceWithSupplier';
 
 interface Sheet {
   supplierOrderId: string;
@@ -31,6 +32,8 @@ interface Sheet {
     country: string;
   };
   text: string;
+  /** False when a line has no supplier SKU — the variant could not be guaranteed. */
+  canPlaceAutomatically: boolean;
   estimatedCostMinor: number;
   currency: string;
 }
@@ -228,6 +231,24 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
         <p role="alert" className="rounded-sm bg-danger/10 p-3 text-sm text-danger">
           {error}
         </p>
+      )}
+
+      {/*
+        Automatic placement sits ABOVE the manual form, and the manual form
+        stays. The API refuses anything without a supplier SKU on every line —
+        older captures do not carry one — so the hand path is not a fallback
+        for failure, it is the normal route for those products.
+      */}
+      {sheet.status === 'PENDING' && sheet.canPlaceAutomatically && (
+        <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-5">
+          <PlaceWithSupplier
+            supplierOrderId={sheet.supplierOrderId}
+            cost={formatMoney(sheet.estimatedCostMinor, sheet.currency)}
+          />
+          <p className="text-[11px] text-greige">
+            Places and pays on AliExpress with the customer&rsquo;s address. No confirm step there.
+          </p>
+        </div>
       )}
 
       <div className="grid gap-4 border-t border-rule pt-5 sm:grid-cols-2">

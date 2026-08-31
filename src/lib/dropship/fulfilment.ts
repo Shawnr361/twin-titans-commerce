@@ -156,6 +156,14 @@ export interface OrderSheet {
   /** Copy-paste block for the supplier's checkout / chat. */
   text: string;
   /** Never leak our retail price or margin to the supplier. */
+  /**
+   * Whether the API can place this order safely.
+   *
+   * False when any line lacks the supplier's SKU id: AliExpress would then pick
+   * a default variant and the customer would get the wrong colour or size.
+   * Older captures predate SKU capture, so this is common and not an error.
+   */
+  canPlaceAutomatically: boolean;
   estimatedCostMinor: number;
   currency: string;
 }
@@ -227,6 +235,7 @@ export async function buildOrderSheet(supplierOrderId: string): Promise<OrderShe
     lines,
     shipTo,
     text,
+    canPlaceAutomatically: so.items.every((i) => Boolean(i.externalVariantId)),
     estimatedCostMinor: so.costMinor,
     currency: so.currency,
   };

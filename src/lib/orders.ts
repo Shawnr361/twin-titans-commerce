@@ -2,6 +2,7 @@ import { prisma } from './db';
 import type { HydratedCart } from './cart';
 import type { ShippingAddress } from './dropship/fulfilment';
 import { routeOrderToSuppliers } from './dropship/fulfilment';
+import { sendOrderConfirmation } from '@/lib/notify';
 
 export interface CreateOrderInput {
   cart: HydratedCart;
@@ -221,6 +222,20 @@ export async function markOrderPaid(params: {
       message: `Payment confirmed via ${params.provider} (${params.reference}).`,
     },
   });
+
+  /*
+   * Tell the customer, from the PAYMENT signal rather than the thank-you page.
+   *
+   * A shopper can close the tab, lose signal on the redirect back, or simply
+   * never return — and would then have paid and heard nothing, which is what a
+   * scam feels like. This runs wherever payment is confirmed, including the
+   * webhook, so it does not depend on anyone loading a page.
+   *
+   * Awaited but never allowed to throw: a mail failure must not stop supplier
+   * routing below, and sendOrderConfirmation records its own failures as order
+   * events rather than surfacing them here.
+   */
+  await sendOrderConfirmation(order.id);
 
   // Route to suppliers straight away — a paid order that sits unrouted is the
   // single worst state this system can be in.
