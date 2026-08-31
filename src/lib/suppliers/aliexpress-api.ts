@@ -193,6 +193,21 @@ export async function accessToken(): Promise<string | null> {
   return fresh;
 }
 
+/**
+ * Turn a dotted API name into this gateway's path.
+ *
+ * `/sync` with a `method` parameter is the OLD TOP gateway style and this
+ * gateway rejects it outright with InvalidApiPath — confirmed against the live
+ * API, which is also how we know the signature itself is correct: a bad
+ * signature fails before path routing is ever reached.
+ *
+ * api-sg.aliexpress.com/rest routes on the path, exactly as /auth/token/create
+ * already showed.
+ */
+function methodPath(method: string): string {
+  return '/' + method.replace(/\./g, '/');
+}
+
 /** Call a business API. `method` is the dotted name, e.g. aliexpress.ds.product.get. */
 export async function call(
   method: string,
@@ -202,7 +217,7 @@ export async function call(
   if (!token) {
     return { ok: false, status: 401, body: { error: 'AliExpress is not connected.' } };
   }
-  return post('/sync', { method, access_token: token, ...args });
+  return post(methodPath(method), { access_token: token, ...args });
 }
 
 /**
@@ -218,6 +233,30 @@ export async function ping(): Promise<{ ok: boolean; detail: string }> {
   const token = await storedToken();
   if (!token) return { ok: false, detail: 'Not connected yet — authorise the app first.' };
 
-  const res = await call('aliexpress.ds.address.get', {});
-  return { ok: res.ok, detail: JSON.stringify(res.body).slice(0, 600) };
+  /*
+   * Several candidates, because the docs render behind a loading shim and the
+   * exact dotted name for a harmless read is the one thing not worth guessing
+   * silently. Whichever answers without InvalidApiPath is the live shape, and
+   * the others cost nothing.
+   */
+  const candidates = [
+    'aliexpress.ds.address.get',
+    'aliexpress.ds.member.benefit.get',
+    'aliexpress.ds.recommend.feed.get',
+  ];
+
+  const tried: string[] = [];
+  for (const method of candidates) {
+    const res = await call(method, {});
+    const text = JSON.stringify(res.body);
+    if (!text.includes('InvalidApiPath')) {
+      return { ok: res.ok, detail: `${method} -> ${text.slice(0, 500)}` };
+    }
+    tried.push(method);
+  }
+
+  return {
+    ok: false,
+    detail: `All paths rejected as invalid: ${tried.join(', ')}. Signature is fine — the token exchange is signed the same way and succeeded — so this is the API name, not auth.`,
+  };
 }
