@@ -79,7 +79,7 @@ export async function SiteHeader() {
 
           {/* Centre: wordmark */}
           <Link href="/" className="justify-self-center" aria-label={`${settings.storeName} home`}>
-            <Wordmark name={settings.storeName} />
+            <Wordmark name={settings.storeName} animate />
           </Link>
 
           {/* Right: currency + icon utilities */}

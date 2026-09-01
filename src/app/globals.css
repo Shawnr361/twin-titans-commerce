@@ -650,3 +650,57 @@
     padding-left: 0;
   }
 }
+
+/*
+ * WORDMARK — drops into place, and does it again every so often.
+ *
+ * ONE ELEMENT, TRANSFORM AND OPACITY ONLY, AND THAT IS DELIBERATE.
+ *
+ * The obvious version animates each letter for a wave effect. It cannot be
+ * done here: the gold is a gradient painted on this element and clipped to its
+ * own glyphs with background-clip: text, and transforming the letters inside it
+ * composites them away from that clip — on several browsers the letters simply
+ * render invisible, because their own colour is transparent by design. Moving
+ * the whole mark keeps the metal intact.
+ *
+ * It is also the cheap version, which is what makes it safe on a phone: one
+ * compositor layer, no layout, no paint, no JavaScript and no timer. The mark
+ * is inside a sticky header on every page, so anything more expensive would be
+ * paid for on every scroll.
+ *
+ * 15s cycle, of which the movement is the first 4% — 600ms of motion, then
+ * fourteen seconds of stillness. A logo that moves constantly stops reading as
+ * a logo.
+ */
+.wordmark-cycle {
+  animation: wordmark-drop 15s cubic-bezier(0.16, 1, 0.3, 1) infinite both;
+}
+
+@keyframes wordmark-drop {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -0.42em, 0);
+  }
+  4% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/*
+ * The blanket reduced-motion rule further up crushes durations to 0.01ms, which
+ * would land this on its end state anyway — but only after the delay, and the
+ * end state is the one that matters. Stating it outright means the mark is
+ * never mid-drop for anyone who asked for stillness.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .wordmark-cycle {
+    animation: none !important;
+    opacity: 1;
+    transform: none !important;
+  }
+}

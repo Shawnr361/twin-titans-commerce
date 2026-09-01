@@ -13,15 +13,23 @@
  *
  * `title` keeps the plain name available to assistive tech, since the visible
  * glyphs are transparent by design.
+ *
+ * `animate` drops the mark into place and repeats every 15 seconds. Opt-in per
+ * placement rather than baked in: the footer carries the same wordmark, and an
+ * identical animation ticking away below the fold is work done for nobody. One
+ * moving mark per page is the whole effect.
  */
 export function Wordmark({
   name,
   className = '',
   size = 'md',
+  animate = false,
 }: {
   name: string;
   className?: string;
   size?: 'sm' | 'md' | 'lg';
+  /** Slide the mark down into place, and again every 15 seconds. */
+  animate?: boolean;
 }) {
   const scale = {
     sm: 'text-[0.75rem] tracking-[0.14em] sm:text-[0.9375rem] sm:tracking-[0.22em]',
@@ -32,7 +40,9 @@ export function Wordmark({
   return (
     <span
       title={name}
-      className={`gold gold-sweep font-display block select-none whitespace-nowrap leading-none ${scale} ${className}`}
+      className={`gold gold-sweep font-display block select-none whitespace-nowrap leading-none ${
+        animate ? 'wordmark-cycle ' : ''
+      }${scale} ${className}`}
     >
       {name.toUpperCase()}
     </span>
