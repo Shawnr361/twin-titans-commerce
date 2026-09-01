@@ -25,7 +25,13 @@ export default async function HomePage() {
       .findMany({
         where: { status: 'ACTIVE' },
         orderBy: { createdAt: 'desc' },
-        take: 8,
+        /*
+         * Four rows on the four-column desktop grid. On mobile the grid is two
+         * columns, so this is eight rows there — still a reasonable scroll,
+         * and it is the difference between a shop that looks stocked and one
+         * that looks like it has eight things.
+         */
+        take: 16,
         select: CARD_SELECT,
       })
       .catch(() => []),

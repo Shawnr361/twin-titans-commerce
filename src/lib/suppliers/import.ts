@@ -7,6 +7,7 @@ import { computePrice, type PricingRules } from '../pricing';
 import { getPricingRules, getStoreSettings } from '../settings';
 import { adapterFor, genericAdapter } from './adapters';
 import { parseSupplierUrl, resolveShortLink } from './parse';
+import { cleanProductTitle } from './title';
 import type { NormalizedProduct, Platform } from './types';
 
 /**
@@ -182,7 +183,16 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
   const p = preview.product;
   const warnings: string[] = [];
 
-  const title = (input.title ?? p.title).trim();
+  /*
+   * Cleaned here rather than at extraction, so the raw supplier title stays
+   * visible in the capture list while sourcing — that is where it is evidence,
+   * and where a keyword-stuffed original sometimes reveals what a product
+   * really is. It is only on the way into the catalogue that it becomes copy.
+   *
+   * A title typed by hand in the import form is cleaned too: the same length
+   * limit applies to the card either way, and it still only ever removes.
+   */
+  const title = cleanProductTitle(input.title ?? p.title);
   if (!title) throw new Error('A product title is required.');
 
   const handle = await uniqueHandle(input.handle ? slugify(input.handle) : slugify(title));

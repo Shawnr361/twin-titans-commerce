@@ -5,6 +5,7 @@
  *   npx tsx scripts/verify-logic.ts
  */
 import { parseSupplierUrl, stripTracking } from '../src/lib/suppliers/parse';
+import { cleanProductTitle } from '../src/lib/suppliers/title';
 import {
   auditMargin,
   computePrice,
@@ -300,6 +301,44 @@ void (async () => {
   check('a protocol-relative URL is refused', safeNext('//example.com'), '/admin');
   check('a missing next falls back', safeNext(null), '/admin');
   check('an empty next falls back', safeNext(''), '/admin');
+
+  console.log('── Product titles ─────────────────────────');
+
+  // The marketplace tail is the loudest junk: the number is AliExpress's own
+  // category id, and it reads as part of the product name on a card.
+  check(
+    'the AliExpress tail is removed',
+    cleanProductTitle('Mini Portable Fan - AliExpress 15'),
+    'Mini Portable Fan'
+  );
+  check(
+    'a stacked tail is removed too',
+    cleanProductTitle('Mini Portable Fan - Free Shipping - AliExpress 200165144'),
+    'Mini Portable Fan'
+  );
+  // Pack size is information; "1pc" is not.
+  check('a leading 1pc goes', cleanProductTitle('1PC Red Toilet Brush'), 'Red Toilet Brush');
+  check(
+    'a real pack size stays',
+    cleanProductTitle('120 Rolls Dog Poop Bag'),
+    '120 Rolls Dog Poop Bag'
+  );
+  // Cleaning must never invent, and must never leave a half-word behind.
+  assert(
+    'an over-long title is cut on a word boundary',
+    !/\s$/.test(cleanProductTitle('a'.repeat(20) + ' ' + 'b'.repeat(90))) &&
+      cleanProductTitle('Word '.repeat(40)).length <= 70
+  );
+  assert(
+    'cleaning is idempotent',
+    cleanProductTitle(cleanProductTitle('3 in 1 Magic Brush Floor Scrub Brush Broom Brush Long Handle Household Cleaning Brush Stainless Steel - AliExpress 15')) ===
+      cleanProductTitle('3 in 1 Magic Brush Floor Scrub Brush Broom Brush Long Handle Household Cleaning Brush Stainless Steel - AliExpress 15')
+  );
+  check(
+    'an already-good title is left alone',
+    cleanProductTitle('USB LED String Lights 5/10/20M Waterproof Fairy Lights'),
+    'USB LED String Lights 5/10/20M Waterproof Fairy Lights'
+  );
 
   console.log('── Delivery promise ───────────────────────');
 
