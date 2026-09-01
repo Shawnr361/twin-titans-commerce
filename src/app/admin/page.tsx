@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import { getStoreSettings } from '@/lib/settings';
+import { currentBuildId } from '@/lib/deploy';
+import { DeployButton } from '@/components/admin/DeployButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,6 +135,12 @@ export default async function AdminDashboard() {
           </div>
         )}
       </section>
+
+      {/*
+        Last on the page on purpose. Deploying is infrastructure, not a daily
+        task, and it must not sit above the orders that need attention.
+      */}
+      <DeployButton currentBuild={currentBuildId()} />
     </div>
   );
 }
