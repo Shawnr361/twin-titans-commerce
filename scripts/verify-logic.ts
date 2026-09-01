@@ -310,7 +310,22 @@ void (async () => {
    * about the product and rather a lot about where it was bought.
    */
   check('a storefront handle prints nothing', displayVendor('House Foocus Store'), null);
-  check('an official store prints nothing', displayVendor('Ajazz Official Store'), null);
+  /*
+   * "<X> Official Store" is the brand's own shopfront, so X is kept — but only
+   * when X is short enough to be a name rather than a pile of search terms.
+   */
+  check('an official store yields the brand', displayVendor('Ajazz Official Store'), 'Ajazz');
+  check('a two-word brand survives', displayVendor('Jomay Lashes Official Store'), 'Jomay Lashes');
+  check(
+    'a three-word official store is not a brand',
+    displayVendor('Aswesaw Global Lighting Official Store'),
+    null
+  );
+  check(
+    'a flagship search-term salad is not a brand',
+    displayVendor('Ibcccndc Lakerain Global Cosmetics Flagship Store'),
+    null
+  );
   check('a factory store prints nothing', displayVendor('Fadvan Lashes Factory Store'), null);
   check('the marketplace itself prints nothing', displayVendor('ALIEXPRESS supplier'), null);
   check('an unnamed supplier prints nothing', displayVendor(null), null);
@@ -525,7 +540,8 @@ void (async () => {
   check('a generated shop handle is hidden', displayVendor('Shop1105057416 Store'), null);
   // A storefront handle is honest and still says nothing worth reading.
   check('a storefront name is hidden', displayVendor('DAZZLEEX Store'), null);
-  check('an official store is hidden', displayVendor('Ingemark Official Store'), null);
+  // The brand's own shopfront keeps the brand and loses the shopfront wording.
+  check('an official store keeps the brand', displayVendor('Ingemark Official Store'), 'Ingemark');
 
   console.log('── Capture quality ────────────────────────────');
 

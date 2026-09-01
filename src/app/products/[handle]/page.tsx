@@ -5,7 +5,7 @@ import { productDescription, siteOrigin } from "@/lib/seo";
 import { Price } from "@/components/commerce/Price";
 import { ProductGallery } from "@/components/commerce/ProductGallery";
 import { VariantMediaProvider } from "@/components/commerce/VariantMediaContext";
-import { displayVendor, isPublishableBrand } from "@/lib/vendor";
+import { displayVendor } from "@/lib/vendor";
 import { AddToCart } from "@/components/commerce/AddToCart";
 import { ProductCard } from "@/components/commerce/ProductCard";
 import { SectionHead } from "@/components/layout/SectionHead";
@@ -238,8 +238,10 @@ export default async function ProductPage({
     description,
     image: product.images.map((i) => i.url).slice(0, 6),
     sku: product.variants[0]?.sku ?? undefined,
-    brand: isPublishableBrand(product.vendor)
-      ? { "@type": "Brand", name: product.vendor }
+    // The cleaned name, not the raw one: what Google is told and what the
+    // shopper is shown must be the same string.
+    brand: displayVendor(product.vendor)
+      ? { "@type": "Brand", name: displayVendor(product.vendor) }
       : undefined,
     offers: {
       "@type": "AggregateOffer",

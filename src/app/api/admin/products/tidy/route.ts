@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { UnauthorizedError, requireAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { cleanProductTitle } from '@/lib/suppliers/title';
-import { isPublishableBrand } from '@/lib/vendor';
+import { normaliseVendor } from '@/lib/vendor';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,8 +65,9 @@ export async function POST(request: Request) {
     if (title && title !== p.title) {
       changes.push({ id: p.id, field: 'title', before: p.title, after: title });
     }
-    if (p.vendor && !isPublishableBrand(p.vendor)) {
-      changes.push({ id: p.id, field: 'vendor', before: p.vendor, after: null });
+    const vendor = normaliseVendor(p.vendor);
+    if (p.vendor && vendor !== p.vendor) {
+      changes.push({ id: p.id, field: 'vendor', before: p.vendor, after: vendor });
     }
   }
 
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
     try {
       await prisma.product.update({
         where: { id: c.id },
-        data: c.field === 'title' ? { title: c.after as string } : { vendor: null },
+        data: c.field === 'title' ? { title: c.after as string } : { vendor: c.after },
       });
       updated++;
     } catch (err) {

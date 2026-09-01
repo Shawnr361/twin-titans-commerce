@@ -51,32 +51,66 @@ export function isMarketplaceName(vendor?: string | null): boolean {
  * loses nothing — the supplier is still recorded internally on the Supplier
  * record, which is where reordering reads it from.
  */
-export function displayVendor(vendor?: string | null): string | null {
+/**
+ * A brand hiding inside an official-store handle.
+ *
+ * "<X> Official Store" is a marketplace's wording for a shopfront the brand
+ * itself runs, so X really is the maker — Ajazz, EMEET, NATUHANA and KODO all
+ * reach us that way, and deleting the whole handle throws away the one part of
+ * it worth keeping. A plain "<X> Store" means no such thing: that is simply
+ * what every seller on the platform calls itself.
+ *
+ * Only one or two words are accepted in front of "Official Store". "Ajazz
+ * Official Store" is a brand; "Ibcccndc Lakerain Global Cosmetics Flagship
+ * Store" is a search-term salad, and publishing that as the product's brand
+ * would be a false claim to Google that cannot easily be retracted once indexed.
+ */
+function brandInsideOfficialStore(name: string): string | null {
+  const match = name.match(/^(.+?)\sofficial\s(?:flagship\s)?store$/i);
+  if (!match) return null;
+  const brand = match[1].trim();
+  return brand.split(/\s+/).length <= 2 && brand.length <= 22 ? brand : null;
+}
+
+/**
+ * The vendor as a customer should see it, or null when there is nothing worth
+ * printing.
+ *
+ * ONE rule, shared by the storefront line, by schema.org `brand` and by the
+ * importer — a name must never be good enough for one surface and not another,
+ * which is exactly how "ALIEXPRESS supplier" reached the product cards while
+ * being refused as a brand.
+ */
+export function normaliseVendor(vendor?: string | null): string | null {
   const name = (vendor ?? '').trim();
-  return isPublishableBrand(name) ? name : null;
+  if (!name || isMarketplaceName(name)) return null;
+
+  const brand = brandInsideOfficialStore(name);
+  if (brand) return brand;
+
+  // "... Store", "... Factory Store", "... Co., Ltd" — how a marketplace seller
+  // names its shopfront, never how a maker names itself. A genuine brand
+  // ("COSRX", "Kiko") survives this untouched.
+  if (/\b(store|shop|factory|trading|co\.?,?\s*ltd\.?|official\s*flagship)\s*$/i.test(name)) {
+    return null;
+  }
+  return name;
+}
+
+/** The vendor line as a customer should see it. */
+export function displayVendor(vendor?: string | null): string | null {
+  return normaliseVendor(vendor);
 }
 
 /**
  * Whether a vendor may be published as schema.org `brand`.
  *
- * Stricter than the storefront rule on purpose. Showing "DAZZLEEX Store" as
- * the vendor line is honest - that really is who supplies it - but declaring
- * it as the product's BRAND tells Google the supplier's shop handle is the
- * manufacturer, and marketplace sellers name themselves "<something> Store"
- * almost universally. Google treats brand as recommended rather than required,
- * so omitting it costs a warning while publishing a false one is a claim we
- * cannot stand behind and cannot easily retract once indexed.
+ * Deliberately the same test as the storefront now: publishing a name to a
+ * shopper that we will not publish to Google (or the reverse) means one of the
+ * two is wrong.
  */
 export function isPublishableBrand(vendor?: string | null): boolean {
-  const name = (vendor ?? '').trim();
-  if (!name || isMarketplaceName(name)) return false;
-  // "... Store", "... Official Store", "... Factory Store", "... Co., Ltd" —
-  // how a marketplace seller names its shopfront, never how a maker names
-  // itself. A genuine brand ("Ajazz", "COSRX") survives this untouched.
-  if (/\b(store|shop|factory|trading|co\.?,?\s*ltd\.?|official\s*flagship)\s*$/i.test(name)) {
-    return false;
-  }
-  return true;
+  return normaliseVendor(vendor) !== null;
 }
 
 /**

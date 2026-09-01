@@ -1,7 +1,7 @@
 import { variantLabel } from '@/lib/vendor';
 import { prisma } from '../db';
 import { sourceCostToBase } from '../fx';
-import { isPublishableBrand } from '../vendor';
+import { normaliseVendor } from '../vendor';
 import { categorise } from '../categorise';
 import { computePrice, type PricingRules } from '../pricing';
 import { getPricingRules, getStoreSettings } from '../settings';
@@ -205,7 +205,7 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
    */
   const supplierName =
     input.supplierName?.trim() || p.supplierName?.trim() || `${p.platform} supplier`;
-  const customerFacingVendor = isPublishableBrand(supplierName) ? supplierName : null;
+  const customerFacingVendor = normaliseVendor(supplierName);
 
   /*
    * File it now, from the title. Doing this by hand was skipped on every import
