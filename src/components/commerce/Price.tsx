@@ -1,6 +1,6 @@
 'use client';
 
-import { formatMoney } from '@/lib/money';
+import { formatMoney, friendlyCeiling } from '@/lib/money';
 import { useCurrency } from './CurrencyContext';
 
 /**
@@ -28,12 +28,19 @@ export function Price({
   className = '',
   strike = false,
   prefix,
+  roundUp = false,
 }: {
   minor: number;
   currency?: string;
   className?: string;
   strike?: boolean;
   prefix?: string;
+  /**
+   * Present a converted THRESHOLD rather than a price: rounded up to a
+   * friendly figure. Only ever set on the free-delivery bar, never on
+   * something a shopper pays — a rounded price would not match the charge.
+   */
+  roundUp?: boolean;
 }) {
   const ctx = useCurrency();
   const option =
@@ -41,15 +48,16 @@ export function Price({
 
   let text: string;
   if (option && option.rate > 0) {
-    const converted = (minor / 100) * option.rate;
+    const exact = (minor / 100) * option.rate;
+    const converted = roundUp ? friendlyCeiling(exact) : exact;
     text = new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: option.code,
       /*
        * Below 100 the minor units still carry meaning; above it they are noise
-       * on a price tag.
+       * on a price tag. A rounded threshold never wants them at all.
        */
-      maximumFractionDigits: converted >= 100 ? 0 : 2,
+      maximumFractionDigits: roundUp || converted >= 100 ? 0 : 2,
     }).format(converted);
   } else {
     text = formatMoney(minor, currency);

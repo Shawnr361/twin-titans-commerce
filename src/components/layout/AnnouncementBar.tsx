@@ -181,7 +181,18 @@ function Message({
   return (
     <>
       {text.slice(0, at)}
-      <Price minor={freeShippingOverMinor} currency={baseCurrency} className="!text-onyx/80" />
+      {/*
+        Rounded, because this is a threshold and not a price. Converted exactly
+        it reads "$22.41", which looks like a bug on the first line a visitor
+        sees. friendlyCeiling only ever rounds up, so the bar can never promise
+        a lower bar than the one checkout actually applies.
+      */}
+      <Price
+        minor={freeShippingOverMinor}
+        currency={baseCurrency}
+        roundUp
+        className="!text-onyx/80"
+      />
       {text.slice(at + needle.length)}
     </>
   );

@@ -69,3 +69,23 @@ export function convertMinor(
   const major = fromMinor(minor, fromCurrency) * ratePerBase;
   return Math.round(major * minorUnitFactor(toCurrency));
 }
+
+/**
+ * Round a converted figure UP to a number that looks like a decision.
+ *
+ * A threshold set in one currency lands on noise in every other: ₦30,000 is
+ * "$22.41", which reads like a glitch on a shop front rather than an offer.
+ * This turns it into "$25".
+ *
+ * ALWAYS UP, NEVER DOWN — and that direction is the whole safety argument.
+ * The real rule stays the base-currency one (₦30,000), so a rounded-up figure
+ * is a promise we always beat: a shopper told "free over $25" who spends $23
+ * gets free delivery anyway. Rounding down would do the opposite and advertise
+ * delivery we do not actually give, which is the same false-promise class the
+ * announcement validator already refuses to save.
+ */
+export function friendlyCeiling(amount: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  const step = amount < 10 ? 1 : amount < 100 ? 5 : amount < 1000 ? 10 : 100;
+  return Math.ceil(amount / step) * step;
+}

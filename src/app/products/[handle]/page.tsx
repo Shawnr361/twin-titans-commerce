@@ -384,9 +384,12 @@ export default async function ProductPage({
                       {settings.freeShippingOverMinor > 0 && (
                         <>
                           {" · free over "}
+                          {/* Rounded like the announcement bar — same claim,
+                              so it must not be a different number. */}
                           <Price
                             minor={settings.freeShippingOverMinor}
                             currency={settings.baseCurrency}
+                            roundUp
                           />
                         </>
                       )}

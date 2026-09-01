@@ -14,7 +14,7 @@ import {
   type GatewayFeeModel,
 } from '../src/lib/pricing';
 import { DEFAULT_RULES } from '../src/lib/pricing';
-import { formatMoney, fromMinor, toMinor } from '../src/lib/money';
+import { formatMoney, friendlyCeiling, fromMinor, toMinor } from '../src/lib/money';
 import { getRate, sourceCostToBase } from '../src/lib/fx';
 import { assessCapture } from '../src/lib/suppliers/capture';
 import { displayVendor, isPublishableBrand } from '../src/lib/vendor';
@@ -374,6 +374,26 @@ void (async () => {
     cleanProductTitle('USB LED String Lights 5/10/20M Waterproof Fairy Lights'),
     'USB LED String Lights 5/10/20M Waterproof Fairy Lights'
   );
+
+  console.log('── Threshold rounding ─────────────────────');
+
+  // ₦30,000 converts to $22.41, which reads like a bug on a shop front.
+  check('an awkward conversion becomes a round number', friendlyCeiling(22.41), 25);
+  check('an already-round figure is left alone', friendlyCeiling(25), 25);
+  check('small amounts round to the next unit', friendlyCeiling(7.2), 8);
+  check('large amounts round to the next hundred', friendlyCeiling(1234), 1300);
+  check('nothing to round', friendlyCeiling(0), 0);
+
+  /*
+   * The safety property, stated as a test rather than a comment: the advertised
+   * threshold must never sit BELOW the real one, or the bar promises free
+   * delivery that checkout will refuse.
+   */
+  let roundsDown = 0;
+  for (let cents = 1; cents <= 500_000; cents += 7) {
+    if (friendlyCeiling(cents / 100) < cents / 100) roundsDown++;
+  }
+  check('rounding is never downward, across 71k amounts', roundsDown, 0);
 
   console.log('── Delivery promise ───────────────────────');
 
