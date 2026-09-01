@@ -41,13 +41,24 @@ export async function previewFromCapture(
    * Drop the attribute-less padding SKUs before anything downstream sees them,
    * so a one-colour product never gains a phantom "Option 2". See realVariants.
    */
-  const variants: NormalizedVariant[] = realVariants(captureVariants).map((v) => ({
-    options: v.options ?? {},
-    costMinor: toMinor(v.price ?? 0, captured.currency),
-    imageUrl: v.imageUrl,
-    supplierVariantId: v.skuId,
-    inventory: v.stock ?? null,
-  }));
+  /*
+   * The return type is annotated deliberately. Without it this was a plain
+   * object literal returned from .map(), which TypeScript only checks for
+   * ASSIGNABILITY — every field on NormalizedVariant is optional, so writing
+   * `supplierVariantId` (a name that does not exist on it) compiled cleanly
+   * while the SKU went nowhere. Every product in the catalogue ended up with a
+   * null supplier SKU, which is what made automatic supplier ordering refuse on
+   * all of them. Annotating the arrow turns the same mistake into a build error.
+   */
+  const variants: NormalizedVariant[] = realVariants(captureVariants).map(
+    (v): NormalizedVariant => ({
+      options: v.options ?? {},
+      costMinor: toMinor(v.price ?? 0, captured.currency),
+      imageUrl: v.imageUrl,
+      externalVariantId: v.skuId,
+      stock: v.stock ?? null,
+    })
+  );
 
   // Option names in the order the supplier presented them, so the variant
   // picker reads "Colour" then "Plug" rather than an arbitrary object order.
