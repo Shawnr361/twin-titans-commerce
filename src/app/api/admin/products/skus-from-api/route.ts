@@ -140,7 +140,23 @@ export async function POST(request: Request) {
     for (const variant of product.variants) {
       const wanted = variantValues(variant.optionValues);
       if (wanted.length === 0) {
-        unmatched.push(`${product.title.slice(0, 36)} — ${variant.title.slice(0, 22)} (no options)`);
+        /*
+         * A variant with no options cannot be matched on values — but if the
+         * listing has exactly ONE SKU there is nothing to choose between, so
+         * the match is certain rather than a guess. With several, it stays
+         * unmatched: picking the first would be inventing an answer.
+         */
+        if (skus.length === 1) {
+          matched.push({
+            variantId: variant.id,
+            sku: skus[0].id,
+            label: `${product.title.slice(0, 36)} — single variant -> ${skus[0].id}`,
+          });
+        } else {
+          unmatched.push(
+            `${product.title.slice(0, 36)} — ${variant.title.slice(0, 22)} (no options, ${skus.length} SKUs)`
+          );
+        }
         continue;
       }
       /*
