@@ -4,6 +4,7 @@ import { UnauthorizedError, requireAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { cleanProductTitle } from '@/lib/suppliers/title';
 import { normaliseVendor } from '@/lib/vendor';
+import { isPlaceholderOptions } from '@/lib/suppliers/variants';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,15 @@ export const dynamic = 'force-dynamic';
  * would break every link already shared and every page already indexed, for a
  * cosmetic gain. Titles change; addresses do not.
  *
+ * PADDING VARIANTS ARE DELETED, NEVER ORDERED ONES
+ * ------------------------------------------------
+ * Listings arrive with attribute-less SKUs that the picker has to label
+ * "Option 2" because they have no name — the same product, offered twice. They
+ * are removed, but a variant that appears on any order line is left alone and
+ * reported instead: an order must keep saying what was actually bought, and a
+ * tidy-up is never worth rewriting history. Every product keeps at least one
+ * variant, since a product with none cannot be bought.
+ *
  * VENDOR IS CLEARED, NOT REWRITTEN
  * --------------------------------
  * Where a vendor is a marketplace storefront handle rather than a maker, the
@@ -40,6 +50,15 @@ interface Change {
   field: 'title' | 'vendor';
   before: string | null;
   after: string | null;
+}
+
+interface VariantDrop {
+  productId: string;
+  productTitle: string;
+  variantId: string;
+  variantTitle: string;
+  /** Set when the variant is kept despite being padding, with the reason. */
+  keptBecause?: string;
 }
 
 export async function POST(request: Request) {
@@ -56,10 +75,24 @@ export async function POST(request: Request) {
   const apply = parsed.success ? Boolean(parsed.data.apply) : false;
 
   const products = await prisma.product.findMany({
-    select: { id: true, title: true, vendor: true },
+    select: {
+      id: true,
+      title: true,
+      vendor: true,
+      variants: {
+        orderBy: { position: 'asc' },
+        select: {
+          id: true,
+          title: true,
+          optionValues: true,
+          _count: { select: { lineItems: true } },
+        },
+      },
+    },
   });
 
   const changes: Change[] = [];
+  const drops: VariantDrop[] = [];
   for (const p of products) {
     const title = cleanProductTitle(p.title);
     if (title && title !== p.title) {
@@ -69,7 +102,33 @@ export async function POST(request: Request) {
     if (p.vendor && vendor !== p.vendor) {
       changes.push({ id: p.id, field: 'vendor', before: p.vendor, after: vendor });
     }
+
+    /*
+     * Mirrors realVariants(), but over stored rows: where some variants carry
+     * attributes the attribute-less ones are padding; where none do, the first
+     * is the real one and the rest are copies of it.
+     */
+    if (p.variants.length > 1) {
+      const named = p.variants.filter((v) => !isPlaceholderOptions(v.optionValues));
+      const keep = new Set(
+        (named.length > 0 ? named : p.variants.slice(0, 1)).map((v) => v.id)
+      );
+      for (const v of p.variants) {
+        if (keep.has(v.id)) continue;
+        drops.push({
+          productId: p.id,
+          productTitle: p.title,
+          variantId: v.id,
+          variantTitle: v.title,
+          ...(v._count.lineItems > 0
+            ? { keptBecause: `on ${v._count.lineItems} order line(s)` }
+            : {}),
+        });
+      }
+    }
   }
+
+  const removable = drops.filter((d) => !d.keptBecause);
 
   if (!apply) {
     return NextResponse.json({
@@ -78,7 +137,10 @@ export async function POST(request: Request) {
       wouldChange: changes.length,
       titles: changes.filter((c) => c.field === 'title').length,
       vendors: changes.filter((c) => c.field === 'vendor').length,
+      paddingVariants: removable.length,
+      variantsKeptBecauseOrdered: drops.filter((d) => d.keptBecause),
       changes,
+      drops: removable,
     });
   }
 
@@ -100,5 +162,24 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ applied: true, scanned: products.length, updated, failures });
+  let variantsRemoved = 0;
+  for (const d of removable) {
+    try {
+      await prisma.variant.delete({ where: { id: d.variantId } });
+      variantsRemoved++;
+    } catch (err) {
+      failures.push(
+        `${d.productTitle} / ${d.variantTitle}: ${err instanceof Error ? err.message : 'failed'}`
+      );
+    }
+  }
+
+  return NextResponse.json({
+    applied: true,
+    scanned: products.length,
+    updated,
+    variantsRemoved,
+    variantsKeptBecauseOrdered: drops.filter((d) => d.keptBecause).length,
+    failures,
+  });
 }

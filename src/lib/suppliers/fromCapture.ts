@@ -1,3 +1,4 @@
+import { realVariants } from './variants';
 import type { CapturedProduct } from './capture';
 import type { NormalizedProduct, NormalizedVariant } from './types';
 import type { PreviewResult } from './import';
@@ -36,7 +37,11 @@ export async function previewFromCapture(
       ? captured.variants
       : [{ options: {}, price: 0, skuId: undefined, imageUrl: undefined }];
 
-  const variants: NormalizedVariant[] = captureVariants.map((v) => ({
+  /*
+   * Drop the attribute-less padding SKUs before anything downstream sees them,
+   * so a one-colour product never gains a phantom "Option 2". See realVariants.
+   */
+  const variants: NormalizedVariant[] = realVariants(captureVariants).map((v) => ({
     options: v.options ?? {},
     costMinor: toMinor(v.price ?? 0, captured.currency),
     imageUrl: v.imageUrl,

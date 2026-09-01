@@ -4,6 +4,7 @@
  *
  *   npx tsx scripts/verify-logic.ts
  */
+import { isPlaceholderOptions, realVariants } from '../src/lib/suppliers/variants';
 import { parseSupplierUrl, stripTracking } from '../src/lib/suppliers/parse';
 import { cleanProductTitle } from '../src/lib/suppliers/title';
 import {
@@ -374,6 +375,33 @@ void (async () => {
     cleanProductTitle('USB LED String Lights 5/10/20M Waterproof Fairy Lights'),
     'USB LED String Lights 5/10/20M Waterproof Fairy Lights'
   );
+
+  console.log('── Padding variants ───────────────────────');
+
+  const eyeliner = [{ options: { Colour: 'Black' } }, { options: {} }];
+  check('an attribute-less SKU beside a real one is dropped', realVariants(eyeliner).length, 1);
+  check(
+    'the one kept is the real one',
+    realVariants(eyeliner)[0].options.Colour,
+    'Black'
+  );
+
+  const threeColours = [
+    { options: { Colour: 'Black' } },
+    { options: { Colour: 'Brown' } },
+    { options: { Colour: 'Blue' } },
+  ];
+  check('genuine choices are all kept', realVariants(threeColours).length, 3);
+
+  // A single-variant product still needs its one row, however it is shaped.
+  check('a lone attribute-less variant survives', realVariants([{ options: {} }]).length, 1);
+  check(
+    'duplicates with no attributes collapse to the first',
+    realVariants([{ options: {} }, { options: {} }, { options: {} }]).length,
+    1
+  );
+  check('blank attribute values count as no attributes', isPlaceholderOptions({ Colour: '  ' }), true);
+  check('a real attribute is not padding', isPlaceholderOptions({ Colour: 'Black' }), false);
 
   console.log('── Threshold rounding ─────────────────────');
 
