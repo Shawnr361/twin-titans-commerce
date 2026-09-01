@@ -378,11 +378,14 @@ void (async () => {
 
   console.log('── Padding variants ───────────────────────');
 
-  const eyeliner = [{ options: { Colour: 'Black' } }, { options: {} }];
+  const eyeliner: { options: Record<string, string> }[] = [
+    { options: { Colour: 'Black' } },
+    { options: {} },
+  ];
   check('an attribute-less SKU beside a real one is dropped', realVariants(eyeliner).length, 1);
   check(
     'the one kept is the real one',
-    realVariants(eyeliner)[0].options.Colour,
+    realVariants(eyeliner)[0].options?.Colour,
     'Black'
   );
 
@@ -397,7 +400,11 @@ void (async () => {
   check('a lone attribute-less variant survives', realVariants([{ options: {} }]).length, 1);
   check(
     'duplicates with no attributes collapse to the first',
-    realVariants([{ options: {} }, { options: {} }, { options: {} }]).length,
+    realVariants<{ options: Record<string, string> }>([
+      { options: {} },
+      { options: {} },
+      { options: {} },
+    ]).length,
     1
   );
   check('blank attribute values count as no attributes', isPlaceholderOptions({ Colour: '  ' }), true);
