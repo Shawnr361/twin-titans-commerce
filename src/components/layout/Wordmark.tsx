@@ -14,10 +14,26 @@
  * `title` keeps the plain name available to assistive tech, since the visible
  * glyphs are transparent by design.
  *
- * `animate` drops the mark into place and repeats every 15 seconds. Opt-in per
- * placement rather than baked in: the footer carries the same wordmark, and an
- * identical animation ticking away below the fold is work done for nobody. One
- * moving mark per page is the whole effect.
+ * `animate` drops the letters into place one after another, and repeats every
+ * 15 seconds. Opt-in per placement rather than baked in: the footer carries the
+ * same wordmark, and an identical animation ticking away below the fold is work
+ * done for nobody. One moving mark per page is the whole effect.
+ *
+ * WHY EACH LETTER CARRIES ITS OWN GOLD
+ * ------------------------------------
+ * The gold is a gradient clipped to glyphs with background-clip: text. A
+ * transformed child escapes an ancestor's text clip, so letters animated inside
+ * a single gold span render as nothing at all — their own colour is transparent
+ * by design. Giving every letter the `gold` class instead makes each one
+ * self-sufficient.
+ *
+ * The cost is that the metal ramp restarts per letter rather than running
+ * across the word. Checked against the single-span version at wordmark size and
+ * the two are indistinguishable: the letters are 20px tall and the ramp is
+ * 250% wide, so no letter shows enough of it to reveal the seam. Total painted
+ * area is also unchanged, which is what keeps the shimmer affordable on a
+ * phone — twenty small repaints instead of one medium one, not twenty times
+ * the work.
  */
 export function Wordmark({
   name,
@@ -40,11 +56,29 @@ export function Wordmark({
   return (
     <span
       title={name}
-      className={`gold gold-sweep font-display block select-none whitespace-nowrap leading-none ${
-        animate ? 'wordmark-cycle ' : ''
-      }${scale} ${className}`}
+      className={`${
+        animate ? '' : 'gold gold-sweep '
+      }font-display block select-none whitespace-nowrap leading-none ${scale} ${className}`}
     >
-      {name.toUpperCase()}
+      {animate ? (
+        <>
+          {/* The letters are decoration; the name is read once, from here. */}
+          <span className="sr-only">{name}</span>
+          <span aria-hidden="true">
+            {[...name.toUpperCase()].map((character, index) => (
+              <span
+                key={index}
+                className="gold wordmark-letter"
+                style={{ '--i': index } as React.CSSProperties}
+              >
+                {character === ' ' ? '\u00A0' : character}
+              </span>
+            ))}
+          </span>
+        </>
+      ) : (
+        name.toUpperCase()
+      )}
     </span>
   );
 }

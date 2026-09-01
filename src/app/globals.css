@@ -652,36 +652,37 @@
 }
 
 /*
- * WORDMARK — drops into place, and does it again every so often.
+ * WORDMARK — the letters drop into place one after another, then hold still.
  *
- * ONE ELEMENT, TRANSFORM AND OPACITY ONLY, AND THAT IS DELIBERATE.
+ * Each letter carries its own gold because a transformed child escapes its
+ * ancestor's background-clip: text and would render as nothing (see Wordmark.tsx).
+ * `goldsheen` is re-declared here alongside the drop: this rule wins over
+ * `.gold`, and the shorthand would otherwise throw the shimmer away.
  *
- * The obvious version animates each letter for a wave effect. It cannot be
- * done here: the gold is a gradient painted on this element and clipped to its
- * own glyphs with background-clip: text, and transforming the letters inside it
- * composites them away from that clip — on several browsers the letters simply
- * render invisible, because their own colour is transparent by design. Moving
- * the whole mark keeps the metal intact.
+ * Only transform and opacity are animated for the drop, so the letters ride on
+ * the compositor and the phone does no layout work. Total painted area is the
+ * same word it always was, which is what keeps twenty elements affordable.
  *
- * It is also the cheap version, which is what makes it safe on a phone: one
- * compositor layer, no layout, no paint, no JavaScript and no timer. The mark
- * is inside a sticky header on every page, so anything more expensive would be
- * paid for on every scroll.
- *
- * 15s cycle, of which the movement is the first 4% — 600ms of motion, then
- * fourteen seconds of stillness. A logo that moves constantly stops reading as
- * a logo.
+ * Timing: 900ms per letter, 70ms apart, after a 300ms settle — about 2.5s of
+ * movement in a 15s cycle. The first version put the whole word down in 600ms
+ * with no stagger and was over before anyone looked up.
  */
-.wordmark-cycle {
-  animation: wordmark-drop 15s cubic-bezier(0.16, 1, 0.3, 1) infinite both;
+.wordmark-letter {
+  display: inline-block;
+  animation:
+    goldsheen 7s var(--ease) infinite,
+    wordmark-drop 15s cubic-bezier(0.16, 1, 0.3, 1) infinite both;
+  /* Second value is the drop: a settle, then one letter every 70ms. */
+  animation-delay: 0s, calc(300ms + var(--i, 0) * 70ms);
 }
 
 @keyframes wordmark-drop {
   0% {
     opacity: 0;
-    transform: translate3d(0, -0.42em, 0);
+    transform: translate3d(0, -0.5em, 0);
   }
-  4% {
+  /* 6% of 15s = 900ms of fall. */
+  6% {
     opacity: 1;
     transform: translate3d(0, 0, 0);
   }
@@ -692,13 +693,14 @@
 }
 
 /*
- * The blanket reduced-motion rule further up crushes durations to 0.01ms, which
- * would land this on its end state anyway — but only after the delay, and the
- * end state is the one that matters. Stating it outright means the mark is
- * never mid-drop for anyone who asked for stillness.
+ * Stillness for anyone who asked for it. Stated outright rather than left to
+ * the blanket duration override further up: that one only crushes durations,
+ * so the staggered delays would still hold each letter invisible at its start
+ * frame for up to 1.6s — a logo that arrives late instead of one that does not
+ * move.
  */
 @media (prefers-reduced-motion: reduce) {
-  .wordmark-cycle {
+  .wordmark-letter {
     animation: none !important;
     opacity: 1;
     transform: none !important;
