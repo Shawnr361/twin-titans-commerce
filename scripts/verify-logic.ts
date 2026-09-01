@@ -380,11 +380,25 @@ void (async () => {
   console.log('── Option labels ──────────────────────────');
 
   // Real labels from this catalogue.
-  check('shouting is calmed', cleanOptionLabel('WHITE-3IN1 / 103CM'), 'White-3in1 / 103cm');
+  check('shouting is calmed', cleanOptionLabel('Color: PURPLE'), 'Color: Purple');
+  check('a measurement is lowercased', cleanOptionLabel('Size: 103CM'), 'Size: 103cm');
   check('the supplier unit typo is corrected', cleanOptionLabel('8 / 90cn'), '8 / 90cm');
   check('mixed case the supplier chose is kept', cleanOptionLabel('Cold White / 3m-By USB'), 'Cold White / 3m-By USB');
   check('acronyms are not title-cased', cleanOptionLabel('RGB LED / 5M'), 'RGB LED / 5m');
-  check('separators get breathing room', cleanOptionLabel('Black/Large'), 'Black / Large');
+  check('a pack count is lowercased', cleanOptionLabel('Color: 10PCS'), 'Color: 10pcs');
+  /*
+   * Everything below was found by the preview, on real labels, before any of
+   * it reached the database. Each one is a way the first rule was wrong.
+   */
+  check('a part number keeps its case', cleanOptionLabel('Color: NCSKJ-452'), 'Color: NCSKJ-452');
+  check('a colour code is not lowercased', cleanOptionLabel('Color: D03 Blue'), 'Color: D03 Blue');
+  check('capacities keep their case', cleanOptionLabel('Color: Black 64GB'), 'Color: Black 64GB');
+  check('4K stays 4K', cleanOptionLabel('Color: Webcam 4K'), 'Color: Webcam 4K');
+  check(
+    'an option name containing a slash is not split in two',
+    cleanOptionLabel('Color: Pink / Voltage/Plug Type: USB Type-C'),
+    'Color: Pink / Voltage/Plug Type: USB Type-C'
+  );
   check('a tidy label is left alone', cleanOptionLabel('1 set'), '1 set');
   // "cn" only becomes "cm" after a digit, so ordinary words are safe.
   check('a word ending in cn is untouched', cleanOptionLabel('Lincn'), 'Lincn');

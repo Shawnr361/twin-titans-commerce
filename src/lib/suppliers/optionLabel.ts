@@ -18,24 +18,36 @@
  * behind the sale is not.
  */
 
-/** Tokens that are units or codes rather than words, so they stay lowercase. */
-const UNIT = /^\d+(\.\d+)?[a-z]{1,4}$/i;
+/**
+ * A measurement, and nothing else: 103CM, 10PCS, 1PC, 15G.
+ *
+ * Deliberately a closed list of units. An earlier version lowercased any
+ * all-caps token containing a digit, which turned "64GB" into "64gb", "4K"
+ * into "4k" and the product code "D03" into "d03" — the preview caught all
+ * three across 503 labels before any of it was written.
+ */
+const MEASUREMENT = /^\d+(\.\d+)?(cm|mm|m|g|kg|ml|l|pcs?|sets?|inch(es)?)$/i;
+
+/** A word rather than a part number: letters only, and it can be pronounced. */
+function looksLikeAWord(token: string): boolean {
+  return /^[A-Z]+$/.test(token) && /[AEIOU]/.test(token) && token.length >= 4;
+}
 
 function tidyToken(token: string): string {
-  if (UNIT.test(token)) return token.toLowerCase();
-  // Leave mixed-case alone — the supplier wrote it deliberately ("Cold White").
+  if (MEASUREMENT.test(token)) return token.toLowerCase();
+  // Mixed case is the supplier writing deliberately ("Cold White").
   if (token !== token.toUpperCase()) return token;
-  // "3IN1", "2PCS" — a code, not a word.
-  if (/\d/.test(token)) return token.toLowerCase();
   /*
-   * Short all-caps words are acronyms, not shouting: USB, LED, RGB, HD, UV, PU.
-   * Title-casing them produces "Usb", which looks like a typo on a button. The
-   * cost is that a genuinely short shouted word ("NEW") stays shouted, which is
-   * the cheaper mistake.
+   * Everything else all-caps is title-cased ONLY when it reads as a word.
+   * "PURPLE" is shouting; "NCSKJ" is a part number and has no vowels; "USB"
+   * and "LED" are acronyms and too short to be shouting. Anything carrying a
+   * digit — D03, 64GB, 13X4 — is left exactly as written, because a code a
+   * customer may have to quote back to us is not ours to restyle.
    */
-  if (token.length <= 4) return token;
+  if (!looksLikeAWord(token)) return token;
   return token.charAt(0) + token.slice(1).toLowerCase();
 }
+
 
 /** One label, cleaned. */
 export function cleanOptionLabel(raw: string): string {
@@ -47,8 +59,12 @@ export function cleanOptionLabel(raw: string): string {
   // word that legitimately ends in "cn" is untouched.
   out = out.replace(/(\d)\s*cn\b/gi, '$1cm');
 
-  // Breathing room around the separator the importer joins options with.
-  out = out.replace(/\s*\/\s*/g, ' / ');
+  /*
+   * The separator is deliberately NOT touched. The importer already joins
+   * options with " / ", so there is nothing to fix — and an option NAME can
+   * itself contain a slash: "Voltage/Plug Type: USB Type-C" was being split
+   * into "Voltage / Plug Type", inventing a second option that never existed.
+   */
 
   out = out
     .split(' ')
