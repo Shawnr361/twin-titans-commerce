@@ -418,7 +418,7 @@ async function viaOpenRouter(
         'content-type': 'application/json',
         // OpenRouter attributes usage to the calling site; harmless, and it
         // makes the dashboard readable.
-        'http-referer': 'https://twintitanemporium.com',
+        'http-referer': 'https://twintitansemporium.store',
         'x-title': 'Twin Titans Emporium',
       },
       body: JSON.stringify({

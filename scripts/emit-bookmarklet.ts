@@ -12,7 +12,7 @@
 import { writeFileSync } from 'node:fs';
 import { buildCaptureScript } from '../src/lib/suppliers/bookmarklet';
 
-const url = buildCaptureScript('https://twintitanemporium.com/api/admin/capture', 'DRYRUN_TOKEN');
+const url = buildCaptureScript('https://twintitansemporium.store/api/admin/capture', 'DRYRUN_TOKEN');
 const src = decodeURIComponent(url.replace(/^javascript:/, ''));
 
 const out = process.argv[2];

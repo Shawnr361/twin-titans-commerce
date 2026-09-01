@@ -88,5 +88,5 @@ export function productDescription(product: {
  * the mistake that once shipped canonical=http://localhost:3400 to production.
  */
 export function siteOrigin(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://twintitanemporium.com').replace(/\/$/, '');
+  return (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://twintitansemporium.store').replace(/\/$/, '');
 }
