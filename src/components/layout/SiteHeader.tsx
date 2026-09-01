@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
-import { getStoreSettings } from '@/lib/settings';
+import { announcementMessages, getStoreSettings } from '@/lib/settings';
 import { CurrencySwitcher, type CurrencyOption } from '@/components/commerce/CurrencySwitcher';
 import { HeaderActions } from './HeaderActions';
 import { MobileNav } from './MobileNav';
@@ -33,13 +33,18 @@ export async function SiteHeader() {
     .filter((r) => r.rate > 0)
     .map((r) => ({ code: r.code, symbol: r.symbol, rate: r.rate }));
 
+  // One announcement per line; split on the server so the client bundle never
+  // imports the settings module (and with it Prisma).
+  const announcements = announcementMessages(settings.announcement);
+
   const links = collections.map((c) => ({ href: `/collections/${c.handle}`, label: c.title }));
 
   return (
     <header className="sticky top-0 z-50 bg-bone/95 backdrop-blur">
-      {settings.announcement && (
+      {announcements.length > 0 && (
         <AnnouncementBar
-          text={settings.announcement}
+          messages={announcements}
+          style={settings.announcementStyle}
           freeShippingOverMinor={settings.freeShippingOverMinor}
           baseCurrency={settings.baseCurrency}
         />

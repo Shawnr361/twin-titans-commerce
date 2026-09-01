@@ -15,7 +15,16 @@ export interface StoreSettings {
   /** PayPal can never charge NGN — it always settles in this currency. */
   paypalCurrency: string;
   announcement: string;
+  /**
+   * How the announcement is shown. 'marquee' scrolls one continuous line;
+   * 'rotate' shows one message at a time, sliding down from the top.
+   */
+  announcementStyle: AnnouncementStyle;
 }
+
+export type AnnouncementStyle = 'marquee' | 'rotate';
+
+export const ANNOUNCEMENT_STYLES: AnnouncementStyle[] = ['marquee', 'rotate'];
 
 export const DEFAULT_SETTINGS: StoreSettings = {
   storeName: 'Twin Titans Emporium',
@@ -40,7 +49,23 @@ export const DEFAULT_SETTINGS: StoreSettings = {
    * route rejects the combination outright.
    */
   announcement: 'Free delivery on orders over ₦30,000 • Tracked on every order',
+  announcementStyle: 'marquee',
 };
+
+/**
+ * The banner is one message per line.
+ *
+ * A newline is the only separator a merchant can type without being taught a
+ * syntax, and it survives the bullet characters already used *inside* a single
+ * message ("Free delivery • Tracked on every order") — splitting on those
+ * would have chopped the existing banner in half on upgrade.
+ */
+export function announcementMessages(announcement: string): string[] {
+  return announcement
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
 
 async function readSetting<T>(key: string, fallback: T): Promise<T> {
   try {
@@ -83,8 +108,17 @@ export function announcementContradictsShipping(
   freeShippingOverMinor: number
 ): boolean {
   if (freeShippingOverMinor <= 0) return false;
-  const claim = announcement.toLowerCase();
-  const promisesFree = /(free|complimentary)\s+(delivery|shipping)/.test(claim);
-  const qualified = /(over|above|from|orders? of|when you spend)/.test(claim);
-  return promisesFree && !qualified;
+  /*
+   * Checked per message, not across the whole box. Once the banner can hold
+   * several lines, reading them as one string lets a qualifier in a later line
+   * excuse a bare promise in an earlier one — "Free delivery nationwide" and
+   * "Over 70 products in stock" would pass together while the first line is
+   * still a lie on its own.
+   */
+  return announcementMessages(announcement).some((message) => {
+    const claim = message.toLowerCase();
+    const promisesFree = /(free|complimentary)\s+(delivery|shipping)/.test(claim);
+    const qualified = /(over|above|from|orders? of|when you spend)/.test(claim);
+    return promisesFree && !qualified;
+  });
 }

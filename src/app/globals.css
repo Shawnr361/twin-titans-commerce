@@ -559,3 +559,94 @@
     animation: capture-flash 2600ms ease-out both;
   }
 }
+
+/*
+ * ANNOUNCEMENT BAR
+ *
+ * Two displays share this block: a continuous right-to-left marquee, and a
+ * rotator that drops each message in from above.
+ *
+ * The marquee track holds the same messages twice and travels exactly -50%, so
+ * the second copy lands where the first began and the loop has no visible seam.
+ * Both copies must therefore stay identical in width — do not style the clone
+ * differently.
+ */
+.announce {
+  overflow: hidden;
+}
+
+.announce-track {
+  display: flex;
+  width: max-content;
+  animation: announce-scroll var(--announce-duration, 30s) linear infinite;
+}
+
+/*
+ * A line that will not hold still cannot be read by anyone who reads slowly,
+ * and the bar can contain a link. Hover stops it for the mouse; focus-within
+ * stops it for the keyboard.
+ */
+.announce:hover .announce-track,
+.announce:focus-within .announce-track {
+  animation-play-state: paused;
+}
+
+.announce-group {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  padding-left: 1.5rem;
+  white-space: nowrap;
+}
+
+@keyframes announce-scroll {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes announce-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.announce-slide {
+  animation: announce-drop 520ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+/*
+ * Reduced motion needs its own rule rather than the blanket duration override
+ * further up this file: crushing the marquee to 0.01ms does not stop it, it
+ * teleports the track to the END of the travel, leaving the text parked
+ * half-way off screen. So the movement is removed outright and the messages
+ * wrap into a centred, static line instead. The rotator's resting state is
+ * already the end of its keyframes, so it needs nothing.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .announce-track {
+    animation: none !important;
+    transform: none !important;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .announce-track > [aria-hidden='true'] {
+    display: none;
+  }
+
+  .announce-group {
+    flex-wrap: wrap;
+    justify-content: center;
+    white-space: normal;
+    padding-left: 0;
+  }
+}

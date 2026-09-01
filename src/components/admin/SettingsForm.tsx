@@ -39,6 +39,7 @@ export function SettingsForm({
             supportEmail: String(form.get('supportEmail') ?? ''),
             supportPhone: String(form.get('supportPhone') ?? ''),
             announcement: String(form.get('announcement') ?? ''),
+            announcementStyle: String(form.get('announcementStyle') ?? 'marquee'),
             // Typed in naira, stored in kobo — every money value in this system
             // is an integer in minor units.
             shippingFlatMinor: toMinor(Number(form.get('shippingFlat') ?? 0), settings.baseCurrency),
@@ -116,12 +117,32 @@ export function SettingsForm({
           <label className="field-label" htmlFor="announcement">
             Announcement bar
           </label>
-          <input
+          <textarea
             id="announcement"
             name="announcement"
             className="field"
+            rows={3}
             defaultValue={settings.announcement}
           />
+          <p className="mt-1 text-micro text-greige">
+            One message per line. The free-delivery amount is converted to the
+            shopper&rsquo;s currency automatically.
+          </p>
+        </div>
+
+        <div>
+          <label className="field-label" htmlFor="announcementStyle">
+            How it is shown
+          </label>
+          <select
+            id="announcementStyle"
+            name="announcementStyle"
+            className="field"
+            defaultValue={settings.announcementStyle}
+          >
+            <option value="marquee">Scrolling line &mdash; all messages, right to left</option>
+            <option value="rotate">Rotating &mdash; one at a time, sliding in from the top</option>
+          </select>
         </div>
       </fieldset>
 

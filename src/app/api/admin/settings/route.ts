@@ -16,6 +16,8 @@ const schema = z.object({
     supportEmail: z.string().email().or(z.literal('')),
     supportPhone: z.string(),
     announcement: z.string(),
+    /* Falls back rather than 400-ing, so a cached older form still saves. */
+    announcementStyle: z.enum(['marquee', 'rotate']).default('marquee'),
     /*
      * Delivery, in MINOR units (kobo). Editable here so the merchant can change
      * the threshold without a redeploy — and so the announcement bar, which

@@ -21,7 +21,11 @@ import { categorise } from '../src/lib/categorise';
 import { pickerLabels } from '../src/lib/vendor';
 import { currencyForCountry } from '../src/lib/geo';
 import { stripInventedClaims } from '../src/lib/copywriter';
-import { announcementContradictsShipping, DEFAULT_SETTINGS } from '../src/lib/settings';
+import {
+  announcementContradictsShipping,
+  announcementMessages,
+  DEFAULT_SETTINGS,
+} from '../src/lib/settings';
 import { FALLBACK_RATES } from '../src/lib/fx';
 
 let failures = 0;
@@ -322,6 +326,20 @@ void (async () => {
     'the default banner matches the default threshold',
     !announcementContradictsShipping(DEFAULT_SETTINGS.announcement, DEFAULT_SETTINGS.freeShippingOverMinor)
   );
+  /*
+   * The banner holds one message per line, and each line is a claim on its own.
+   * Read as a single string, the qualifier in the second line below would
+   * excuse the bare promise in the first.
+   */
+  assert(
+    'a bare promise is caught even when another line carries a qualifier',
+    announcementContradictsShipping(
+      'Free delivery nationwide\nOver 70 products in stock',
+      3_000_000
+    )
+  );
+  check('blank lines are not messages', announcementMessages('One\n\n Two ').length, 2);
+
   // A threshold with a zero flat rate is decoration: everything ships free.
   assert(
     'a free-shipping threshold has a flat rate behind it',
