@@ -66,18 +66,53 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => ({})));
   const apply = parsed.success ? Boolean(parsed.data.apply) : false;
 
+  /*
+   * Both ways of finding the product a capture became.
+   *
+   * importedProductId is only written on captures taken after that link was
+   * added — six of sixty-four here. The rest are recovered the way the capture
+   * list already recovers them: SupplierProduct and SupplierCapture both carry
+   * (platform, externalId) and SupplierProduct is uniquely indexed on exactly
+   * that pair, so the match is precise rather than string-matching on URLs.
+   */
   const captures = await prisma.supplierCapture.findMany({
-    where: { importedProductId: { not: null } },
-    select: { importedProductId: true, payload: true, title: true },
+    select: {
+      importedProductId: true,
+      platform: true,
+      externalId: true,
+      payload: true,
+      title: true,
+    },
   });
+
+  const needLink = captures.filter((c) => !c.importedProductId && c.externalId);
+  const links = needLink.length
+    ? await prisma.supplierProduct
+        .findMany({
+          where: {
+            OR: needLink.map((c) => ({
+              platform: c.platform,
+              externalId: c.externalId as string,
+            })),
+          },
+          select: { productId: true, platform: true, externalId: true },
+        })
+        .catch(() => [])
+    : [];
+  const linkOf = new Map(links.map((l) => [`${l.platform}:${l.externalId}`, l.productId]));
+
+  const resolve = (c: (typeof captures)[number]): string | null =>
+    c.importedProductId ?? linkOf.get(`${c.platform}:${c.externalId}`) ?? null;
 
   const matched: { variantId: string; sku: string; product: string; option: string }[] = [];
   const unmatched: string[] = [];
   let productsSeen = 0;
 
   for (const capture of captures) {
+    const productId = resolve(capture);
+    if (!productId) continue;
     const product = await prisma.product.findUnique({
-      where: { id: capture.importedProductId as string },
+      where: { id: productId },
       select: {
         title: true,
         variants: { select: { id: true, title: true, optionValues: true, supplierVariantId: true } },
@@ -114,7 +149,8 @@ export async function POST(request: Request) {
   if (!apply) {
     return NextResponse.json({
       applied: false,
-      capturesWithAProduct: captures.length,
+      captures: captures.length,
+      capturesResolvedToAProduct: captures.filter((c) => resolve(c)).length,
       productsChecked: productsSeen,
       wouldFill: matched.length,
       noMatchInCapture: unmatched.length,
