@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { cleanProductTitle } from '@/lib/suppliers/title';
 import { normaliseVendor } from '@/lib/vendor';
 import { isPlaceholderOptions } from '@/lib/suppliers/variants';
+import { cleanOptionLabels } from '@/lib/suppliers/optionLabel';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,13 @@ interface Change {
   after: string | null;
 }
 
+interface LabelChange {
+  productTitle: string;
+  variantId: string;
+  before: string;
+  after: string;
+}
+
 interface VariantDrop {
   productId: string;
   productTitle: string;
@@ -93,6 +101,7 @@ export async function POST(request: Request) {
 
   const changes: Change[] = [];
   const drops: VariantDrop[] = [];
+  const labels: LabelChange[] = [];
   for (const p of products) {
     const title = cleanProductTitle(p.title);
     if (title && title !== p.title) {
@@ -108,11 +117,13 @@ export async function POST(request: Request) {
      * attributes the attribute-less ones are padding; where none do, the first
      * is the real one and the rest are copies of it.
      */
+    let kept = p.variants;
     if (p.variants.length > 1) {
       const named = p.variants.filter((v) => !isPlaceholderOptions(v.optionValues));
       const keep = new Set(
         (named.length > 0 ? named : p.variants.slice(0, 1)).map((v) => v.id)
       );
+      kept = p.variants.filter((v) => keep.has(v.id));
       for (const v of p.variants) {
         if (keep.has(v.id)) continue;
         drops.push({
@@ -126,6 +137,25 @@ export async function POST(request: Request) {
         });
       }
     }
+
+    /*
+     * Labels are cleaned over the variants that SURVIVE the drop, not all of
+     * them — a padding row about to be deleted must not influence the collision
+     * guard and push a real label back to its shouted form.
+     */
+    if (kept.length > 0) {
+      const cleaned = cleanOptionLabels(kept.map((v) => v.title));
+      kept.forEach((v, i) => {
+        if (cleaned[i] !== v.title) {
+          labels.push({
+            productTitle: p.title,
+            variantId: v.id,
+            before: v.title,
+            after: cleaned[i],
+          });
+        }
+      });
+    }
   }
 
   const removable = drops.filter((d) => !d.keptBecause);
@@ -138,9 +168,11 @@ export async function POST(request: Request) {
       titles: changes.filter((c) => c.field === 'title').length,
       vendors: changes.filter((c) => c.field === 'vendor').length,
       paddingVariants: removable.length,
+      optionLabels: labels.length,
       variantsKeptBecauseOrdered: drops.filter((d) => d.keptBecause),
       changes,
       drops: removable,
+      labels,
     });
   }
 
@@ -162,6 +194,18 @@ export async function POST(request: Request) {
     }
   }
 
+  let labelsRewritten = 0;
+  for (const l of labels) {
+    try {
+      await prisma.variant.update({ where: { id: l.variantId }, data: { title: l.after } });
+      labelsRewritten++;
+    } catch (err) {
+      failures.push(
+        `${l.productTitle} / ${l.before}: ${err instanceof Error ? err.message : 'failed'}`
+      );
+    }
+  }
+
   let variantsRemoved = 0;
   for (const d of removable) {
     try {
@@ -179,6 +223,7 @@ export async function POST(request: Request) {
     scanned: products.length,
     updated,
     variantsRemoved,
+    labelsRewritten,
     variantsKeptBecauseOrdered: drops.filter((d) => d.keptBecause).length,
     failures,
   });

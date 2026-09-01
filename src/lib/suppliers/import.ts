@@ -1,4 +1,5 @@
 import { variantLabel } from '@/lib/vendor';
+import { cleanOptionLabels } from './optionLabel';
 import { prisma } from '../db';
 import { sourceCostToBase } from '../fx';
 import { normaliseVendor } from '../vendor';
@@ -235,7 +236,11 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
         create: p.images.map((url, i) => ({ url, position: i, alt: title })),
       },
       variants: {
-        create: p.variants.map((v, i) => {
+        // Cleaned as a set, so the collision guard can see every label at once.
+        create: cleanOptionLabels(
+          p.variants.map((v, i) => preview.pricing[i]?.optionLabel ?? optionLabel(v.options))
+        ).map((label, i) => {
+          const v = p.variants[i];
           const priced = preview.pricing[i];
           const costMinor = input.costOverrides?.[i] ?? priced?.landedCostMinor ?? 0;
           const priceMinor = input.priceOverrides?.[i] ?? priced?.priceMinor ?? 0;
@@ -249,7 +254,7 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
             );
           }
           return {
-            title: priced?.optionLabel ?? optionLabel(v.options),
+            title: label,
             position: i,
             optionValues: v.options as never,
             priceMinor,

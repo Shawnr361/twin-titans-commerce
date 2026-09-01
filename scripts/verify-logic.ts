@@ -4,6 +4,7 @@
  *
  *   npx tsx scripts/verify-logic.ts
  */
+import { cleanOptionLabel, cleanOptionLabels } from '../src/lib/suppliers/optionLabel';
 import { isPlaceholderOptions, realVariants } from '../src/lib/suppliers/variants';
 import { parseSupplierUrl, stripTracking } from '../src/lib/suppliers/parse';
 import { cleanProductTitle } from '../src/lib/suppliers/title';
@@ -375,6 +376,30 @@ void (async () => {
     cleanProductTitle('USB LED String Lights 5/10/20M Waterproof Fairy Lights'),
     'USB LED String Lights 5/10/20M Waterproof Fairy Lights'
   );
+
+  console.log('── Option labels ──────────────────────────');
+
+  // Real labels from this catalogue.
+  check('shouting is calmed', cleanOptionLabel('WHITE-3IN1 / 103CM'), 'White-3in1 / 103cm');
+  check('the supplier unit typo is corrected', cleanOptionLabel('8 / 90cn'), '8 / 90cm');
+  check('mixed case the supplier chose is kept', cleanOptionLabel('Cold White / 3m-By USB'), 'Cold White / 3m-By USB');
+  check('acronyms are not title-cased', cleanOptionLabel('RGB LED / 5M'), 'RGB LED / 5m');
+  check('separators get breathing room', cleanOptionLabel('Black/Large'), 'Black / Large');
+  check('a tidy label is left alone', cleanOptionLabel('1 set'), '1 set');
+  // "cn" only becomes "cm" after a digit, so ordinary words are safe.
+  check('a word ending in cn is untouched', cleanOptionLabel('Lincn'), 'Lincn');
+
+  /*
+   * The collision guard. This listing really does carry both "NEW White" and
+   * "White"; any rule that made them identical would leave two buttons a
+   * shopper cannot tell apart — worse than the shouting it set out to fix.
+   */
+  const clashing = cleanOptionLabels(['NEW White', 'White', 'Dark Blue']);
+  check('no two options end up identical', new Set(clashing).size, 3);
+  check('the pair is still distinguishable', clashing[0] !== clashing[1], true);
+
+  // Nothing may vanish: a blank button cannot be chosen.
+  check('every label survives', cleanOptionLabels(['', 'Black']).length, 2);
 
   console.log('── Padding variants ───────────────────────');
 
