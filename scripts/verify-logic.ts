@@ -377,6 +377,24 @@ void (async () => {
     'USB LED String Lights 5/10/20M Waterproof Fairy Lights'
   );
 
+  console.log('── Categorising ───────────────────────────');
+
+  /*
+   * All six were live in no collection at all — reachable only by direct link.
+   * Found by auditing the catalogue, so they are fixtures here rather than
+   * vocabulary someone imagined.
+   */
+  check('a thermometer is a gadget', categorise('Mini Digital Thermometer Hygrometer with Wall Mount'), 'gadgets-lighting');
+  check('shelves are homeware', categorise('Plastic Bathroom Shelves 1/2/3pcs No Drill Wall Mount'), 'home-living');
+  check('a funnel is homeware', categorise('Mini Foldable Silicone Funnel for Fuel, Beer, Oil'), 'home-living');
+  check('a sewing machine is homeware', categorise('Sewing Machine Household Small Multi-Function Portable'), 'home-living');
+  check('a back scratcher is personal care', categorise('Back Scratcher Massage Stick with Rubber Handles'), 'beauty-skincare');
+
+  // The rule that must not regress: a pet clipper is a pet product.
+  check('pets still beat beauty', categorise('Pet Hair Clipper Grooming Trimmer for Dogs'), 'pet-supplies');
+  // And declining is still allowed — filing something wrongly is worse.
+  check('a genuine unknown is still declined', categorise('Zhongyan Taihe Widget'), null);
+
   console.log('── Option labels ──────────────────────────');
 
   // Real labels from this catalogue.

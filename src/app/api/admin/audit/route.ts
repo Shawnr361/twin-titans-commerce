@@ -93,12 +93,40 @@ export async function GET() {
       },
     }),
     prisma.fxRate.findMany({ select: { code: true, rate: true, updatedAt: true } }),
-    // A capture becomes a product when importedProductId is set; anything
-    // without one is still sitting in the queue.
-    prisma.supplierCapture.count({ where: { importedProductId: null } }).catch(() => 0),
+    /*
+     * NOT a count of importedProductId: null.
+     *
+     * That link is only written on captures taken after it was added, so
+     * counting nulls reported 58 captures "never imported" when 56 of them are
+     * live products already. The honest test is whether the capture resolves to
+     * a product at all — by its own link, or by (platform, externalId) against
+     * SupplierProduct, which is uniquely indexed on that pair.
+     */
+    prisma.supplierCapture
+      .findMany({ select: { importedProductId: true, platform: true, externalId: true } })
+      .catch(() => []),
   ]);
 
   const active = products.filter((p) => p.status === 'ACTIVE');
+
+  const unlinked = captures.filter((c) => !c.importedProductId && c.externalId);
+  const links = unlinked.length
+    ? await prisma.supplierProduct
+        .findMany({
+          where: {
+            OR: unlinked.map((c) => ({
+              platform: c.platform,
+              externalId: c.externalId as string,
+            })),
+          },
+          select: { platform: true, externalId: true },
+        })
+        .catch(() => [])
+    : [];
+  const linked = new Set(links.map((l) => `${l.platform}:${l.externalId}`));
+  const orphanCaptures = captures.filter(
+    (c) => !c.importedProductId && !linked.has(`${c.platform}:${c.externalId}`)
+  ).length;
 
   // ---- money ---------------------------------------------------------------
 
@@ -311,7 +339,7 @@ export async function GET() {
     id: 'unpriced-captures',
     severity: 'info',
     title: 'Captured products never priced or imported',
-    count: captures,
+    count: orphanCaptures,
     detail: 'Sitting in the import queue doing nothing. Price them or clear them out.',
     examples: [],
   });

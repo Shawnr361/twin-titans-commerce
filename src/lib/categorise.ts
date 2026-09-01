@@ -48,7 +48,7 @@ export const CATEGORY_RULES: CategoryRule[] = [
       'hair clipper', 'hair trimmer', 'trimmer', 'shaver', 'razor', 'skincare',
       'serum', 'moisturiser', 'moisturizer', 'cream', 'facial', 'face', 'lash',
       'nail', 'lipstick', 'makeup', 'cosmetic', 'wig', 'hair dryer', 'straightener',
-      'curler', 'massager', 'toothbrush', 'epilator',
+      'curler', 'massager', 'massage', 'back scratcher', 'toothbrush', 'epilator',
       // Fragrance. A live 100ml perfume matched none of the above and sat in
       // no collection at all, which is how this gap was found.
       'perfume', 'parfum', 'fragrance', 'cologne', 'eau de toilette',
@@ -95,6 +95,8 @@ export const CATEGORY_RULES: CategoryRule[] = [
       'power bank', 'earbud', 'headphone', 'speaker', 'bluetooth', 'usb',
       'smart watch', 'smartwatch', 'camera', 'fan', 'gadget', 'electric',
       'rechargeable', 'wireless',
+      // Measuring instruments: found live in no collection at all.
+      'thermometer', 'hygrometer', 'humidity meter', 'scale', 'timer',
     ],
   },
   {
@@ -105,6 +107,13 @@ export const CATEGORY_RULES: CategoryRule[] = [
       'organiser', 'organizer', 'cushion', 'curtain', 'bedding', 'towel',
       'cookware', 'pan', 'pot', 'utensil', 'bottle', 'mug', 'cup', 'shredder',
       'home', 'decor', 'mosquito', 'cleaning', 'mop', 'broom', 'hanger',
+      /*
+       * Household goods that matched nothing and sat in no department, found
+       * by auditing the live catalogue rather than by imagining vocabulary.
+       */
+      'shelf', 'shelves', 'rack', 'bathroom', 'toilet', 'sink', 'funnel',
+      'sewing', 'household', 'wall mount', 'drawer', 'basket', 'bin',
+      'laundry', 'ironing', 'doormat', 'rug', 'clothes',
     ],
   },
 ];

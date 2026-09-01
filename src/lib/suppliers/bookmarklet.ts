@@ -542,6 +542,17 @@ export function buildCaptureScript(endpoint: string, token: string): string {
     });
     var body = await res.json().catch(function(){ return {}; });
     if(!res.ok) { note('Capture rejected: ' + (body.error || res.status), true); return; }
+    /*
+     * A duplicate is said FIRST and on its own. Appending it to the success
+     * line would bury the one fact that changes what the merchant does next,
+     * which is that this product is already in the store.
+     */
+    if (body.duplicateOf) {
+      note('ALREADY IN YOUR STORE: "' + String(body.duplicateOf.title).slice(0, 50) + '" ('
+        + String(body.duplicateOf.status).toLowerCase() + '). The capture was saved so you can'
+        + ' refresh prices or images, but do not import it again as a new product.', true);
+      return;
+    }
     note('Captured "' + out.title.slice(0, 40) + '" — ' + out.variants.length + ' variants ('
       + priced + ' priced), ' + out.images.length + ' images, ' + out.videos.length + ' videos, '
       + out.reviews.length + ' reviews. Open Import in your admin.');

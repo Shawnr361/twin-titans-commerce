@@ -105,6 +105,36 @@ export async function POST(request: Request) {
   const capture = parsed.data;
   const quality = assessCapture(capture);
 
+  /*
+   * Is this already in the store?
+   *
+   * Captured before the answer is saved, because the useful moment to say so is
+   * while the merchant is still on the supplier's page — not after a duplicate
+   * has been priced, imported and published a second time. The capture is still
+   * stored either way: re-capturing to refresh prices or images is legitimate,
+   * so this warns rather than refuses.
+   *
+   * Matched on (platform, externalId), the same uniquely-indexed pair the
+   * capture list uses to recover its links, so it cannot be fooled by a URL
+   * that carries different tracking parameters than last time.
+   */
+  let duplicateOf: { title: string; handle: string; status: string } | null = null;
+  if (capture.externalId) {
+    const existing = await prisma.supplierProduct
+      .findFirst({
+        where: { platform: capture.platform, externalId: capture.externalId },
+        select: { product: { select: { title: true, handle: true, status: true } } },
+      })
+      .catch(() => null);
+    if (existing?.product) {
+      duplicateOf = {
+        title: existing.product.title,
+        handle: existing.product.handle,
+        status: existing.product.status,
+      };
+    }
+  }
+
   try {
     const row = await prisma.supplierCapture.create({
       data: {
@@ -123,7 +153,20 @@ export async function POST(request: Request) {
       select: { id: true },
     });
 
-    return NextResponse.json({ ok: true, id: row.id, quality }, { headers: CORS });
+    return NextResponse.json(
+      {
+        ok: true,
+        id: row.id,
+        quality,
+        duplicateOf,
+        ...(duplicateOf
+          ? {
+              warning: `Already in the store as "${duplicateOf.title.slice(0, 60)}" (${duplicateOf.status.toLowerCase()}). Saved anyway — import it only if you meant to replace that one.`,
+            }
+          : {}),
+      },
+      { headers: CORS }
+    );
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Could not store the capture.' },
