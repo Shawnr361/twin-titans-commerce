@@ -17,7 +17,7 @@ import { DEFAULT_RULES } from '../src/lib/pricing';
 import { formatMoney, fromMinor, toMinor } from '../src/lib/money';
 import { getRate, sourceCostToBase } from '../src/lib/fx';
 import { assessCapture } from '../src/lib/suppliers/capture';
-import { displayVendor } from '../src/lib/vendor';
+import { displayVendor, isPublishableBrand } from '../src/lib/vendor';
 import { categorise } from '../src/lib/categorise';
 import { pickerLabels } from '../src/lib/vendor';
 import { currencyForCountry } from '../src/lib/geo';
@@ -302,6 +302,26 @@ void (async () => {
   check('a missing next falls back', safeNext(null), '/admin');
   check('an empty next falls back', safeNext(''), '/admin');
 
+  console.log('── Vendor lines ───────────────────────────');
+
+  /*
+   * Every non-null vendor in the live catalogue was a marketplace storefront
+   * handle, not a maker. Printing one above the product name says nothing
+   * about the product and rather a lot about where it was bought.
+   */
+  check('a storefront handle prints nothing', displayVendor('House Foocus Store'), null);
+  check('an official store prints nothing', displayVendor('Ajazz Official Store'), null);
+  check('a factory store prints nothing', displayVendor('Fadvan Lashes Factory Store'), null);
+  check('the marketplace itself prints nothing', displayVendor('ALIEXPRESS supplier'), null);
+  check('an unnamed supplier prints nothing', displayVendor(null), null);
+  // A genuine maker still gets its name on the card.
+  check('a real brand survives', displayVendor('Ajazz'), 'Ajazz');
+  check('a real brand survives casing', displayVendor('COSRX'), 'COSRX');
+  assert(
+    'the storefront rule and the schema.org brand rule are the same rule',
+    !isPublishableBrand('House Foocus Store') && isPublishableBrand('Ajazz')
+  );
+
   console.log('── Product titles ─────────────────────────');
 
   // The marketplace tail is the loudest junk: the number is AliExpress's own
@@ -490,17 +510,22 @@ void (async () => {
 
   console.log('── Vendor display ────────────────────────────');
 
-  // The marketplace is not the vendor, and must never reach the storefront.
-  check('platform fallback is hidden', displayVendor('ALIEXPRESS supplier'), 'Trusted supplier');
-  check('a marketplace name is hidden', displayVendor('AliExpress'), 'Trusted supplier');
-  check('1688 is hidden', displayVendor('1688 supplier'), 'Trusted supplier');
-  check('a missing vendor falls back', displayVendor(''), 'Trusted supplier');
-  check('a null vendor falls back', displayVendor(null), 'Trusted supplier');
+  /*
+   * These used to expect the fallback string "Trusted supplier", and expected
+   * a real storefront name to be printed. Both changed deliberately on
+   * 2026-09-01 once it was visible on the live cards: see displayVendor.
+   * Nothing is printed unless it is plausibly the maker.
+   */
+  check('the marketplace is never the vendor', displayVendor('ALIEXPRESS supplier'), null);
+  check('a marketplace name is hidden', displayVendor('AliExpress'), null);
+  check('1688 is hidden', displayVendor('1688 supplier'), null);
+  check('a missing vendor prints nothing', displayVendor(''), null);
+  check('a null vendor prints nothing', displayVendor(null), null);
   // An auto-generated shop handle is a name only in the technical sense.
-  check('a generated shop handle is hidden', displayVendor('Shop1105057416 Store'), 'Trusted supplier');
-  // A real store name is genuine information and is kept.
-  check('a real store name survives', displayVendor('DAZZLEEX Store'), 'DAZZLEEX Store');
-  check('a second real name survives', displayVendor('Ingemark Official Store'), 'Ingemark Official Store');
+  check('a generated shop handle is hidden', displayVendor('Shop1105057416 Store'), null);
+  // A storefront handle is honest and still says nothing worth reading.
+  check('a storefront name is hidden', displayVendor('DAZZLEEX Store'), null);
+  check('an official store is hidden', displayVendor('Ingemark Official Store'), null);
 
   console.log('── Capture quality ────────────────────────────');
 

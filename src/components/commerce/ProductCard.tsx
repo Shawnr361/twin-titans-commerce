@@ -79,9 +79,16 @@ export function ProductCard({
         </TiltCard>
 
         <div className="mt-5 space-y-1.5">
-          <p className="text-micro uppercase tracking-label text-quiet">
-            {displayVendor(product.vendor)}
-          </p>
+          {/*
+            Rendered only when there is a real brand to name. A marketplace
+            storefront handle in caps on the first line of the card is noise,
+            and an empty element here would still leave its margin behind.
+          */}
+          {displayVendor(product.vendor) && (
+            <p className="text-micro uppercase tracking-label text-quiet">
+              {displayVendor(product.vendor)}
+            </p>
+          )}
 
           <h3 className="font-sans text-body font-medium leading-snug text-onyx">
             {product.title}

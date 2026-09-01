@@ -334,7 +334,9 @@ export default async function ProductPage({
            * the viewport, and took the page into horizontal scroll.
            */}
           <div className="min-w-0 lg:sticky lg:top-28 lg:self-start">
-            <p className="label mb-3 break-words">{displayVendor(product.vendor)}</p>
+            {displayVendor(product.vendor) && (
+              <p className="label mb-3 break-words">{displayVendor(product.vendor)}</p>
+            )}
             <h1 className="display-m break-words hyphens-auto">
               {product.title}
             </h1>
@@ -467,12 +469,19 @@ export default async function ProductPage({
                       {product.variants.length} options available
                     </dd>
                   </div>
-                  <div className="flex gap-5 py-4">
-                    <dt className="label w-28 shrink-0 pt-0.5">Supplier</dt>
-                    <dd className="min-w-0 break-words text-body text-greige">
-                      {displayVendor(product.vendor)}
-                    </dd>
-                  </div>
+                  {/*
+                    "Brand", not "Supplier". The row only appears when the name
+                    is plausibly the maker; naming the marketplace seller we
+                    buy from tells a shopper nothing they want to know.
+                  */}
+                  {displayVendor(product.vendor) && (
+                    <div className="flex gap-5 py-4">
+                      <dt className="label w-28 shrink-0 pt-0.5">Brand</dt>
+                      <dd className="min-w-0 break-words text-body text-greige">
+                        {displayVendor(product.vendor)}
+                      </dd>
+                    </div>
+                  )}
                 </dl>
                 <p className="mt-4 max-w-text text-micro text-quiet">
                   Read from the supplier&rsquo;s own listing for this exact item. Anything

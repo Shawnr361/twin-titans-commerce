@@ -13,6 +13,10 @@
  */
 const MARKETPLACES = ['aliexpress', 'alibaba', '1688', 'taobao', 'ali express'];
 
+/**
+ * Kept only for the internal admin surfaces, which do want to know that a
+ * product came from somewhere unnamed. Nothing customer-facing prints it.
+ */
 export const FALLBACK_VENDOR = 'Trusted supplier';
 
 export function isMarketplaceName(vendor?: string | null): boolean {
@@ -26,10 +30,30 @@ export function isMarketplaceName(vendor?: string | null): boolean {
   return false;
 }
 
-/** The vendor line as a customer should see it. */
-export function displayVendor(vendor?: string | null): string {
+/**
+ * The vendor line as a customer should see it, or null to print nothing.
+ *
+ * CHANGED ON PURPOSE, 2026-09-01. This used to show any real store name, on
+ * the reasoning that "DAZZLEEX Store" is honest — it really is who supplies
+ * the item. Seeing it on the live storefront settled the argument the other
+ * way. Every single non-null vendor in the catalogue was a marketplace
+ * storefront handle: "ASWESAW GLOBAL LIGHTING OFFICIAL STORE", "Cxbfg Nanabling
+ * Shadow Store", "Best Of You Store". Set in caps above the product name, on
+ * the first line a shopper reads, they say nothing about the product and quite
+ * a lot about where it was bought. Honest, and still worse than silence.
+ *
+ * The old fallback was worse again: an unnamed supplier printed "Trusted
+ * supplier", which is an unverifiable boast in exactly the family of claims
+ * this codebase strips everywhere else.
+ *
+ * So the rule is now the same one used for schema.org brand: print a name only
+ * when it is plausibly the maker, otherwise print nothing at all. A shopper
+ * loses nothing — the supplier is still recorded internally on the Supplier
+ * record, which is where reordering reads it from.
+ */
+export function displayVendor(vendor?: string | null): string | null {
   const name = (vendor ?? '').trim();
-  return isMarketplaceName(name) ? FALLBACK_VENDOR : name;
+  return isPublishableBrand(name) ? name : null;
 }
 
 /**
@@ -46,7 +70,13 @@ export function displayVendor(vendor?: string | null): string {
 export function isPublishableBrand(vendor?: string | null): boolean {
   const name = (vendor ?? '').trim();
   if (!name || isMarketplaceName(name)) return false;
-  return !/\sstore$/i.test(name);
+  // "... Store", "... Official Store", "... Factory Store", "... Co., Ltd" —
+  // how a marketplace seller names its shopfront, never how a maker names
+  // itself. A genuine brand ("Ajazz", "COSRX") survives this untouched.
+  if (/\b(store|shop|factory|trading|co\.?,?\s*ltd\.?|official\s*flagship)\s*$/i.test(name)) {
+    return false;
+  }
+  return true;
 }
 
 /**
