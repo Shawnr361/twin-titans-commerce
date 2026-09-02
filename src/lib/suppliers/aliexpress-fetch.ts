@@ -134,6 +134,44 @@ function optionsOf(row: Row): Record<string, string> {
   return out;
 }
 
+/**
+ * The photo for one SKU — the picture that should appear when a shopper picks
+ * "Blue".
+ *
+ * Found by SHAPE rather than by field name. `sku_image` is the documented
+ * place, but AliExpress also hangs the photo off the colour property inside
+ * ae_sku_property_dtos, and which one is populated varies by listing. Guessing
+ * a single name is what left every API-imported product with the same picture
+ * on every variant: the price changed on selection and the image did not.
+ *
+ * Requiring an http(s) URL is what makes searching by shape safe — no other
+ * field on a SKU row holds one, so a match cannot be a false positive.
+ */
+function skuImageOf(row: Row): string | undefined {
+  let found: string | undefined;
+  const walk = (v: unknown) => {
+    if (found || !v || typeof v !== 'object') return;
+    if (Array.isArray(v)) {
+      v.forEach(walk);
+      return;
+    }
+    for (const [key, value] of Object.entries(v as Row)) {
+      if (found) return;
+      if (
+        typeof value === 'string' &&
+        /image|pic|photo/i.test(key) &&
+        /^https?:\/\//.test(value)
+      ) {
+        found = value;
+        return;
+      }
+      walk(value);
+    }
+  };
+  walk(row);
+  return found;
+}
+
 function imagesFrom(body: unknown): string[] {
   const media = findByKeys(body, ['image_urls']) ?? findByKeys(body, ['imageUrls']);
   const raw = str(pick(media, 'image_urls', 'imageUrls')) ?? '';
@@ -258,7 +296,7 @@ export async function captureFromApi(
       price,
       ...(sale !== undefined && sale < price ? { promoPrice: sale } : {}),
       stock: num(pick(row, 'sku_available_stock', 'skuAvailableStock', 'available_stock')),
-      imageUrl: str(pick(row, 'sku_image', 'skuImage')),
+      imageUrl: skuImageOf(row),
     };
   });
 
