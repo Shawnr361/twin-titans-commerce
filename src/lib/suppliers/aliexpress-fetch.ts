@@ -28,8 +28,6 @@ import type { CapturedProduct } from './capture';
 
 type Row = Record<string, unknown>;
 
-const isRow = (v: unknown): v is Row => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
-
 /** First present value among several possible field spellings. */
 function pick(row: Row | null, ...names: string[]): unknown {
   if (!row) return undefined;
@@ -146,6 +144,67 @@ function imagesFrom(body: unknown): string[] {
     .slice(0, 12);
 }
 
+
+/**
+ * Product videos.
+ *
+ * The API rarely hands over a playable URL. What it gives is a media id and the
+ * seller's member id, from which AliExpress's own player URL is assembled — a
+ * pattern, not a documented field, which is why every candidate is CHECKED
+ * before it is kept. A dead video in the gallery is worse than no video: it
+ * renders as a broken player on the product page, and nobody notices until a
+ * customer does.
+ */
+function videoCandidates(body: unknown): string[] {
+  const out: string[] = [];
+  const walk = (v: unknown) => {
+    if (!v || typeof v !== 'object') return;
+    if (Array.isArray(v)) {
+      v.forEach(walk);
+      return;
+    }
+    const row = v as Row;
+
+    // A real URL, if the reply happens to carry one.
+    const direct = str(pick(row, 'video_url', 'videoUrl', 'media_url', 'mediaUrl', 'url'));
+    if (direct && /^https?:\/\//.test(direct) && /\.(mp4|m3u8)/i.test(direct)) out.push(direct);
+
+    const mediaId = str(pick(row, 'media_id', 'mediaId'));
+    const memberId = str(pick(row, 'ali_member_id', 'aliMemberId'));
+    if (mediaId && memberId) {
+      out.push(
+        `https://video.aliexpress-media.com/play/u/ae_sg_item/${memberId}/p/1/e/6/t/10301/${mediaId}.mp4`
+      );
+    }
+    Object.values(row).forEach(walk);
+  };
+  walk(body);
+  return [...new Set(out)];
+}
+
+/** Does this URL actually serve something? One byte is enough to know. */
+async function playable(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, {
+      headers: { range: 'bytes=0-0' },
+      signal: AbortSignal.timeout(6000),
+      redirect: 'follow',
+    });
+    return res.ok || res.status === 206;
+  } catch {
+    return false;
+  }
+}
+
+async function verifiedVideos(body: unknown): Promise<string[]> {
+  const candidates = videoCandidates(body).slice(0, 4);
+  if (candidates.length === 0) return [];
+  const checked = await Promise.all(
+    candidates.map(async (url) => ((await playable(url)) ? url : null))
+  );
+  return checked.filter((u): u is string => Boolean(u));
+}
+
 export interface ApiCaptureResult {
   capture: CapturedProduct | null;
   problems: string[];
@@ -207,6 +266,14 @@ export async function captureFromApi(
   const images = imagesFrom(res.body);
   if (images.length === 0) problems.push('No images came back.');
 
+  const videos = await verifiedVideos(res.body);
+  const candidateCount = videoCandidates(res.body).length;
+  if (candidateCount > 0 && videos.length === 0) {
+    problems.push(
+      `${candidateCount} video(s) were listed but none played back, so none were kept.`
+    );
+  }
+
   const capture: CapturedProduct = {
     sourceUrl,
     platform: 'ALIEXPRESS',
@@ -215,7 +282,7 @@ export async function captureFromApi(
     descriptionHtml: str(pick(base, 'detail', 'description')) ?? '',
     currency,
     images,
-    videos: [],
+    videos,
     variants,
     supplierName: str(pick(store, 'store_name', 'storeName')),
     supplierStoreUrl: str(pick(store, 'store_url', 'storeUrl')),
