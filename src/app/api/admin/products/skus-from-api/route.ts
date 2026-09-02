@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { UnauthorizedError, requireAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { call, isAliexpressConfigured } from '@/lib/suppliers/aliexpress-api';
+import { isAliexpressConfigured } from '@/lib/suppliers/aliexpress-api';
+import { fetchSkus, matchSku, type SupplierSku } from '@/lib/suppliers/skuLookup';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,43 +35,6 @@ const schema = z.object({
   apply: z.boolean().optional(),
   limit: z.number().int().min(1).max(40).optional(),
 });
-
-/** "14:365458#Red;5:361386#XL" -> ["red", "xl"] */
-function readableValues(skuAttr: string): string[] {
-  return skuAttr
-    .split(';')
-    .map((part) => part.split('#')[1] ?? '')
-    .map((v) => decodeURIComponent(v).trim().toLowerCase())
-    .filter(Boolean);
-}
-
-function variantValues(optionValues: unknown): string[] {
-  if (!optionValues || typeof optionValues !== 'object') return [];
-  return Object.values(optionValues as Record<string, unknown>)
-    .map((v) => String(v ?? '').trim().toLowerCase())
-    .filter(Boolean);
-}
-
-/** Every {sku_id, sku_attr} pair anywhere in a nested reply. */
-function collectSkus(body: unknown): { id: string; attr: string }[] {
-  const found: { id: string; attr: string }[] = [];
-  const walk = (v: unknown) => {
-    if (!v || typeof v !== 'object') return;
-    if (Array.isArray(v)) {
-      v.forEach(walk);
-      return;
-    }
-    const row = v as Record<string, unknown>;
-    const id = row.sku_id ?? row.skuId;
-    const attr = row.sku_attr ?? row.skuAttr ?? row.sku_property ?? '';
-    if ((typeof id === 'string' || typeof id === 'number') && typeof attr === 'string') {
-      found.push({ id: String(id), attr });
-    }
-    Object.values(row).forEach(walk);
-  };
-  walk(body);
-  return found;
-}
 
 export async function POST(request: Request) {
   try {
@@ -117,61 +81,19 @@ export async function POST(request: Request) {
     const externalId = product.source?.externalId;
     if (!externalId) continue;
 
-    let skus: { id: string; attr: string }[] = [];
-    try {
-      const res = await call('aliexpress.ds.product.get', {
-        product_id: externalId,
-        ship_to_country: 'NG',
-        target_currency: 'USD',
-        target_language: 'en',
-      });
-      skus = collectSkus(res.body);
-      if (skus.length === 0) {
-        apiProblems.push(`${product.title.slice(0, 40)}: no SKUs in the reply`);
-        continue;
-      }
-    } catch (err) {
-      apiProblems.push(
-        `${product.title.slice(0, 40)}: ${err instanceof Error ? err.message : 'call failed'}`
-      );
+    const skus: SupplierSku[] = await fetchSkus(externalId);
+    if (skus.length === 0) {
+      apiProblems.push(`${product.title.slice(0, 40)}: no SKUs came back`);
       continue;
     }
 
     for (const variant of product.variants) {
-      const wanted = variantValues(variant.optionValues);
-      if (wanted.length === 0) {
-        /*
-         * A variant with no options cannot be matched on values — but if the
-         * listing has exactly ONE SKU there is nothing to choose between, so
-         * the match is certain rather than a guess. With several, it stays
-         * unmatched: picking the first would be inventing an answer.
-         */
-        if (skus.length === 1) {
-          matched.push({
-            variantId: variant.id,
-            sku: skus[0].id,
-            label: `${product.title.slice(0, 36)} — single variant -> ${skus[0].id}`,
-          });
-        } else {
-          unmatched.push(
-            `${product.title.slice(0, 36)} — ${variant.title.slice(0, 22)} (no options, ${skus.length} SKUs)`
-          );
-        }
-        continue;
-      }
-      /*
-       * Every stored option value must appear in the SKU's readable values.
-       * A partial match is a guess, and a guessed SKU ships the wrong item.
-       */
-      const hit = skus.find((s) => {
-        const have = readableValues(s.attr);
-        return wanted.every((w) => have.includes(w));
-      });
-      if (hit) {
+      const sku = matchSku(variant.optionValues, skus);
+      if (sku) {
         matched.push({
           variantId: variant.id,
-          sku: hit.id,
-          label: `${product.title.slice(0, 36)} — ${variant.title.slice(0, 24)} -> ${hit.id}`,
+          sku,
+          label: `${product.title.slice(0, 36)} — ${variant.title.slice(0, 24)} -> ${sku}`,
         });
       } else {
         unmatched.push(`${product.title.slice(0, 36)} — ${variant.title.slice(0, 24)}`);

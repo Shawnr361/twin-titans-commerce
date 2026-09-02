@@ -1,5 +1,6 @@
 import { variantLabel } from '@/lib/vendor';
 import { cleanOptionLabels } from './optionLabel';
+import { fetchSkus, matchSku } from './skuLookup';
 import { prisma } from '../db';
 import { sourceCostToBase } from '../fx';
 import { normaliseVendor } from '../vendor';
@@ -222,6 +223,30 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
 
   const supplier = await findOrCreateSupplier(supplierName, p.platform, p.supplierStoreUrl);
 
+  /*
+   * ASK ALIEXPRESS FOR THE SKUS RATHER THAN TRUSTING THE CAPTURE.
+   *
+   * A missing supplier SKU is not cosmetic: placeWithSupplier refuses any line
+   * without one, so a product imported without them can never be ordered
+   * automatically. The capture usually carries them, but it depends on the
+   * page having finished rendering — and one silent field-name bug meant every
+   * product in the catalogue arrived with none at all.
+   *
+   * The API is the authority, so it is consulted whenever anything is missing.
+   * Capture values are kept where the API has nothing to say, and a failed
+   * lookup is ignored entirely: this is enrichment, and an import must never
+   * fail because a lookup did.
+   */
+  const externalProductId = p.externalId;
+  const needsSkus = p.variants.some((v) => !v.externalVariantId);
+  const apiSkus =
+    needsSkus && externalProductId && p.platform === 'ALIEXPRESS'
+      ? await fetchSkus(externalProductId)
+      : [];
+  const resolvedSkus = p.variants.map(
+    (v) => v.externalVariantId ?? (apiSkus.length ? matchSku(v.options, apiSkus) : null)
+  );
+
   const created = await prisma.product.create({
     data: {
       handle,
@@ -262,7 +287,7 @@ export async function commitImport(input: CommitImportInput): Promise<CommitResu
             costMinor,
             inventory: null,
             imageUrl: v.imageUrl ?? p.images[0],
-            supplierVariantId: v.externalVariantId,
+            supplierVariantId: resolvedSkus[i],
             supplierSku: v.supplierSku,
             sourceCostMinor: v.costMinor,
             sourceCostCurrency: p.currency,
