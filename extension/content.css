@@ -24,6 +24,14 @@
   display: block;
   width: 100%;
   padding: 12px 20px;
+  /* Grab, because it can be dragged; the title attribute says so too. */
+  cursor: grab;
+  /*
+   * Without this, a touch drag scrolls the page instead of moving the button,
+   * and on a touchscreen laptop the thing simply cannot be repositioned.
+   */
+  touch-action: none;
+  user-select: none;
   /* A hairline so the pill still reads as a button against a white page. */
   border: 1px solid rgba(0, 0, 0, 0.25);
   border-radius: 999px;
@@ -55,3 +63,17 @@
 #tt-add-note.tt-good { color: #8fd9a8; }
 #tt-add-note.tt-warn { color: #f0c05a; }
 #tt-add-note.tt-bad  { color: #f09a8a; }
+
+/*
+ * While dragging: no transition, or the button lags a frame behind the pointer
+ * and feels broken rather than smooth.
+ */
+#tt-add-root.tt-dragging #tt-add-button {
+  cursor: grabbing;
+  transition: none;
+}
+
+#tt-add-root.tt-dragging #tt-add-note {
+  /* The note would otherwise trail the button around, which reads as a bug. */
+  opacity: 0.4;
+}

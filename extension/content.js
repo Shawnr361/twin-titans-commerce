@@ -10,7 +10,7 @@
  * finished rendering, which is exactly the bug that left every product in the
  * catalogue without a supplier SKU.
  *
- * So this file has one job: find the product id, and hand it over.
+ * So this file has two jobs: find the product id, and stay out of the way.
  */
 
 (function () {
@@ -32,6 +32,7 @@
   button.id = 'tt-add-button';
   button.type = 'button';
   button.textContent = 'Add to Twin Titans';
+  button.title = 'Click to add. Drag to move.';
 
   var note = document.createElement('p');
   note.id = 'tt-add-note';
@@ -47,7 +48,111 @@
     note.className = kind || '';
   }
 
-  button.addEventListener('click', function () {
+  /* ---- dragging ---------------------------------------------------------
+   *
+   * The button is both draggable and clickable, which is the whole difficulty:
+   * every drag ends in a click event, and firing an import because someone
+   * nudged the button two pixels would be unforgivable — it spends nothing, but
+   * it silently fills the queue with products nobody asked for.
+   *
+   * So a press only becomes a drag once the pointer has travelled past a small
+   * threshold, and if it does, the click that follows is swallowed. Below the
+   * threshold nothing moves and the click goes through as normal.
+   */
+  var DRAG_THRESHOLD = 4;
+  var press = null;
+  var dragged = false;
+
+  /** Keep a good part of it on screen, whatever the window has been resized to. */
+  function clamp(left, top) {
+    var box = root.getBoundingClientRect();
+    var maxLeft = Math.max(0, window.innerWidth - box.width - 4);
+    var maxTop = Math.max(0, window.innerHeight - 44);
+    return {
+      left: Math.min(Math.max(4, left), maxLeft),
+      top: Math.min(Math.max(4, top), maxTop),
+    };
+  }
+
+  function place(left, top) {
+    var at = clamp(left, top);
+    root.style.left = at.left + 'px';
+    root.style.top = at.top + 'px';
+    return at;
+  }
+
+  // Where the merchant last left it. Per browser profile, not per page.
+  try {
+    chrome.storage.sync.get({ buttonAt: null }, function (stored) {
+      if (stored && stored.buttonAt) place(stored.buttonAt.left, stored.buttonAt.top);
+    });
+  } catch (e) {
+    /* Storage unavailable: the CSS default position still applies. */
+  }
+
+  button.addEventListener('pointerdown', function (event) {
+    if (event.button !== 0) return;
+    var box = root.getBoundingClientRect();
+    press = {
+      x: event.clientX,
+      y: event.clientY,
+      left: box.left,
+      top: box.top,
+      id: event.pointerId,
+    };
+    dragged = false;
+    button.setPointerCapture(event.pointerId);
+  });
+
+  button.addEventListener('pointermove', function (event) {
+    if (!press) return;
+    var dx = event.clientX - press.x;
+    var dy = event.clientY - press.y;
+
+    if (!dragged && Math.abs(dx) + Math.abs(dy) < DRAG_THRESHOLD) return;
+    dragged = true;
+    root.classList.add('tt-dragging');
+    place(press.left + dx, press.top + dy);
+  });
+
+  function endPress(event) {
+    if (!press) return;
+    try {
+      button.releasePointerCapture(press.id);
+    } catch (e) {
+      /* Already released — nothing to undo. */
+    }
+    press = null;
+    root.classList.remove('tt-dragging');
+
+    if (dragged) {
+      var box = root.getBoundingClientRect();
+      try {
+        chrome.storage.sync.set({ buttonAt: { left: box.left, top: box.top } });
+      } catch (e) {
+        /* Not worth telling anyone: the position simply will not persist. */
+      }
+    }
+  }
+
+  button.addEventListener('pointerup', endPress);
+  button.addEventListener('pointercancel', endPress);
+
+  // A window that shrank must not leave the button off screen.
+  window.addEventListener('resize', function () {
+    var box = root.getBoundingClientRect();
+    place(box.left, box.top);
+  });
+
+  button.addEventListener('click', function (event) {
+    // The click that ends a drag is not a click on the button.
+    if (dragged) {
+      dragged = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     button.disabled = true;
     button.textContent = 'Adding…';
     note.hidden = true;
