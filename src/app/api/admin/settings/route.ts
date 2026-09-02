@@ -14,6 +14,7 @@ const schema = z.object({
     storeName: z.string().min(1),
     tagline: z.string(),
     supportEmail: z.string().email().or(z.literal('')),
+    notificationEmail: z.string().email().or(z.literal('')).optional().default(''),
     supportPhone: z.string(),
     announcement: z.string(),
     /* Falls back rather than 400-ing, so a cached older form still saves. */

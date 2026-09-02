@@ -37,6 +37,7 @@ export function SettingsForm({
             storeName: String(form.get('storeName') ?? ''),
             tagline: String(form.get('tagline') ?? ''),
             supportEmail: String(form.get('supportEmail') ?? ''),
+            notificationEmail: String(form.get('notificationEmail') ?? ''),
             supportPhone: String(form.get('supportPhone') ?? ''),
             announcement: String(form.get('announcement') ?? ''),
             announcementStyle: String(form.get('announcementStyle') ?? 'marquee'),
@@ -111,6 +112,25 @@ export function SettingsForm({
               defaultValue={settings.supportPhone}
             />
           </div>
+        </div>
+
+        <div>
+          <label className="field-label" htmlFor="notificationEmail">
+            Send automatic emails from
+          </label>
+          <input
+            id="notificationEmail"
+            name="notificationEmail"
+            className="field"
+            placeholder="no_reply@twintitansemporium.store"
+            defaultValue={settings.notificationEmail}
+          />
+          <p className="mt-1 text-micro text-greige">
+            Order confirmations and shipping notices are sent from here; replies still go to
+            your support address. <strong className="text-onyx">The mailbox must exist</strong> —
+            the mail server refuses to send from an address it cannot verify, so create it in
+            your hosting panel first. Leave empty to send from support.
+          </p>
         </div>
 
         <div>

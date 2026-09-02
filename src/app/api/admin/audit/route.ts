@@ -326,6 +326,48 @@ export async function GET() {
     examples: [],
   });
 
+  /*
+   * isMailConfigured() is not evidence.
+   *
+   * SMTP_HOST and SMTP_PORT default to 127.0.0.1:25, so it can never return
+   * false — it reports "configured" on a box with no working mail at all. The
+   * honest test is whether paid orders actually produced a confirmation, which
+   * is recorded per order and cannot be faked by a default.
+   */
+  const paidOrderIds = orders.filter((o) => o.paymentStatus === 'PAID').map((o) => o.id);
+  const confirmations = paidOrderIds.length
+    ? await prisma.orderEvent
+        .findMany({
+          where: { orderId: { in: paidOrderIds }, kind: 'email_confirmation' },
+          select: { orderId: true },
+        })
+        .catch(() => [])
+    : [];
+  const confirmed = new Set(confirmations.map((e) => e.orderId));
+  const silent = orders.filter((o) => o.paymentStatus === 'PAID' && !confirmed.has(o.id));
+
+  const failures = await prisma.orderEvent
+    .findMany({
+      where: { kind: 'email_failed' },
+      select: { message: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+    })
+    .catch(() => []);
+
+  add({
+    id: 'no-confirmation-email',
+    severity: 'critical',
+    title: 'Paid orders where no confirmation email was sent',
+    count: silent.length,
+    detail:
+      'The customer paid and heard nothing, which is exactly what a scam feels like. Any failure reason is listed below.',
+    examples: [
+      ...silent.slice(0, 5).map((o) => `#${o.number}`),
+      ...failures.map((f) => f.message.slice(0, 140)),
+    ],
+  });
+
   add({
     id: 'mail-off',
     severity: 'critical',

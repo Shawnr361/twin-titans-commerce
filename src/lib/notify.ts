@@ -59,8 +59,16 @@ export async function sendOrderConfirmation(orderId: string): Promise<void> {
 
     await sendMail({
       to: order.email,
-      from: settings.supportEmail || undefined,
-      replyTo: settings.supportEmail || undefined,
+      /*
+       * Sent FROM the no-reply address, but replies go to support.
+       *
+       * A customer who has just paid will reply to this email to ask where
+       * their parcel is — that is not a misuse, it is the first thing anyone
+       * does. Sending from no-reply without a Reply-To throws those messages
+       * into a mailbox nobody reads.
+       */
+      from: settings.notificationEmail || settings.supportEmail || undefined,
+      replyTo: settings.supportEmail || settings.notificationEmail || undefined,
       subject: `Order #${order.number} confirmed — ${settings.storeName}`,
       text: [
         `Thank you — we have received your payment for order #${order.number}.`,
@@ -125,8 +133,8 @@ export async function sendShippingNotice(supplierOrderId: string): Promise<void>
 
     await sendMail({
       to: so.order.email,
-      from: settings.supportEmail || undefined,
-      replyTo: settings.supportEmail || undefined,
+      from: settings.notificationEmail || settings.supportEmail || undefined,
+      replyTo: settings.supportEmail || settings.notificationEmail || undefined,
       subject: `Order #${so.order.number} has shipped — ${settings.storeName}`,
       text: [
         `Good news — part of your order #${so.order.number} is on its way.`,

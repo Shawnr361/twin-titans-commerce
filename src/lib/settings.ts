@@ -6,6 +6,14 @@ export interface StoreSettings {
   tagline: string;
   baseCurrency: string;
   supportEmail: string;
+  /**
+   * The address automatic order emails are SENT FROM.
+   *
+   * Separate from supportEmail because they do different jobs: this one is the
+   * envelope sender, support is where a reply must land. Empty means send from
+   * support, which is the safe default.
+   */
+  notificationEmail: string;
   supportPhone: string;
   /** Flat shipping charged to the customer, base minor units. 0 = free. */
   shippingFlatMinor: number;
@@ -31,6 +39,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   tagline: 'Premium finds, delivered to your door.',
   baseCurrency: 'NGN',
   supportEmail: '',
+  notificationEmail: '',
   supportPhone: '',
   /*
    * Delivery. The threshold is the merchant's instruction: free only above
