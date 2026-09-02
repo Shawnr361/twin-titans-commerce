@@ -72,13 +72,56 @@ export interface PaypalOrder {
   links?: { href: string; rel: string; method: string }[];
 }
 
+export interface PaypalLineItem {
+  name: string;
+  quantity: number;
+  /** Unit price in USD minor units. */
+  unitMinorUsd: number;
+}
+
+/**
+ * PayPal shows whatever we send it, and nothing else.
+ *
+ * With only a total, the receipt reads "Order 18 — $22.12" and the customer has
+ * a bank line they cannot connect to anything they chose. Sending the items
+ * means PayPal's own receipt, and the buyer's PayPal history, list what was
+ * actually bought — which is what the old Shopify store did, and what stops a
+ * confused customer opening a dispute over a purchase they do not recognise.
+ *
+ * PayPal REJECTS an itemised order whose lines do not add up to the total, so
+ * the breakdown is only sent when it reconciles exactly. Rounding each
+ * converted line to cents can leave a penny either way; rather than fudge a
+ * line, the items are dropped and the order goes through with its total alone.
+ * A plain receipt beats a refused payment.
+ */
 export function createPaypalOrder(params: {
   amountMinorUsd: number;
   reference: string;
   description: string;
   returnUrl: string;
   cancelUrl: string;
+  items?: PaypalLineItem[];
 }): Promise<PaypalOrder> {
+  const usd = (minor: number) => fromMinor(minor, 'USD').toFixed(2);
+
+  const itemsTotal = (params.items ?? []).reduce(
+    (sum, item) => sum + item.unitMinorUsd * item.quantity,
+    0
+  );
+  const reconciles = params.items?.length ? itemsTotal === params.amountMinorUsd : false;
+
+  const breakdown = reconciles
+    ? {
+        items: params.items!.map((item) => ({
+          name: item.name.slice(0, 127),
+          quantity: String(item.quantity),
+          unit_amount: { currency_code: 'USD', value: usd(item.unitMinorUsd) },
+        })),
+        amountBreakdown: {
+          item_total: { currency_code: 'USD', value: usd(itemsTotal) },
+        },
+      }
+    : null;
   return call<PaypalOrder>('/v2/checkout/orders', {
     method: 'POST',
     body: JSON.stringify({
@@ -88,9 +131,11 @@ export function createPaypalOrder(params: {
           reference_id: params.reference,
           custom_id: params.reference,
           description: params.description.slice(0, 127),
+          ...(breakdown ? { items: breakdown.items } : {}),
           amount: {
             currency_code: 'USD',
-            value: fromMinor(params.amountMinorUsd, 'USD').toFixed(2),
+            value: usd(params.amountMinorUsd),
+            ...(breakdown ? { breakdown: breakdown.amountBreakdown } : {}),
           },
         },
       ],

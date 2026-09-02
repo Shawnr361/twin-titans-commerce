@@ -118,6 +118,16 @@ export async function POST(request: Request) {
       amountMinorUsd: amountUsdMinor,
       reference,
       description: `Order ${order.number}`,
+      /*
+       * Itemised so PayPal's receipt names what was bought. Each line is
+       * converted with the SAME rate as the total, so the two agree — PayPal
+       * refuses an order whose items do not sum to the amount.
+       */
+      items: order.lineItems.map((line) => ({
+        name: line.productTitle,
+        quantity: line.quantity,
+        unitMinorUsd: convertMinor(line.unitPriceMinor, settings.baseCurrency, 'USD', usdRate),
+      })),
       returnUrl: `${siteUrl()}/api/payments/paypal/capture?ref=${encodeURIComponent(reference)}&orderId=${order.id}`,
       cancelUrl: `${siteUrl()}/checkout?cancelled=1`,
     });
