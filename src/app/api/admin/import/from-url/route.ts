@@ -159,7 +159,30 @@ export async function POST(request: Request) {
    * sell it.
    */
   const costs = capture.variants.map((v) => v.price).filter((p) => p > 0);
+  /*
+   * Both prices, because the spread is the whole judgement.
+   *
+   * Costing at the promo prices the catalogue against a number that expires.
+   * But AliExpress discounts permanently, so costing at a list price nobody
+   * ever pays rejects every viable product — which is exactly what it did on
+   * the first scouting pass, where a lip balm set and a disco lamp were both
+   * cut on a "regular" price that is an anchor, not a cost.
+   *
+   * A small spread means the list price is real and safe to cost at. A large
+   * one means it is theatre, and the promo is the number to plan around while
+   * watching it.
+   */
+  const promos = capture.variants
+    .map((v) => v.promoPrice)
+    .filter((p): p is number => typeof p === 'number' && p > 0);
+  const cheapestList = costs.length ? Math.min(...costs) : null;
+  const cheapestPromo = promos.length ? Math.min(...promos) : null;
   const signals = {
+    cheapestPromo,
+    discountPct:
+      cheapestList && cheapestPromo && cheapestList > cheapestPromo
+        ? Math.round((1 - cheapestPromo / cheapestList) * 100)
+        : 0,
     title: capture.title,
     currency: capture.currency,
     cheapestVariant: costs.length ? Math.min(...costs) : null,
