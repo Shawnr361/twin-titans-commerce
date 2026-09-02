@@ -15,7 +15,7 @@ import {
   FLUTTERWAVE_NG_FEES,
   type GatewayFeeModel,
 } from '../src/lib/pricing';
-import { DEFAULT_RULES } from '../src/lib/pricing';
+import { DEFAULT_RULES, supplierCostBasis } from '../src/lib/pricing';
 import { formatMoney, friendlyCeiling, fromMinor, toMinor } from '../src/lib/money';
 import { getRate, sourceCostToBase } from '../src/lib/fx';
 import { assessCapture } from '../src/lib/suppliers/capture';
@@ -376,6 +376,31 @@ void (async () => {
     cleanProductTitle('USB LED String Lights 5/10/20M Waterproof Fairy Lights'),
     'USB LED String Lights 5/10/20M Waterproof Fairy Lights'
   );
+
+  console.log('── Supplier cost basis ────────────────────');
+
+  /*
+   * The live failure this rule exists for: a firming patch listed at $44.85
+   * "regular" and $8.52 actual reached the storefront at ₦78,999 because it was
+   * costed at the anchor.
+   */
+  check('an 81%-off anchor is not used as cost', supplierCostBasis(44.85, 8.52), 8.52 * 1.2);
+  check('a small discount still costs at list', supplierCostBasis(10, 9.5), 10);
+  check('a 50% discount costs at promo plus headroom', supplierCostBasis(10, 5), 6);
+  check('no promo means cost at list', supplierCostBasis(12, null), 12);
+  check('a promo above list is ignored as nonsense', supplierCostBasis(10, 14), 10);
+
+  /*
+   * The safety property, as a test rather than a comment: the basis must NEVER
+   * fall below what we actually pay today, or the catalogue prices below cost.
+   */
+  let below = 0;
+  for (let list = 1; list <= 60; list += 0.5) {
+    for (let promo = 0.5; promo < list; promo += 0.5) {
+      if (supplierCostBasis(list, promo) < promo) below++;
+    }
+  }
+  check('the basis is never below the price actually paid', below, 0);
 
   console.log('── Categorising ───────────────────────────');
 

@@ -1,4 +1,4 @@
-import { realVariants } from './variants';
+import { supplierCostBasis } from '../pricing';import { realVariants } from './variants';
 import type { CapturedProduct } from './capture';
 import type { NormalizedProduct, NormalizedVariant } from './types';
 import type { PreviewResult } from './import';
@@ -53,7 +53,12 @@ export async function previewFromCapture(
   const variants: NormalizedVariant[] = realVariants(captureVariants).map(
     (v): NormalizedVariant => ({
       options: v.options ?? {},
-      costMinor: toMinor(v.price ?? 0, captured.currency),
+      /*
+       * Not v.price. That is the supplier's REGULAR price, and on AliExpress it
+       * is frequently an anchor nobody pays — see supplierCostBasis, which was
+       * written after an 81%-off listing reached the storefront at ₦78,999.
+       */
+      costMinor: toMinor(supplierCostBasis(v.price ?? 0, v.promoPrice), captured.currency),
       imageUrl: v.imageUrl,
       externalVariantId: v.skuId,
       stock: v.stock ?? null,

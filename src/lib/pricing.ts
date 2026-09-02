@@ -284,3 +284,46 @@ export function auditMargin(
     message: `Healthy: ${marginPct.toFixed(1)}% net margin.`,
   };
 }
+
+/**
+ * What a supplier variant should be COSTED at, given its two prices.
+ *
+ * THE TRAP THIS EXISTS TO CLOSE
+ * -----------------------------
+ * A capture records the supplier's regular price as the cost basis, on the
+ * reasoning that a countdown-sale figure expires and costing at it would leave
+ * the catalogue priced below cost when it does. Sound for a listing 10% off.
+ *
+ * Catastrophic at 81% off. A firming patch listed at $44.85 "regular" and
+ * $8.52 actual was costed at $44.85 and reached the storefront at ₦78,999 —
+ * for a face patch. Nobody has ever paid $44.85: at that spread the regular
+ * price is an ANCHOR, a number printed to make the discount look large, not a
+ * price the goods have ever sold at.
+ *
+ * THE RULE
+ * --------
+ *   cost = min(list, promo × 1.2)
+ *
+ * One number, and it degrades gracefully in both directions:
+ *
+ *   - 5% off  → promo × 1.2 exceeds list, so LIST is used. Unchanged from
+ *     before, and still protected if the small discount ends.
+ *   - 81% off → promo × 1.2 is far below list, so the promo is used with 20%
+ *     headroom. Priced against reality, with room for the supplier to move.
+ *
+ * The 20% is the deliberate compromise: enough that an ordinary supplier
+ * increase does not eat the margin, small enough that it cannot reintroduce a
+ * fictional price. It is never cheaper than the promo, so a price computed from
+ * it can never sit below what we actually pay today.
+ */
+export const PROMO_HEADROOM = 1.2;
+
+export function supplierCostBasis(listPrice: number, promoPrice?: number | null): number {
+  if (!Number.isFinite(listPrice) || listPrice <= 0) {
+    return typeof promoPrice === 'number' && promoPrice > 0 ? promoPrice * PROMO_HEADROOM : 0;
+  }
+  if (typeof promoPrice !== 'number' || promoPrice <= 0 || promoPrice >= listPrice) {
+    return listPrice;
+  }
+  return Math.min(listPrice, promoPrice * PROMO_HEADROOM);
+}
