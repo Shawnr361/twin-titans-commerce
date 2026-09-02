@@ -706,3 +706,45 @@
     transform: none !important;
   }
 }
+
+/*
+ * SUPPLIER DESCRIPTION HTML
+ *
+ * AliExpress descriptions arrive carrying inline colours — color:#000, often a
+ * white background too — written for a white page. Rendered onto this dark
+ * theme that is black text on a near-black ground: present, selectable,
+ * copyable and completely invisible. Reported as "the font is not visible",
+ * and only on SOME products, because the ones the copywriter rewrote carry no
+ * inline styles at all.
+ *
+ * Only elements that actually carry a style attribute are overridden. A blanket
+ * rule on `*` would also flatten the emphasis this page sets deliberately on
+ * headings and bold text; [style] hits exactly the markup we do not control.
+ *
+ * !important is required and correct here: an inline style beats any
+ * stylesheet rule without it, and we cannot edit third-party markup.
+ */
+.supplier-html [style] {
+  color: inherit !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  font-family: inherit !important;
+  /* Supplier markup hard-codes desktop pixel widths that overflow a phone. */
+  width: auto !important;
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+.supplier-html img {
+  display: block;
+  margin: 1rem auto;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Spec tables are wider than a phone; let them scroll rather than the page. */
+.supplier-html table {
+  display: block;
+  width: 100% !important;
+  overflow-x: auto;
+}

@@ -442,7 +442,7 @@ export default async function ProductPage({
 
             {product.descriptionHtml && (
               <div
-                className="prose-measure mt-10 space-y-4 text-body text-greige [&_h2]:font-display [&_h2]:text-d2 [&_h2]:text-onyx [&_li]:ml-5 [&_li]:list-disc [&_strong]:text-onyx [&_ul]:space-y-2"
+                className="supplier-html prose-measure mt-10 space-y-4 text-body text-greige [&_h2]:font-display [&_h2]:text-d2 [&_h2]:text-onyx [&_li]:ml-5 [&_li]:list-disc [&_strong]:text-onyx [&_ul]:space-y-2"
                 dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}
               />
             )}

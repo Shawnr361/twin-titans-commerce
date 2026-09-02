@@ -1,23 +1,47 @@
 {
   "manifest_version": 3,
   "name": "Add to Twin Titans",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Add an AliExpress product to your Twin Titans Emporium import queue in one click.",
-  "permissions": ["storage", "activeTab"],
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
   "host_permissions": [
     "https://www.aliexpress.com/*",
     "https://*.aliexpress.com/*",
     "https://twintitansemporium.store/*"
   ],
-  "background": { "service_worker": "background.js" },
+  "background": {
+    "service_worker": "background.js",
+    "scripts": [
+      "background.js"
+    ]
+  },
   "options_page": "options.html",
-  "action": { "default_title": "Add to Twin Titans", "default_popup": "options.html" },
+  "action": {
+    "default_title": "Add to Twin Titans",
+    "default_popup": "options.html"
+  },
   "content_scripts": [
     {
-      "matches": ["https://*.aliexpress.com/item/*", "https://*.aliexpress.com/*/item/*"],
-      "js": ["content.js"],
-      "css": ["content.css"],
+      "matches": [
+        "https://*.aliexpress.com/item/*",
+        "https://*.aliexpress.com/*/item/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "add-to-twin-titans@twintitansemporium.store",
+      "strict_min_version": "115.0"
+    }
+  }
 }

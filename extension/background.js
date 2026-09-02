@@ -11,14 +11,22 @@
  * bookmark's own URL in plain sight.
  */
 
+/*
+ * Firefox exposes `browser`, Chrome exposes `chrome`. Firefox also provides
+ * `chrome` as an alias in MV3, but not in every version, and the options page
+ * uses promise-style storage which only `browser` guarantees. One line at the
+ * top of each file costs nothing and removes the whole question.
+ */
+var api = typeof browser !== 'undefined' ? browser : chrome;
+
 const DEFAULTS = { store: 'https://twintitansemporium.store', token: '' };
 
 async function settings() {
-  const stored = await chrome.storage.sync.get(DEFAULTS);
+  const stored = await api.storage.sync.get(DEFAULTS);
   return { store: (stored.store || DEFAULTS.store).replace(/\/+$/, ''), token: stored.token || '' };
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, respond) => {
+api.runtime.onMessage.addListener((message, _sender, respond) => {
   if (message?.type !== 'tt-add') return false;
 
   (async () => {

@@ -13,6 +13,14 @@
  * So this file has two jobs: find the product id, and stay out of the way.
  */
 
+/*
+ * Firefox exposes `browser`, Chrome exposes `chrome`. Firefox also provides
+ * `chrome` as an alias in MV3, but not in every version, and the options page
+ * uses promise-style storage which only `browser` guarantees. One line at the
+ * top of each file costs nothing and removes the whole question.
+ */
+var api = typeof browser !== 'undefined' ? browser : chrome;
+
 (function () {
   'use strict';
 
@@ -83,7 +91,7 @@
 
   // Where the merchant last left it. Per browser profile, not per page.
   try {
-    chrome.storage.sync.get({ buttonAt: null }, function (stored) {
+    api.storage.sync.get({ buttonAt: null }, function (stored) {
       if (stored && stored.buttonAt) place(stored.buttonAt.left, stored.buttonAt.top);
     });
   } catch (e) {
@@ -128,7 +136,7 @@
     if (dragged) {
       var box = root.getBoundingClientRect();
       try {
-        chrome.storage.sync.set({ buttonAt: { left: box.left, top: box.top } });
+        api.storage.sync.set({ buttonAt: { left: box.left, top: box.top } });
       } catch (e) {
         /* Not worth telling anyone: the position simply will not persist. */
       }
@@ -164,7 +172,7 @@
      * the bookmarklet hits. A service worker has its own context and no such
      * policy, which is the whole reason this is an extension.
      */
-    chrome.runtime.sendMessage({ type: 'tt-add', url: location.href, id: id }, function (reply) {
+    api.runtime.sendMessage({ type: 'tt-add', url: location.href, id: id }, function (reply) {
       button.disabled = false;
       button.textContent = 'Add to Twin Titans';
 
