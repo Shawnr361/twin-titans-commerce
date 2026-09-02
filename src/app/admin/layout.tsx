@@ -1,3 +1,4 @@
+import { RegisterServiceWorker } from '@/components/admin/RegisterServiceWorker';
 import Link from 'next/link';
 import { getSession } from '@/lib/auth';
 
@@ -24,6 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="shell py-8">
+      <RegisterServiceWorker />
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Store admin</h1>
