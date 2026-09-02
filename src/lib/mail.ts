@@ -146,6 +146,47 @@ export function isMailConfigured(): boolean {
  * Send one message. Throws on failure — callers decide what the customer sees,
  * and must never report success for a message that was not accepted.
  */
+/**
+ * Hand the message to the server's own sendmail binary.
+ *
+ * WHY THIS IS THE DEFAULT ON THIS HOST
+ * ------------------------------------
+ * Talking raw SMTP to 127.0.0.1:25 gets "550 relay not permitted" for any
+ * recipient outside the domain — Exim will not relay for an unauthenticated
+ * connection, and it is right not to. Two real customer orders were paid for
+ * and confirmed nothing because of it.
+ *
+ * The alternative is to authenticate, which means creating a mailbox and
+ * putting its password in the environment. Local submission needs neither: the
+ * binary runs as the account, and shared hosts allow it precisely so a site can
+ * email its own customers. Fewer credentials in fewer places.
+ *
+ * Falls back to SMTP when the binary is absent, so a laptop still behaves as
+ * before.
+ */
+async function sendViaSendmail(raw: string, from: string): Promise<boolean> {
+  const { existsSync } = await import('node:fs');
+  const binary = ['/usr/sbin/sendmail', '/usr/lib/sendmail', '/usr/bin/sendmail'].find((path) => {
+    try {
+      return existsSync(path);
+    } catch {
+      return false;
+    }
+  });
+  if (!binary) return false;
+
+  const { spawn } = await import('node:child_process');
+  return new Promise<boolean>((resolve) => {
+    // -t reads recipients from the headers; -i stops a lone dot ending the body.
+    const child = spawn(binary, ['-t', '-i', '-f', from], { stdio: ['pipe', 'ignore', 'ignore'] });
+    child.on('error', () => resolve(false));
+    child.on('close', (code) => resolve(code === 0));
+    child.stdin.on('error', () => resolve(false));
+    child.stdin.write(raw);
+    child.stdin.end();
+  });
+}
+
 export async function sendMail(message: MailMessage): Promise<void> {
   /*
    * The envelope sender must be a real mailbox. Exim verifies it and answers
@@ -156,6 +197,27 @@ export async function sendMail(message: MailMessage): Promise<void> {
    */
   const from = header(process.env.SMTP_FROM || message.from || message.to);
   const to = header(message.to);
+
+  const headerBlock = [
+    `From: Twin Titans Emporium <${from}>`,
+    `To: <${to}>`,
+    message.replyTo ? `Reply-To: <${header(message.replyTo)}>` : '',
+    `Subject: ${header(message.subject)}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=utf-8',
+    `Date: ${new Date().toUTCString()}`,
+  ]
+    .filter(Boolean)
+    .join('\r\n');
+
+  /*
+   * Local submission first: the path that works on this host, and the one that
+   * needs no mailbox password anywhere.
+   */
+  if (process.env.MAIL_TRANSPORT !== 'smtp') {
+    const sent = await sendViaSendmail(`${headerBlock}\r\n\r\n${message.text}\r\n`, from);
+    if (sent) return;
+  }
 
   const conn = await connect();
   try {
@@ -172,19 +234,7 @@ export async function sendMail(message: MailMessage): Promise<void> {
     await say(conn, `RCPT TO:<${to}>`, 250);
     await say(conn, 'DATA', 354);
 
-    const headers = [
-      `From: Twin Titans Emporium <${from}>`,
-      `To: <${to}>`,
-      message.replyTo ? `Reply-To: <${header(message.replyTo)}>` : '',
-      `Subject: ${header(message.subject)}`,
-      'MIME-Version: 1.0',
-      'Content-Type: text/plain; charset=utf-8',
-      `Date: ${new Date().toUTCString()}`,
-    ]
-      .filter(Boolean)
-      .join('\r\n');
-
-    conn.socket.write(`${headers}\r\n\r\n${dotStuff(message.text)}\r\n.\r\n`);
+    conn.socket.write(`${headerBlock}\r\n\r\n${dotStuff(message.text)}\r\n.\r\n`);
     await say(conn, '', 250);
     await say(conn, 'QUIT', 221).catch(() => undefined);
   } finally {
