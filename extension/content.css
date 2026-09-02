@@ -1,14 +1,19 @@
 /*
  * Deliberately unmistakable and out of the way.
  *
- * Bottom-left, because AliExpress puts its own floating widgets bottom-right
- * (DSers parks itself there too) and two overlapping panels help nobody.
- * z-index is high because the page stacks a great many things.
+ * LEFT side, because AliExpress puts its own floating widgets bottom-right and
+ * DSers parks itself there too — two overlapping panels help nobody.
+ *
+ * Well clear of the bottom edge. At 16px it sat exactly on top of the Windows
+ * taskbar in a maximised window and read as one more taskbar icon: it was on
+ * the page and doing its job, and still invisible. Vertically centred instead,
+ * where nothing else lives.
  */
 #tt-add-root {
   position: fixed;
   left: 16px;
-  bottom: 16px;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 2147483000;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   max-width: 280px;
@@ -17,8 +22,9 @@
 #tt-add-button {
   display: block;
   width: 100%;
-  padding: 11px 18px;
-  border: 0;
+  padding: 12px 20px;
+  /* A hairline so the pill still reads as a button against a white page. */
+  border: 1px solid rgba(0, 0, 0, 0.25);
   border-radius: 999px;
   background: linear-gradient(180deg, #d4af37, #b8891b);
   color: #14110f;

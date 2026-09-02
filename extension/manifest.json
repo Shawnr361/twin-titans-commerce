@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Add to Twin Titans",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Add an AliExpress product to your Twin Titans Emporium import queue in one click.",
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
