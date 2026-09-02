@@ -92,7 +92,25 @@ export async function generateMetadata({
       type: "website",
       title,
       description,
-      images: image ? [image] : undefined,
+      /*
+       * WIDTH AND HEIGHT ARE NOT DECORATION.
+       *
+       * WhatsApp fetched the page, read the title and description, and then
+       * showed a bare link with no picture — while the image URL itself
+       * returned a perfectly good 720x720 JPEG in 2s with a Content-Length.
+       * The missing piece was that nothing TOLD it the size, so its crawler had
+       * to download and probe the file to find out, and it routinely declines
+       * to render a card rather than wait.
+       *
+       * The proxy always emits 720x720 (it appends _720x720q75.jpg), so these
+       * are facts rather than guesses. If that ever changes, change it here in
+       * the same commit.
+       */
+      images: image
+        ? [{ url: image, secureUrl: image, width: 720, height: 720, type: 'image/jpeg', alt: title }]
+        : undefined,
+      url: `${siteOrigin()}/products/${product.handle}`,
+      siteName: settings.storeName,
     },
     /*
      * product:* are OG-namespaced too, so they carry the same caveat: emitted
