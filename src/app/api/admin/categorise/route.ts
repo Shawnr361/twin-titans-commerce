@@ -34,7 +34,24 @@ const schema = z.object({
    * like it had done nothing.
    */
   refile: z.boolean().optional(),
+  /*
+   * Put a product in a category and KEEP it there.
+   *
+   * A rule cannot always be right. "Universal 3.5mm Wired Computer Headphone"
+   * belongs in Gaming because the merchant sells it as a gaming headset, but
+   * the title says headphone and teaching the rules to claim every headphone
+   * for Gaming would be worse than the mistake it fixes.
+   *
+   * So the decision is recorded on the product rather than argued into the
+   * rules, and re-filing steps over anything carrying it. Without this, the
+   * next refile would silently undo a human's choice — which is the fastest
+   * way to make an automatic tool untrustworthy.
+   */
+  pin: z.array(z.object({ handle: z.string(), collection: z.string() })).optional(),
 });
+
+/** Marks a product whose category was chosen by a person, not a rule. */
+const PINNED = 'category-pinned';
 
 export async function POST(request: Request) {
   try {
@@ -49,6 +66,33 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => ({})));
   const apply = parsed.success ? Boolean(parsed.data.apply) : false;
   const refile = parsed.success ? Boolean(parsed.data.refile) : false;
+  const pin = (parsed.success && parsed.data.pin) || [];
+
+  const pinned: string[] = [];
+  for (const request of pin) {
+    const product = await prisma.product.findUnique({
+      where: { handle: request.handle },
+      select: { id: true, tags: true },
+    });
+    const collection = await prisma.collection.findUnique({
+      where: { handle: request.collection },
+      select: { id: true },
+    });
+    if (!product || !collection) {
+      pinned.push(`${request.handle} — product or collection not found`);
+      continue;
+    }
+    const tags = Array.isArray(product.tags) ? (product.tags as string[]) : [];
+    await prisma.collectionProduct.deleteMany({ where: { productId: product.id } });
+    await prisma.collectionProduct.create({
+      data: { productId: product.id, collectionId: collection.id },
+    });
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { tags: [...new Set([...tags, PINNED])] as never },
+    });
+    pinned.push(`${request.handle} → ${request.collection} (pinned)`);
+  }
 
   const [products, collections] = await Promise.all([
     prisma.product.findMany({
@@ -56,6 +100,7 @@ export async function POST(request: Request) {
         id: true,
         title: true,
         productType: true,
+        tags: true,
         collections: { select: { collectionId: true } },
       },
     }),
@@ -85,6 +130,13 @@ export async function POST(request: Request) {
        * cannot place is left exactly where it is rather than being emptied out
        * of a category someone chose deliberately.
        */
+      // A category a person chose is not the categoriser's to revisit.
+      const tags = Array.isArray(product.tags) ? (product.tags as string[]) : [];
+      if (tags.includes(PINNED)) {
+        alreadyFiled++;
+        continue;
+      }
+
       const should = categorise(product.title, product.productType);
       const current = product.collections
         .map((c) => byId.get(c.collectionId))
@@ -150,6 +202,7 @@ export async function POST(request: Request) {
     filed: planned,
     alreadyFiled,
     moved,
+    pinned,
     // Named plainly: these were left alone on purpose, not skipped by accident.
     noMatch: unmatched,
     collectionMissing: missingCollection,
