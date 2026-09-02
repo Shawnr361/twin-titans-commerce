@@ -4,16 +4,17 @@
  * LEFT side, because AliExpress puts its own floating widgets bottom-right and
  * DSers parks itself there too — two overlapping panels help nobody.
  *
- * Well clear of the bottom edge. At 16px it sat exactly on top of the Windows
- * taskbar in a maximised window and read as one more taskbar icon: it was on
- * the page and doing its job, and still invisible. Vertically centred instead,
- * where nothing else lives.
+ * HIGH ON THE PAGE, not near the bottom. At 16px from the bottom it sat exactly
+ * on top of the Windows taskbar in a maximised window and read as one more
+ * taskbar icon — on the page, doing its job, and still invisible. Centring it
+ * was not enough either: the eye is on the product image and the buy box, both
+ * of which sit high. 200px down the left margin is beside the gallery, in a
+ * column AliExpress leaves empty.
  */
 #tt-add-root {
   position: fixed;
   left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 200px;
   z-index: 2147483000;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   max-width: 280px;
