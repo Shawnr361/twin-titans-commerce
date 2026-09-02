@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Add to Twin Titans</title>
+<style>
+  body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+         margin: 0; padding: 18px; width: 320px; background: #14110f; color: #f4efe7; }
+  h1 { font-size: 15px; margin: 0 0 4px; letter-spacing: .04em; }
+  p  { margin: 0 0 14px; color: #a49c90; font-size: 12px; }
+  label { display: block; font-size: 11px; text-transform: uppercase;
+          letter-spacing: .08em; color: #a49c90; margin-bottom: 4px; }
+  input { width: 100%; box-sizing: border-box; padding: 9px 10px; margin-bottom: 12px;
+          border: 1px solid #3a332c; border-radius: 8px; background: #1d1916;
+          color: #f4efe7; font-size: 13px; }
+  button { padding: 9px 18px; border: 0; border-radius: 999px; cursor: pointer;
+           background: linear-gradient(180deg, #d4af37, #b8891b);
+           color: #14110f; font-weight: 700; font-size: 13px; }
+  #saved { margin-left: 10px; font-size: 12px; color: #8fd9a8; }
+</style>
+<h1>Add to Twin Titans</h1>
+<p>Find your capture token in the store admin, under Add a product.</p>
+<label for="store">Store address</label>
+<input id="store" placeholder="https://twintitansemporium.store" />
+<label for="token">Capture token</label>
+<input id="token" type="password" placeholder="paste it here" />
+<button id="save">Save</button><span id="saved"></span>
+<script src="options.js"></script>

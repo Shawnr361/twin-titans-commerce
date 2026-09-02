@@ -14,7 +14,7 @@ import { useState } from 'react';
  * It stops at a capture rather than creating the product, because pricing stays
  * a decision a person makes.
  */
-export function ImportFromUrl() {
+export function ImportFromUrl({ captureToken }: { captureToken?: string }) {
   const router = useRouter();
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
@@ -79,6 +79,21 @@ export function ImportFromUrl() {
           </button>
         </div>
       </div>
+
+      {captureToken && (
+        <details className="border-t border-rule pt-3">
+          <summary className="cursor-pointer text-micro text-greige">
+            Browser extension — one-click from AliExpress
+          </summary>
+          <p className="mt-2 text-micro text-greige">
+            Paste this into the extension&rsquo;s options, with the store address. It is the same
+            token the bookmarklet uses; it lets a request add a capture and nothing else.
+          </p>
+          <code className="mt-2 block break-all border border-rule p-2 text-micro text-onyx">
+            {captureToken}
+          </code>
+        </details>
+      )}
 
       {result && (
         <div className="space-y-1">

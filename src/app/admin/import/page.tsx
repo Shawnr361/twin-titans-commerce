@@ -15,8 +15,11 @@ export default async function ImportPage() {
   const site = (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3400').replace(/\/$/, '');
 
   let bookmarklet = '';
+  // Shown plainly too, because the browser extension needs it on its own.
+  let token = '';
   try {
-    bookmarklet = buildCaptureScript(`${site}/api/admin/capture`, captureToken());
+    token = captureToken();
+    bookmarklet = buildCaptureScript(`${site}/api/admin/capture`, token);
   } catch {
     // AUTH_SECRET missing — the setup card explains rather than rendering a
     // bookmarklet that would fail silently on the supplier's page.
@@ -39,7 +42,7 @@ export default async function ImportPage() {
         bookmarklet stays below it: a link only works for AliExpress, and only
         while the API is connected.
       */}
-      <ImportFromUrl />
+      <ImportFromUrl captureToken={token} />
 
       <ImportWorkspace
         baseCurrency={settings.baseCurrency}

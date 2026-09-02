@@ -1,18 +1,10 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import {
-  IconChevronRight,
-  IconClose,
-  IconMenu,
-  IconTruck,
-} from "@/components/icons";
-import {
-  CurrencySwitcher,
-  type CurrencyOption,
-} from "@/components/commerce/CurrencySwitcher";
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { IconChevronRight, IconClose, IconMenu, IconTruck } from '@/components/icons';
+import { CurrencySwitcher, type CurrencyOption } from '@/components/commerce/CurrencySwitcher';
 
 /**
  * Mobile navigation drawer.
@@ -67,18 +59,18 @@ export function MobileNav({
   useEffect(() => {
     if (!open) return;
 
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow = 'hidden';
     closeRef.current?.focus();
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         setOpen(false);
         return;
       }
-      if (e.key !== "Tab" || !panelRef.current) return;
+      if (e.key !== 'Tab' || !panelRef.current) return;
 
       const focusables = panelRef.current.querySelectorAll<HTMLElement>(
-        "a[href], button:not([disabled])",
+        'a[href], button:not([disabled])',
       );
       if (focusables.length === 0) return;
       const first = focusables[0];
@@ -93,10 +85,10 @@ export function MobileNav({
       }
     };
 
-    document.addEventListener("keydown", onKey);
+    document.addEventListener('keydown', onKey);
     return () => {
-      document.body.style.overflow = "";
-      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = '';
+      document.removeEventListener('keydown', onKey);
       lastFocused.current?.focus?.();
     };
   }, [open]);
@@ -123,7 +115,7 @@ export function MobileNav({
               onClick={() => setOpen(false)}
               aria-hidden
               className={`fixed inset-0 z-[60] bg-onyx/25 transition-opacity duration-2 ease-ease lg:hidden ${
-                open ? "opacity-100" : "pointer-events-none opacity-0"
+                open ? 'opacity-100' : 'pointer-events-none opacity-0'
               }`}
             />
 
@@ -133,7 +125,7 @@ export function MobileNav({
               aria-modal="true"
               aria-label="Menu"
               className={`fixed left-0 top-0 z-[61] flex h-[100dvh] w-full max-w-[20rem] flex-col bg-bone transition-transform duration-3 ease-ease lg:hidden ${
-                open ? "translate-x-0" : "-translate-x-full"
+                open ? 'translate-x-0' : '-translate-x-full'
               }`}
             >
               <div className="flex items-center justify-between border-b border-rule px-6 py-5">
@@ -149,10 +141,7 @@ export function MobileNav({
                 </button>
               </div>
 
-              <nav
-                aria-label="Departments"
-                className="flex-1 overflow-y-auto overscroll-contain"
-              >
+              <nav aria-label="Departments" className="flex-1 overflow-y-auto overscroll-contain">
                 <ul className="divide-y divide-rule">
                   <li>
                     <Link
@@ -160,9 +149,7 @@ export function MobileNav({
                       onClick={() => setOpen(false)}
                       className="flex items-center justify-between gap-4 px-6 py-4"
                     >
-                      <span className="font-display text-d2 text-onyx">
-                        Shop all
-                      </span>
+                      <span className="font-display text-d2 text-onyx">Shop all</span>
                       <IconChevronRight size={16} className="text-quiet" />
                     </Link>
                   </li>
@@ -191,10 +178,7 @@ export function MobileNav({
               {currencies.length > 1 && baseCurrency && (
                 <div className="flex items-center justify-between gap-4 border-t border-rule px-6 py-4">
                   <span className="label text-greige">Currency</span>
-                  <CurrencySwitcher
-                    options={currencies}
-                    baseCurrency={baseCurrency}
-                  />
+                  <CurrencySwitcher options={currencies} baseCurrency={baseCurrency} />
                 </div>
               )}
 
