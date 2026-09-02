@@ -39,7 +39,17 @@ export const dynamic = 'force-dynamic';
  * Same rule as the bookmarklet: re-fetching to refresh prices is legitimate, so
  * an existing product is named in the reply and the caller decides.
  */
-const schema = z.object({ url: z.string().min(4) });
+const schema = z.object({
+  url: z.string().min(4),
+  /**
+   * Look, but do not keep.
+   *
+   * Research means fetching many candidates and importing few. Storing every
+   * one as a capture would bury the real queue in products nobody chose, so a
+   * preview returns the same figures and writes nothing.
+   */
+  preview: z.boolean().optional(),
+});
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -143,6 +153,37 @@ export async function POST(request: Request) {
   const capture = validated.data;
   const quality = assessCapture(capture);
 
+  /*
+   * Everything a scoring pass needs, and nothing it does not: what it costs to
+   * buy, what the supplier's own customers make of it, and whether we already
+   * sell it.
+   */
+  const costs = capture.variants.map((v) => v.price).filter((p) => p > 0);
+  const signals = {
+    title: capture.title,
+    currency: capture.currency,
+    cheapestVariant: costs.length ? Math.min(...costs) : null,
+    dearestVariant: costs.length ? Math.max(...costs) : null,
+    rating: capture.rating ?? null,
+    reviewCount: capture.reviewCount ?? null,
+    ordersCount: capture.ordersCount ?? null,
+    supplierName: capture.supplierName ?? null,
+  };
+
+  if (parsed.data.preview) {
+    return NextResponse.json(
+      {
+        ok: true,
+        preview: true,
+        quality,
+        signals,
+        problems: result.problems,
+        duplicateOf: existing?.product ?? null,
+      },
+      { headers: CORS }
+    );
+  }
+
   const row = await prisma.supplierCapture.create({
     data: {
       platform: 'ALIEXPRESS',
@@ -166,6 +207,7 @@ export async function POST(request: Request) {
       id: row.id,
       title: capture.title,
       quality,
+      signals,
       problems: result.problems,
       duplicateOf: existing?.product ?? null,
       ...(existing?.product
