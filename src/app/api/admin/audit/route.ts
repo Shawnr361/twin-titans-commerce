@@ -3,6 +3,7 @@ import { UnauthorizedError, requireAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { getStoreSettings } from '@/lib/settings';
 import { isMailConfigured } from '@/lib/mail';
+import { isAliexpressConfigured, storedToken } from '@/lib/suppliers/aliexpress-api';
 
 export const dynamic = 'force-dynamic';
 
@@ -333,6 +334,40 @@ export async function GET() {
     detail:
       'No order confirmation and no shipping notice will be sent. Silence after payment is what a scam feels like.',
     examples: [],
+  });
+
+  /*
+   * The AliExpress connection, checked rather than assumed.
+   *
+   * The access token renews itself on every call, so it is not the thing that
+   * breaks. What breaks is the REFRESH token behind it: when that lapses, or a
+   * renewal fails, every call starts answering "not connected" — and the first
+   * anyone hears of it is a failed import or, worse, an order that cannot be
+   * placed. Everything built on this API depends on it, so it is worth a line
+   * here rather than a surprise later.
+   */
+  const link = isAliexpressConfigured() ? await storedToken() : null;
+  const daysLeft = link ? Math.floor((link.expiresAt - Date.now()) / DAY) : 0;
+  add({
+    id: 'aliexpress-disconnected',
+    severity: 'critical',
+    title: 'AliExpress is not connected',
+    count: isAliexpressConfigured() && !link ? 1 : 0,
+    detail:
+      'No supplier lookups, no automatic ordering and no SKU recovery. Reconnect from the AliExpress settings.',
+    examples: [],
+  });
+  add({
+    id: 'aliexpress-expiring',
+    severity: 'warning',
+    title: 'AliExpress access token is due to renew',
+    // Only worth mentioning when renewal is overdue rather than merely due:
+    // it renews itself on the next call, so a token expiring in an hour is
+    // normal operation, not a problem.
+    count: link && daysLeft < -1 ? 1 : 0,
+    detail:
+      'It should have renewed itself by now and has not, which usually means the refresh token has lapsed. Reconnect before the next order.',
+    examples: link ? [`expired ${Math.abs(daysLeft)} day(s) ago`] : [],
   });
 
   add({
