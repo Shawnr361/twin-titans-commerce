@@ -56,7 +56,12 @@ export const CATEGORY_RULES: CategoryRule[] = [
        * here said "soap" or "oral". The rules have to know a category before
        * they can be trusted to correct one.
        */
-      'soap', 'body wash', 'shower gel', 'bath bomb', 'scrub', 'exfoliating',
+      /*
+       * "scrub" alone is not a beauty word: it pulled two FLOOR SCRUB BRUSHES
+       * out of Home & Living on the next preview. Qualified forms only.
+       */
+      'soap', 'body wash', 'shower gel', 'bath bomb', 'exfoliating',
+      'body scrub', 'face scrub', 'facial scrub', 'lip scrub',
       'oral', 'tongue', 'dental', 'teeth', 'toothpaste', 'mouth', 'floss',
       'lightening', 'brightening', 'blackhead', 'pore',
       // Fragrance. A live 100ml perfume matched none of the above and sat in

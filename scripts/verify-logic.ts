@@ -422,6 +422,10 @@ void (async () => {
   check('soap is personal care', categorise('Hand Made Turmeric Soap Body Cleaning Lightening'), 'beauty-skincare');
   check('oral care is personal care', categorise('Y-Kelin Tongue Scraper Oral Cleaner Brush'), 'beauty-skincare');
 
+  // Adding "scrub" to beauty pulled these out of Home & Living. Qualified only.
+  check('a floor scrub brush is homeware', categorise('3 in 1 Magic Brush Floor Scrub Brush Broom'), 'home-living');
+  check('a body scrub is not', categorise('Coffee Body Scrub Exfoliating Cream'), 'beauty-skincare');
+
   // The rule that must not regress: a pet clipper is a pet product.
   check('pets still beat beauty', categorise('Pet Hair Clipper Grooming Trimmer for Dogs'), 'pet-supplies');
   // And declining is still allowed — filing something wrongly is worse.
