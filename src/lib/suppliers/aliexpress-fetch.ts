@@ -332,3 +332,33 @@ export async function captureFromApi(
 
   return { capture, problems };
 }
+
+/**
+ * sku_id -> sku_attr, for every SKU on a listing.
+ *
+ * Ordering needs BOTH and they are not interchangeable. sku_id is the numeric
+ * identifier we store; sku_attr is the attribute string that names the choice,
+ * "14:365458#Red;200000828:201589807". Sending the id where the attr belongs is
+ * what produced SKU_NOT_EXIST on every attempted placement — AliExpress looked
+ * for an attribute string, found a number, and refused.
+ *
+ * Read live at placement rather than stored, so a listing that has been edited
+ * since import cannot leave us ordering against an attribute that no longer
+ * exists. It costs one lookup per order, which is nothing against the cost of
+ * ordering the wrong variant.
+ */
+export async function skuAttrMap(productId: string): Promise<Map<string, string>> {
+  const res = await call('aliexpress.ds.product.get', {
+    product_id: productId,
+    ship_to_country: 'NG',
+    target_currency: 'USD',
+    target_language: 'en',
+  });
+  const out = new Map<string, string>();
+  for (const row of findSkuRows(res.body)) {
+    const id = str(pick(row, 'sku_id', 'skuId'));
+    const attr = str(pick(row, 'sku_attr', 'skuAttr'));
+    if (id && attr) out.set(id, attr);
+  }
+  return out;
+}

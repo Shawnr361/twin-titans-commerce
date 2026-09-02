@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { call } from '@/lib/suppliers/aliexpress-api';
+import { skuAttrMap } from '@/lib/suppliers/aliexpress-fetch';
 import { sendShippingNotice } from '@/lib/notify';
 
 /**
@@ -83,6 +84,33 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
   });
 
   if (!so) return { ok: false, detail: 'That supplier order no longer exists.' };
+
+  /*
+   * ONE PAYMENT, ONE SUPPLIER ORDER.
+   *
+   * A customer who buys three things pays once and expects one parcel journey.
+   * Splitting that into three AliExpress orders pays three lots of shipping,
+   * produces three tracking numbers for one purchase, and leaves the merchant
+   * clicking a button per line — which is how the second and third get
+   * forgotten. Every PENDING supplier order on the same customer order is
+   * placed together, in a single call, against one address.
+   *
+   * Anything already placed is left alone: it has been paid for, and ordering
+   * it twice buys it twice.
+   */
+  const siblings = await prisma.supplierOrder.findMany({
+    where: { orderId: so.orderId, status: 'PENDING' },
+    include: {
+      order: { select: { id: true, number: true } },
+      items: {
+        include: {
+          orderLineItem: {
+            select: { productTitle: true, variant: { select: { supplierVariantId: true } } },
+          },
+        },
+      },
+    },
+  });
   if (so.status !== 'PENDING') {
     return {
       ok: false,
@@ -116,13 +144,61 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
     };
   }
 
-  const productItems = so.items.map((i) => ({
-    product_count: i.quantity,
-    product_id: extractProductId(i.sourceUrl),
-    sku_attr: i.externalVariantId ?? i.orderLineItem.variant?.supplierVariantId,
-    logistics_service_name: 'CAINIAO_FULFILLMENT_STD',
-    order_memo: `Store order #${so.order.number}. Please ship with no invoice or price tag.`,
-  }));
+  /*
+   * sku_id and sku_attr are DIFFERENT things and both are required.
+   *
+   * We store the numeric sku_id. AliExpress wants the attribute string in
+   * sku_attr — "14:365458#Red;200000828:201589807" — and sending the id there
+   * is what returned SKU_NOT_EXIST on every attempt: it looked for an attribute
+   * string, found a number, and refused. The map is read live so a listing
+   * edited since import cannot leave us ordering an attribute that is gone.
+   */
+  const attrByProduct = new Map<string, Map<string, string>>();
+  const missingAttr: string[] = [];
+
+  const productItems = [];
+  const allItems = siblings.flatMap((sibling) => sibling.items);
+  for (const i of allItems) {
+    const productId = extractProductId(i.sourceUrl);
+    const skuId = String(i.externalVariantId ?? i.orderLineItem.variant?.supplierVariantId ?? '');
+
+    if (!attrByProduct.has(productId)) {
+      try {
+        attrByProduct.set(productId, await skuAttrMap(productId));
+      } catch {
+        attrByProduct.set(productId, new Map());
+      }
+    }
+    const skuAttr = attrByProduct.get(productId)?.get(skuId);
+    if (!skuAttr) {
+      missingAttr.push(`${i.orderLineItem.productTitle.slice(0, 40)} (sku ${skuId || 'none'})`);
+      continue;
+    }
+
+    productItems.push({
+      product_count: i.quantity,
+      product_id: productId,
+      sku_attr: skuAttr,
+      sku_id: skuId,
+      logistics_service_name: 'CAINIAO_FULFILLMENT_STD',
+      order_memo: `Store order #${so.order.number}. Please ship with no invoice or price tag.`,
+    });
+  }
+
+  /*
+   * Refuse rather than place a partial order. A supplier order that arrives
+   * with two of a customer's three items looks fulfilled in every report we
+   * have, and the missing one is discovered by the customer.
+   */
+  if (missingAttr.length > 0 || productItems.length === 0) {
+    return {
+      ok: false,
+      detail:
+        `AliExpress has no current SKU matching ${missingAttr.length || 'any'} item(s): ` +
+        `${missingAttr.join('; ')}. The listing has probably changed its options since import — ` +
+        `re-import the product, or place this one by hand.`,
+    };
+  }
 
   const payload = {
     param_place_order_request4_open_api_d_t_o: JSON.stringify({
@@ -161,21 +237,31 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
   }
 
   await prisma.$transaction([
-    prisma.supplierOrder.update({
-      where: { id: supplierOrderId },
+    // Every supplier order that went into this one AliExpress order.
+    prisma.supplierOrder.updateMany({
+      where: { id: { in: siblings.map((sibling) => sibling.id) } },
       data: { status: 'PLACED', externalOrderNo: String(number), placedAt: new Date() },
     }),
     prisma.orderEvent.create({
       data: {
         orderId: so.order.id,
         kind: 'supplier_placed',
-        message: `Placed with AliExpress as ${number} via the API.`,
+        message:
+          `Placed with AliExpress as ${number} via the API` +
+          (siblings.length > 1 ? `, covering ${siblings.length} supplier orders in one.` : '.'),
         data: { supplierOrderId, externalOrderNo: String(number) },
       },
     }),
   ]);
 
-  return { ok: true, externalOrderNo: String(number), detail: `Placed as ${number}.` };
+  return {
+    ok: true,
+    externalOrderNo: String(number),
+    detail:
+      siblings.length > 1
+        ? `Placed as ${number} — all ${productItems.length} item(s) from order #${so.order.number} in one supplier order.`
+        : `Placed as ${number}.`,
+  };
 }
 
 /** AliExpress product id out of a listing URL. */
