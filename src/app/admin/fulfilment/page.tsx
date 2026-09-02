@@ -1,3 +1,5 @@
+import { formatMoney } from '@/lib/money';
+import { PlaceWithSupplier } from '@/components/admin/PlaceWithSupplier';
 import { FulfilmentCard } from '@/components/admin/FulfilmentCard';
 import { buildOrderSheet } from '@/lib/dropship/fulfilment';
 import { prisma } from '@/lib/db';
@@ -50,10 +52,48 @@ export default async function FulfilmentPage() {
           Nothing waiting. Every paid order has been placed with its supplier.
         </div>
       ) : (
-        <div className="space-y-4">
-          {valid.map((sheet) => (
-            <FulfilmentCard key={sheet.supplierOrderId} sheet={sheet} />
-          ))}
+        <div className="space-y-10">
+          {/*
+            Grouped by the CUSTOMER's order, not by seller.
+            
+            One payment can span several AliExpress sellers — order #18 has foot
+            socks from one store and a clipper from another — and AliExpress
+            cannot place a single order across sellers. The queue must still
+            show a card per seller, because each becomes its own parcel and its
+            own tracking number. But the merchant should press ONE button: the
+            per-card buttons meant clicking three times for one purchase, and
+            the second and third are exactly what gets forgotten.
+          */}
+          {[...new Map(valid.map((s) => [s.orderId, s])).keys()].map((orderId) => {
+            const group = valid.filter((s) => s.orderId === orderId);
+            const placeable = group.filter(
+              (s) => s.status === 'PENDING' && s.canPlaceAutomatically
+            );
+            return (
+              <section key={orderId} className="space-y-4">
+                {placeable.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-4">
+                    <PlaceWithSupplier
+                      orderId={orderId}
+                      sellerCount={placeable.length}
+                      cost={formatMoney(
+                        placeable.reduce((sum, s) => sum + s.estimatedCostMinor, 0),
+                        group[0].currency
+                      )}
+                    />
+                    <p className="text-micro text-greige">
+                      {placeable.length > 1
+                        ? `Order #${group[0].orderNumber} spans ${placeable.length} sellers — one click places them all, one order each.`
+                        : 'Places and pays on AliExpress with the customer’s address.'}
+                    </p>
+                  </div>
+                )}
+                {group.map((sheet) => (
+                  <FulfilmentCard key={sheet.supplierOrderId} sheet={sheet} />
+                ))}
+              </section>
+            );
+          })}
         </div>
       )}
     </div>

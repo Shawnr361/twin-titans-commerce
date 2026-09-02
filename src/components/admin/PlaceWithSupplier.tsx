@@ -16,11 +16,16 @@ import { useState } from 'react';
  */
 export function PlaceWithSupplier({
   supplierOrderId,
+  orderId,
+  sellerCount = 1,
   cost,
   disabled,
   disabledReason,
 }: {
-  supplierOrderId: string;
+  supplierOrderId?: string;
+  /** Place every outstanding seller order on this customer payment. */
+  orderId?: string;
+  sellerCount?: number;
   cost: string;
   disabled?: boolean;
   disabledReason?: string;
@@ -45,7 +50,7 @@ export function PlaceWithSupplier({
       const res = await fetch('/api/admin/fulfilment/place', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ supplierOrderId }),
+        body: JSON.stringify(orderId ? { orderId } : { supplierOrderId }),
       });
       const body = await res.json().catch(() => ({}));
       setMessage({ ok: Boolean(body?.ok), text: String(body?.detail ?? body?.error ?? '') });
@@ -85,7 +90,7 @@ export function PlaceWithSupplier({
         }}
         className="btn btn-primary !rounded-full px-5 py-2 text-xs"
       >
-        Place with supplier
+        {sellerCount > 1 ? `Place all ${sellerCount} with suppliers` : 'Place with supplier'}
       </button>
     );
   }

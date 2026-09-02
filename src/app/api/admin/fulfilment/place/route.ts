@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { UnauthorizedError, requireAdmin } from '@/lib/auth';
-import { placeWithSupplier } from '@/lib/dropship/aliexpress-place';
+import { placeWholeOrder, placeWithSupplier } from '@/lib/dropship/aliexpress-place';
 
 export const dynamic = 'force-dynamic';
 
-const schema = z.object({ supplierOrderId: z.string().min(1) });
+/*
+ * Either one seller's order, or every outstanding one on a customer's payment.
+ * The queue offers the second: a customer who paid once should cost one click.
+ */
+const schema = z.union([
+  z.object({ supplierOrderId: z.string().min(1) }),
+  z.object({ orderId: z.string().min(1) }),
+]);
 
 /**
  * Place ONE supplier order with AliExpress.
@@ -31,7 +38,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await placeWithSupplier(parsed.data.supplierOrderId);
+    const result =
+      'orderId' in parsed.data
+        ? await placeWholeOrder(parsed.data.orderId)
+        : await placeWithSupplier(parsed.data.supplierOrderId);
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });
   } catch (err) {
     return NextResponse.json(

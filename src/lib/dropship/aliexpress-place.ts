@@ -63,6 +63,50 @@ function countryCode(name: string | undefined): string | null {
 }
 
 /**
+ * International dialling codes for the countries we ship to.
+ *
+ * Kept beside COUNTRY_CODES deliberately: a country we can ship to but cannot
+ * dial is a country whose orders will fail validation at the supplier, so the
+ * two lists must be added to together.
+ */
+const DIAL_CODES: Record<string, string> = {
+  NG: '234',
+  US: '1',
+  GB: '44',
+  CA: '1',
+  GH: '233',
+  ZA: '27',
+  KE: '254',
+  IE: '353',
+  DE: '49',
+  FR: '33',
+};
+
+/**
+ * Split a phone number the way AliExpress wants it.
+ *
+ * It requires the country code in its own field and 9-12 DIGITS in the number,
+ * and rejects the whole order otherwise: "+447936781278" sent as one string
+ * returned B_DROPSHIPPER_DELIVERY_ADDRESS_VALIDATE_FAIL and a real customer's
+ * order would not place.
+ *
+ * The leading zero goes too. British and Nigerian customers write their number
+ * as 07936781278 out of habit; that zero is a domestic dialling prefix, not
+ * part of the number, and leaving it on pushes the length past the limit.
+ */
+function splitPhone(raw: string | undefined, iso: string): { country: string; national: string } | null {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  if (!digits) return null;
+
+  const dial = DIAL_CODES[iso] ?? '';
+  let national = dial && digits.startsWith(dial) ? digits.slice(dial.length) : digits;
+  national = national.replace(/^0+/, '');
+
+  if (national.length < 9 || national.length > 12) return null;
+  return { country: dial ? `+${dial}` : '', national };
+}
+
+/**
  * Place ONE supplier order.
  *
  * Refuses anything already placed: the guard is the stored status plus the
@@ -85,32 +129,7 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
 
   if (!so) return { ok: false, detail: 'That supplier order no longer exists.' };
 
-  /*
-   * ONE PAYMENT, ONE SUPPLIER ORDER.
-   *
-   * A customer who buys three things pays once and expects one parcel journey.
-   * Splitting that into three AliExpress orders pays three lots of shipping,
-   * produces three tracking numbers for one purchase, and leaves the merchant
-   * clicking a button per line — which is how the second and third get
-   * forgotten. Every PENDING supplier order on the same customer order is
-   * placed together, in a single call, against one address.
-   *
-   * Anything already placed is left alone: it has been paid for, and ordering
-   * it twice buys it twice.
-   */
-  const siblings = await prisma.supplierOrder.findMany({
-    where: { orderId: so.orderId, status: 'PENDING' },
-    include: {
-      order: { select: { id: true, number: true } },
-      items: {
-        include: {
-          orderLineItem: {
-            select: { productTitle: true, variant: { select: { supplierVariantId: true } } },
-          },
-        },
-      },
-    },
-  });
+
   if (so.status !== 'PENDING') {
     return {
       ok: false,
@@ -124,6 +143,20 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
     return {
       ok: false,
       detail: `Cannot place: the delivery country "${shipTo?.country ?? 'missing'}" has no ISO code mapped. Add it to COUNTRY_CODES rather than guessing.`,
+    };
+  }
+
+  /*
+   * A number AliExpress will reject is caught here rather than after the call,
+   * so a failure costs nothing and names the field a person has to correct.
+   */
+  const phone = splitPhone(shipTo.phone, code);
+  if (!phone) {
+    return {
+      ok: false,
+      detail:
+        `The delivery phone number "${shipTo.phone ?? '(none)'}" is not one AliExpress will accept — ` +
+        `it needs 9 to 12 digits after the country code. Correct it on the order and try again.`,
     };
   }
 
@@ -157,8 +190,7 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
   const missingAttr: string[] = [];
 
   const productItems = [];
-  const allItems = siblings.flatMap((sibling) => sibling.items);
-  for (const i of allItems) {
+  for (const i of so.items) {
     const productId = extractProductId(i.sourceUrl);
     const skuId = String(i.externalVariantId ?? i.orderLineItem.variant?.supplierVariantId ?? '');
 
@@ -205,8 +237,8 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
       product_items: productItems,
       logistics_address: {
         contact_person: shipTo.name ?? '',
-        phone_country: '',
-        mobile_no: shipTo.phone ?? '',
+        phone_country: phone.country,
+        mobile_no: phone.national,
         address: shipTo.line1 ?? '',
         address2: shipTo.line2 ?? '',
         city: shipTo.city ?? '',
@@ -237,31 +269,21 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
   }
 
   await prisma.$transaction([
-    // Every supplier order that went into this one AliExpress order.
-    prisma.supplierOrder.updateMany({
-      where: { id: { in: siblings.map((sibling) => sibling.id) } },
+    prisma.supplierOrder.update({
+      where: { id: supplierOrderId },
       data: { status: 'PLACED', externalOrderNo: String(number), placedAt: new Date() },
     }),
     prisma.orderEvent.create({
       data: {
         orderId: so.order.id,
         kind: 'supplier_placed',
-        message:
-          `Placed with AliExpress as ${number} via the API` +
-          (siblings.length > 1 ? `, covering ${siblings.length} supplier orders in one.` : '.'),
+        message: `Placed with AliExpress as ${number} via the API.`,
         data: { supplierOrderId, externalOrderNo: String(number) },
       },
     }),
   ]);
 
-  return {
-    ok: true,
-    externalOrderNo: String(number),
-    detail:
-      siblings.length > 1
-        ? `Placed as ${number} — all ${productItems.length} item(s) from order #${so.order.number} in one supplier order.`
-        : `Placed as ${number}.`,
-  };
+  return { ok: true, externalOrderNo: String(number), detail: `Placed as ${number}.` };
 }
 
 /** AliExpress product id out of a listing URL. */
@@ -374,4 +396,59 @@ function findTracking(body: unknown): {
   walk(body);
 
   return { number, carrier, url };
+}
+
+
+/**
+ * Place EVERY outstanding supplier order for one customer payment.
+ *
+ * A customer who buys three things pays once, and the merchant should press one
+ * button — not one per line, which is how the second and third get forgotten.
+ *
+ * WHY IT IS SEVERAL CALLS AND NOT ONE
+ * -----------------------------------
+ * AliExpress cannot place a single order across two different sellers. Order
+ * #18 is exactly that case: the foot socks come from one store, the grooming
+ * gloves and clipper from another. So the queue's grouping is right and the
+ * platform's limit is real — what was wrong was making a person click once per
+ * group. This loops, one call per seller, and reports the result of each.
+ *
+ * It keeps going after a failure rather than stopping. If the socks place and
+ * the clipper does not, the customer is owed one parcel rather than three, and
+ * abandoning the successful one to keep the summary tidy helps nobody.
+ */
+export async function placeWholeOrder(orderId: string): Promise<{
+  ok: boolean;
+  placed: number;
+  failed: number;
+  detail: string;
+}> {
+  const pending = await prisma.supplierOrder.findMany({
+    where: { orderId, status: 'PENDING' },
+    select: { id: true },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  if (pending.length === 0) {
+    return { ok: false, placed: 0, failed: 0, detail: 'Nothing on this order is waiting to be placed.' };
+  }
+
+  const done: string[] = [];
+  const problems: string[] = [];
+
+  for (const row of pending) {
+    const result = await placeWithSupplier(row.id);
+    if (result.ok) done.push(result.externalOrderNo ?? 'placed');
+    else problems.push(result.detail);
+  }
+
+  return {
+    ok: problems.length === 0,
+    placed: done.length,
+    failed: problems.length,
+    detail:
+      problems.length === 0
+        ? `Placed ${done.length} supplier order(s): ${done.join(', ')}.`
+        : `Placed ${done.length}, failed ${problems.length}. ${problems.join(' | ')}`,
+  };
 }
