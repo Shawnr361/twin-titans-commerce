@@ -28,6 +28,8 @@ const schema = z.object({
   /** Cheapest-first, dearest-first, or the supplier's own volume ranking. */
   sort: z.enum(['volume', 'priceAsc', 'priceDesc']).default('volume'),
   page: z.number().int().min(1).max(10).default(1),
+  /** Skip anything below this order count — velocity, filtered at source. */
+  minOrders: z.number().int().min(0).optional(),
   /*
    * Pass a sort value straight through, and see the raw shape of a result.
    *
@@ -44,10 +46,20 @@ const schema = z.object({
   maxPrice: z.number().positive().optional(),
 });
 
+/*
+ * "field,direction", lower case. Established by trying every plausible name and
+ * comparing the first result: LAST_VOLUME_DESC, ORDERS_DESC, volume_desc,
+ * SALE_PRICE_ASC and an empty value ALL returned the identical default ranking
+ * (a 4,000-order product), while `orders,desc` returned a 50,000-order one.
+ *
+ * The affiliate API's SHOUTED_CONSTANT names are silently ignored here rather
+ * than rejected, which is why a whole scouting sweep sampled new listings with
+ * no order history and looked like a market with no best-sellers.
+ */
 const SORT: Record<string, string> = {
-  volume: 'LAST_VOLUME_DESC',
-  priceAsc: 'SALE_PRICE_ASC',
-  priceDesc: 'SALE_PRICE_DESC',
+  volume: 'orders,desc',
+  priceAsc: 'price,asc',
+  priceDesc: 'price,desc',
 };
 
 type Row = Record<string, unknown>;
@@ -102,7 +114,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Give a search term.' }, { status: 400 });
   }
-  const { q, sort, page, maxPrice, rawSort, debug } = parsed.data;
+  const { q, sort, page, maxPrice, rawSort, debug, minOrders } = parsed.data;
 
   const res = await call('aliexpress.ds.text.search', {
     keyWord: q,
@@ -131,12 +143,18 @@ export async function POST(request: Request) {
   const seen = new Set<string>();
   const results = rows
     .map((row) => {
-      const id = str(pick(row, 'product_id', 'productId', 'item_id', 'itemId')) ?? '';
-      const sale = num(pick(row, 'target_sale_price', 'sale_price', 'app_sale_price'));
-      const list = num(pick(row, 'target_original_price', 'original_price'));
+      /*
+       * camelCase, confirmed against a real reply's own field list. The
+       * snake_case guesses here previously matched nothing, so every result
+       * came back with no price and no rating — which read as "the API does not
+       * return them" rather than "they are spelled differently".
+       */
+      const id = str(pick(row, 'itemId', 'productId', 'product_id')) ?? '';
+      const sale = num(pick(row, 'targetSalePrice', 'salePrice'));
+      const list = num(pick(row, 'targetOriginalPrice', 'originalPrice', 'originMinPrice'));
       return {
         id,
-        title: str(pick(row, 'product_title', 'productTitle', 'subject', 'title')) ?? '',
+        title: str(pick(row, 'title', 'productTitle', 'subject')) ?? '',
         salePrice: sale,
         listPrice: list,
         /*
@@ -147,15 +165,17 @@ export async function POST(request: Request) {
          * catalogue ends up priced against a number that expires.
          */
         discountPct: sale && list && list > sale ? Math.round((1 - sale / list) * 100) : 0,
-        rating: num(pick(row, 'evaluate_rate', 'evaluation_rate', 'avg_evaluation_rating')),
-        orders: num(pick(row, 'lastest_volume', 'latest_volume', 'orders', 'sales_count')),
-        image: str(pick(row, 'product_main_image_url', 'image_url', 'main_image_url')),
+        rating: num(pick(row, 'evaluateRate', 'evaluate_rate')),
+        // Arrives as "50,000+" — num() keeps the digits.
+        orders: num(pick(row, 'orders', 'lastestVolume')),
+        image: str(pick(row, 'itemMainPic', 'productMainImageUrl')),
       };
     })
     .filter((r) => {
       if (!r.id || seen.has(r.id)) return false;
       seen.add(r.id);
       if (maxPrice && r.listPrice && r.listPrice > maxPrice) return false;
+      if (minOrders !== undefined && (r.orders ?? 0) < minOrders) return false;
       return true;
     });
 
