@@ -28,6 +28,18 @@ const schema = z.object({
   /** Cheapest-first, dearest-first, or the supplier's own volume ranking. */
   sort: z.enum(['volume', 'priceAsc', 'priceDesc']).default('volume'),
   page: z.number().int().min(1).max(10).default(1),
+  /*
+   * Pass a sort value straight through, and see the raw shape of a result.
+   *
+   * The documented sort names for this method are not the ones the affiliate
+   * API uses, and a wrong value is ACCEPTED SILENTLY — results come back
+   * unsorted rather than as an error, which looked like "AliExpress has no
+   * best-sellers" instead of "the parameter was ignored". Being able to try a
+   * value and read the field names back settles it in one call instead of a
+   * deploy per guess.
+   */
+  rawSort: z.string().optional(),
+  debug: z.boolean().optional(),
   /** Ceiling in the supplier's currency, to skip units that cannot carry margin. */
   maxPrice: z.number().positive().optional(),
 });
@@ -90,14 +102,14 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Give a search term.' }, { status: 400 });
   }
-  const { q, sort, page, maxPrice } = parsed.data;
+  const { q, sort, page, maxPrice, rawSort, debug } = parsed.data;
 
   const res = await call('aliexpress.ds.text.search', {
     keyWord: q,
     local: 'en_US',
     countryCode: 'NG',
     currency: 'USD',
-    sortBy: SORT[sort],
+    sortBy: rawSort ?? SORT[sort],
     pageSize: '20',
     pageIndex: String(page),
   });
@@ -158,7 +170,8 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     q,
-    sort,
+    sort: rawSort ?? sort,
+    ...(debug ? { rawFields: Object.keys(rows[0] ?? {}), rawFirst: rows[0] } : {}),
     results: results.map((r) => ({
       ...r,
       alreadyInStore: ownedBy.get(r.id) ?? null,
