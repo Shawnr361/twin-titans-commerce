@@ -415,6 +415,13 @@ void (async () => {
   check('a sewing machine is homeware', categorise('Sewing Machine Household Small Multi-Function Portable'), 'home-living');
   check('a back scratcher is personal care', categorise('Back Scratcher Massage Stick with Rubber Handles'), 'beauty-skincare');
 
+  /*
+   * Both were live in Beauty and a re-file preview was about to move them to
+   * Home & Living on the word "cleaning". Personal care is not homeware.
+   */
+  check('soap is personal care', categorise('Hand Made Turmeric Soap Body Cleaning Lightening'), 'beauty-skincare');
+  check('oral care is personal care', categorise('Y-Kelin Tongue Scraper Oral Cleaner Brush'), 'beauty-skincare');
+
   // The rule that must not regress: a pet clipper is a pet product.
   check('pets still beat beauty', categorise('Pet Hair Clipper Grooming Trimmer for Dogs'), 'pet-supplies');
   // And declining is still allowed — filing something wrongly is worse.

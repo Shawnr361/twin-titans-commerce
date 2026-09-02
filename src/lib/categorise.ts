@@ -49,6 +49,16 @@ export const CATEGORY_RULES: CategoryRule[] = [
       'serum', 'moisturiser', 'moisturizer', 'cream', 'facial', 'face', 'lash',
       'nail', 'lipstick', 'makeup', 'cosmetic', 'wig', 'hair dryer', 'straightener',
       'curler', 'massager', 'massage', 'back scratcher', 'toothbrush', 'epilator',
+      /*
+       * Personal care the first pass had no vocabulary for. Found by previewing
+       * a re-file: turmeric soap and a tongue scraper were about to be moved
+       * into Home & Living, because "cleaning" is a homeware word and nothing
+       * here said "soap" or "oral". The rules have to know a category before
+       * they can be trusted to correct one.
+       */
+      'soap', 'body wash', 'shower gel', 'bath bomb', 'scrub', 'exfoliating',
+      'oral', 'tongue', 'dental', 'teeth', 'toothpaste', 'mouth', 'floss',
+      'lightening', 'brightening', 'blackhead', 'pore',
       // Fragrance. A live 100ml perfume matched none of the above and sat in
       // no collection at all, which is how this gap was found.
       'perfume', 'parfum', 'fragrance', 'cologne', 'eau de toilette',
