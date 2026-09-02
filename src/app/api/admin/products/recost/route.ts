@@ -50,6 +50,11 @@ const schema = z.object({
   apply: z.boolean().optional(),
   /** Stop after this many products, so a first look is quick and cheap. */
   limit: z.number().int().min(1).max(200).optional(),
+  /*
+   * Paging exists because each product costs one supplier lookup, and a hundred
+   * of those outlives any sensible request timeout.
+   */
+  offset: z.number().int().min(0).optional(),
 });
 
 interface Change {
@@ -77,6 +82,7 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => ({})));
   const apply = parsed.success ? Boolean(parsed.data.apply) : false;
   const limit = (parsed.success && parsed.data.limit) || 200;
+  const offset = (parsed.success && parsed.data.offset) || 0;
 
   const [settings, rules] = await Promise.all([getStoreSettings(), getPricingRules()]);
 
@@ -98,12 +104,16 @@ export async function POST(request: Request) {
         },
       },
     },
+    // A stable order, or paging would revisit and skip products at random.
+    orderBy: { id: 'asc' },
+    skip: offset,
     take: limit,
   });
 
   const changes: Change[] = [];
   const skipped: string[] = [];
   let checked = 0;
+  let alreadyCorrect = 0;
 
   for (const p of products) {
     const externalId = p.source?.externalId;
@@ -169,6 +179,12 @@ export async function POST(request: Request) {
       const newLanded = newConverted + shippingPortion;
       const priced = computePrice(newLanded, rules);
 
+      // Already re-costed on an earlier run: nothing to say and nothing to do.
+      if (Math.abs(v.costMinor - newLanded) <= 1 && v.priceMinor === priced.priceMinor) {
+        alreadyCorrect++;
+        continue;
+      }
+
       changes.push({
         handle: p.handle,
         title: p.title.slice(0, 46),
@@ -185,7 +201,16 @@ export async function POST(request: Request) {
         await prisma.variant.update({
           where: { id: v.id },
           data: {
-            sourceCostMinor: newSource,
+            /*
+             * sourceCostMinor is deliberately NOT written.
+             *
+             * It is the supplier's own listed figure at import — the historical
+             * record this calculation starts from. Overwriting it would make a
+             * second run scale an already-scaled number and halve every price
+             * again. Leaving it alone makes the run idempotent: the same input
+             * always produces the same output, so it is safe to re-run, safe to
+             * run in pages, and safe if a request times out half way.
+             */
             costMinor: newLanded,
             priceMinor: priced.priceMinor,
             compareAtMinor: priced.compareAtMinor ?? null,
@@ -201,6 +226,8 @@ export async function POST(request: Request) {
   return NextResponse.json({
     applied: apply,
     productsChecked: checked,
+    nextOffset: offset + products.length,
+    variantsAlreadyCorrect: alreadyCorrect,
     variantsChanged: changes.length,
     productsAffected: new Set(changes.map((c) => c.handle)).size,
     averagePriceDropPct:
