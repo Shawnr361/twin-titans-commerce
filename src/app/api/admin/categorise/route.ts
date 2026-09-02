@@ -22,7 +22,19 @@ import { ensureCollection } from '@/lib/filing';
  * POST { apply: false } reports what it would do and changes nothing.
  * POST { apply: true }  files them.
  */
-const schema = z.object({ apply: z.boolean().optional() });
+const schema = z.object({
+  apply: z.boolean().optional(),
+  /*
+   * Re-examine products that ALREADY have a category.
+   *
+   * Off by default, because moving a product a merchant filed by hand would be
+   * rude and invisible. But filing only unfiled products means a rule added
+   * later never reaches the catalogue: a gaming mouse imported before "gaming
+   * mouse" was a keyword sat in Gadgets & Lighting for good, and the fix looked
+   * like it had done nothing.
+   */
+  refile: z.boolean().optional(),
+});
 
 export async function POST(request: Request) {
   try {
@@ -36,6 +48,7 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(await request.json().catch(() => ({})));
   const apply = parsed.success ? Boolean(parsed.data.apply) : false;
+  const refile = parsed.success ? Boolean(parsed.data.refile) : false;
 
   const [products, collections] = await Promise.all([
     prisma.product.findMany({
@@ -57,9 +70,42 @@ export async function POST(request: Request) {
   const createdCollections = new Set<string>();
   let alreadyFiled = 0;
 
+  const byId = new Map(collections.map((c) => [c.id, c.handle]));
+  const moved: { title: string; from: string; to: string }[] = [];
+
   for (const product of products) {
     if (product.collections.length > 0) {
-      alreadyFiled++;
+      if (!refile) {
+        alreadyFiled++;
+        continue;
+      }
+      /*
+       * Only a product whose CURRENT filing disagrees with the rules is moved,
+       * and only when the rules have an opinion at all. A product the rules
+       * cannot place is left exactly where it is rather than being emptied out
+       * of a category someone chose deliberately.
+       */
+      const should = categorise(product.title, product.productType);
+      const current = product.collections
+        .map((c) => byId.get(c.collectionId))
+        .filter((h): h is string => Boolean(h));
+      if (!should || current.includes(should)) {
+        alreadyFiled++;
+        continue;
+      }
+      const target = byHandle.get(should);
+      if (!target) {
+        missingCollection.push({ title: product.title, handle: should });
+        continue;
+      }
+      moved.push({ title: product.title, from: current.join(', ') || '(none)', to: should });
+      if (apply) {
+        await prisma.collectionProduct.deleteMany({ where: { productId: product.id } });
+        await prisma.collectionProduct.createMany({
+          data: [{ productId: product.id, collectionId: target }],
+          skipDuplicates: true,
+        });
+      }
       continue;
     }
     const handle = categorise(product.title, product.productType);
@@ -103,6 +149,7 @@ export async function POST(request: Request) {
     collections: collections.map((c) => c.handle),
     filed: planned,
     alreadyFiled,
+    moved,
     // Named plainly: these were left alone on purpose, not skipped by accident.
     noMatch: unmatched,
     collectionMissing: missingCollection,
