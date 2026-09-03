@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { formatMoney } from '@/lib/money';
-import { PlaceWithSupplier } from '@/components/admin/PlaceWithSupplier';
 
 interface Sheet {
   supplierOrderId: string;
@@ -239,17 +238,14 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
         older captures do not carry one — so the hand path is not a fallback
         for failure, it is the normal route for those products.
       */}
-      {sheet.status === 'PENDING' && sheet.canPlaceAutomatically && (
-        <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-5">
-          <PlaceWithSupplier
-            supplierOrderId={sheet.supplierOrderId}
-            cost={formatMoney(sheet.estimatedCostMinor, sheet.currency)}
-          />
-          <p className="text-[11px] text-greige">
-            Places and pays on AliExpress with the customer&rsquo;s address. No confirm step there.
-          </p>
-        </div>
-      )}
+      {/*
+        NO PLACE BUTTON HERE, DELIBERATELY.
+        
+        It lives once per CUSTOMER ORDER, above the group, because one payment
+        should cost one click. A button per card meant three clicks for one
+        purchase — and when the grouped button was added without removing this
+        one, the queue showed both, which is worse than either.
+      */}
 
       <div className="grid gap-4 border-t border-rule pt-5 sm:grid-cols-2">
         <form onSubmit={onPlace} className="flex gap-2">
