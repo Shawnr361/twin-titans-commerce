@@ -1,4 +1,4 @@
-import { prisma } from '../db';
+import { sendDeliveryNotice, sendShippingNotice } from '@/lib/notify';import { prisma } from '../db';
 import type { Platform } from '../suppliers/types';
 
 /**
@@ -317,6 +317,55 @@ export async function markShipped(
       message: `Tracking ${trackingNumber}${carrier ? ` (${carrier})` : ''}.`,
     },
   });
+
+  /*
+   * TELL THE CUSTOMER. This was missing.
+   *
+   * The cron that reads tracking from AliExpress sent the notice; typing the
+   * number in by hand did not. So an order tracked manually — which is every
+   * order placed before automatic placing worked — recorded a tracking number,
+   * flipped to SHIPPED, and told the buyer nothing at all.
+   *
+   * Non-fatal by the same rule as everywhere else: a mail failure must not undo
+   * a shipment that really happened. sendShippingNotice records its own
+   * failures as order events and refuses to send twice for one number.
+   */
+  await sendShippingNotice(supplierOrderId);
+}
+
+/**
+ * The parcel arrived.
+ *
+ * Nothing set DELIVERED before this — the status existed in the schema, the
+ * fulfilment summary counted it, and no code path ever reached it. Two things
+ * were broken by that silence: a customer never heard that their parcel landed,
+ * and REVIEWS WERE UNREACHABLE, because a review requires a shipment marked
+ * delivered. The store could not have collected a single one.
+ */
+export async function markDelivered(supplierOrderId: string): Promise<void> {
+  const so = await prisma.supplierOrder.update({
+    where: { id: supplierOrderId },
+    data: { status: 'DELIVERED', deliveredAt: new Date() },
+    include: { order: { include: { supplierOrders: true } } },
+  });
+
+  // The customer's order is delivered only once every leg of it has arrived.
+  const allDelivered = so.order.supplierOrders.every(
+    (s) => s.status === 'DELIVERED' || s.status === 'CANCELLED'
+  );
+  if (allDelivered) {
+    await prisma.order.update({ where: { id: so.orderId }, data: { status: 'DELIVERED' } });
+  }
+
+  await prisma.orderEvent.create({
+    data: {
+      orderId: so.orderId,
+      kind: 'supplier_delivered',
+      message: `Marked delivered${so.trackingNumber ? ` (${so.trackingNumber})` : ''}.`,
+    },
+  });
+
+  await sendDeliveryNotice(supplierOrderId);
 }
 
 /**

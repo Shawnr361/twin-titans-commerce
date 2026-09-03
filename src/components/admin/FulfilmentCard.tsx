@@ -55,7 +55,7 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
   };
 
   const act = async (
-    action: 'place' | 'ship' | 'cancel' | 'refund',
+    action: 'place' | 'ship' | 'deliver' | 'cancel' | 'refund',
     payload: Record<string, string>
   ) => {
     setBusy(true);
@@ -238,6 +238,31 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
         older captures do not carry one — so the hand path is not a fallback
         for failure, it is the normal route for those products.
       */}
+      {/*
+        A shipped parcel needs one more step, and nothing offered it before.
+        
+        The tracking cron marks delivery for orders it placed. Anything ordered
+        by hand has no AliExpress order number, so nothing will ever mark it —
+        and until something does, the customer hears nothing and CANNOT leave a
+        review, because a review requires a delivered shipment.
+      */}
+      {sheet.status === 'SHIPPED' && (
+        <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-5">
+          <button
+            type="button"
+            onClick={() => act('deliver', {})}
+            disabled={busy}
+            className="btn !rounded-full px-5 py-2 text-xs disabled:opacity-60"
+          >
+            Mark delivered
+          </button>
+          <p className="text-[11px] text-greige">
+            Emails the customer that it arrived and invites a review. Orders placed
+            through the button mark themselves when the carrier confirms.
+          </p>
+        </div>
+      )}
+
       {/*
         NO PLACE BUTTON HERE, DELIBERATELY.
         

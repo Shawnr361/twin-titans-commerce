@@ -197,3 +197,77 @@ function formatAddress(raw: unknown): string {
     .map((l) => `  ${l}`)
     .join('\n');
 }
+
+/**
+ * The parcel arrived — and the one moment a review is worth asking for.
+ *
+ * Sent when a shipment reaches DELIVERED, which until now nothing ever set. It
+ * asks for a review deliberately: the store's review system only accepts one
+ * from a customer whose shipment was delivered, so this email is both the
+ * courtesy and the entire supply of reviews. Asking a week later, out of the
+ * blue, gets ignored; asking the day it lands does not.
+ *
+ * Idempotent on the same rule as the others — one delivery, one email — because
+ * a cron that re-reads tracking must not thank someone twice.
+ */
+export async function sendDeliveryNotice(supplierOrderId: string): Promise<void> {
+  if (!isMailConfigured()) return;
+
+  try {
+    const so = await prisma.supplierOrder.findUnique({
+      where: { id: supplierOrderId },
+      include: {
+        order: { select: { id: true, number: true, email: true } },
+        items: { include: { orderLineItem: { select: { productTitle: true } } } },
+      },
+    });
+    if (!so?.order) return;
+
+    const already = await prisma.orderEvent.findFirst({
+      where: { orderId: so.order.id, kind: 'email_delivered' },
+      select: { id: true },
+    });
+    if (already) return;
+
+    const settings = await getStoreSettings();
+    const what = so.items
+      .map((i) => `  ${i.quantity} x ${i.orderLineItem.productTitle.slice(0, 70)}`)
+      .join('\n');
+
+    await sendMail({
+      to: so.order.email,
+      from: settings.notificationEmail || settings.supportEmail || undefined,
+      replyTo: settings.supportEmail || settings.notificationEmail || undefined,
+      subject: `Your order #${so.order.number} has arrived — ${settings.storeName}`,
+      text: [
+        `Your parcel from order #${so.order.number} has been delivered.`,
+        '',
+        what,
+        '',
+        'If it has not reached you, reply to this email and we will chase it —',
+        'a carrier occasionally marks a parcel delivered a day early.',
+        '',
+        `Would you leave a review? ${siteOrigin()}/reviews`,
+        'It takes a minute and it is the main thing that helps another shopper',
+        'decide, especially on a young shop.',
+        '',
+        settings.storeName,
+      ]
+        .filter((line) => line !== undefined)
+        .join('\n'),
+    });
+
+    await prisma.orderEvent.create({
+      data: {
+        orderId: so.order.id,
+        kind: 'email_delivered',
+        message: `Delivery confirmation emailed to ${so.order.email}.`,
+      },
+    });
+  } catch (err) {
+    const so = await prisma.supplierOrder
+      .findUnique({ where: { id: supplierOrderId }, select: { orderId: true } })
+      .catch(() => null);
+    if (so) await recordFailure(so.orderId, 'delivery notice', err);
+  }
+}

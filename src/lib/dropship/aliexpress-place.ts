@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db';
 import { call } from '@/lib/suppliers/aliexpress-api';
 import { skuAttrMap } from '@/lib/suppliers/aliexpress-fetch';
-import { sendShippingNotice } from '@/lib/notify';
+import { sendDeliveryNotice, sendShippingNotice } from '@/lib/notify';
 
 /**
  * Place supplier orders with AliExpress, and pull tracking back.
@@ -319,6 +319,7 @@ export interface TrackingSyncResult {
   checked: number;
   updated: number;
   notified: number;
+  delivered: number;
   problems: string[];
 }
 
@@ -332,13 +333,13 @@ export interface TrackingSyncResult {
  */
 export async function syncTracking(limit = 20): Promise<TrackingSyncResult> {
   const placed = await prisma.supplierOrder.findMany({
-    where: { status: 'PLACED', externalOrderNo: { not: null } },
-    select: { id: true, externalOrderNo: true, trackingNumber: true },
+    where: { status: { in: ['PLACED', 'SHIPPED'] }, externalOrderNo: { not: null } },
+    select: { id: true, externalOrderNo: true, trackingNumber: true, status: true },
     take: limit,
     orderBy: { placedAt: 'asc' },
   });
 
-  const out: TrackingSyncResult = { checked: 0, updated: 0, notified: 0, problems: [] };
+  const out: TrackingSyncResult = { checked: 0, updated: 0, notified: 0, delivered: 0, problems: [] };
 
   for (const so of placed) {
     out.checked++;
@@ -348,6 +349,23 @@ export async function syncTracking(limit = 20): Promise<TrackingSyncResult> {
       });
 
       const info = findTracking(res.body);
+
+      /*
+       * Delivery is checked BEFORE the tracking-number guard. A parcel whose
+       * number has not changed is exactly the one most likely to have arrived
+       * since the last run, and returning early on it is why nothing ever
+       * reached DELIVERED.
+       */
+      if (so.status === 'SHIPPED' && looksDelivered(res.body)) {
+        await prisma.supplierOrder.update({
+          where: { id: so.id },
+          data: { status: 'DELIVERED', deliveredAt: new Date() },
+        });
+        await sendDeliveryNotice(so.id);
+        out.delivered++;
+        continue;
+      }
+
       if (!info.number || info.number === so.trackingNumber) continue;
 
       await prisma.supplierOrder.update({
@@ -371,6 +389,39 @@ export async function syncTracking(limit = 20): Promise<TrackingSyncResult> {
   }
 
   return out;
+}
+
+/**
+ * Has the carrier said it arrived?
+ *
+ * Read by shape, because the field naming varies by carrier and by route:
+ * any status-looking key whose value says delivered, signed or received. A
+ * false positive here emails a customer that a parcel they are still waiting
+ * for has arrived, so the words are deliberately narrow — "in transit" and
+ * "out for delivery" must not match, which is why "deliver" alone is not
+ * enough and the test looks for delivered/signed/received.
+ */
+function looksDelivered(body: unknown): boolean {
+  let hit = false;
+  const walk = (v: unknown) => {
+    if (hit || !v || typeof v !== 'object') return;
+    if (Array.isArray(v)) {
+      v.forEach(walk);
+      return;
+    }
+    for (const [key, value] of Object.entries(v as Record<string, unknown>)) {
+      if (hit) return;
+      if (typeof value === 'string' && /status|state|event|desc/i.test(key)) {
+        if (/(delivered|signed|received by)/i.test(value)) {
+          hit = true;
+          return;
+        }
+      }
+      walk(value);
+    }
+  };
+  walk(body);
+  return hit;
 }
 
 function findTracking(body: unknown): {

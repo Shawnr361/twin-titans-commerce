@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { UnauthorizedError, requireAdmin } from '@/lib/auth';
 import {
+  markDelivered,
   markOrderRefunded,
   markPlaced,
   markShipped,
@@ -19,6 +20,17 @@ const schema = z.discriminatedUnion('action', [
     supplierOrderId: z.string().min(1),
     trackingNumber: z.string().min(1),
     carrier: z.string().optional(),
+  }),
+  /*
+   * Manual delivery, for parcels the API cannot see.
+   *
+   * Anything placed by hand has no AliExpress order number, so the tracking
+   * cron can never mark it delivered — and a review cannot be left until
+   * something does.
+   */
+  z.object({
+    action: z.literal('deliver'),
+    supplierOrderId: z.string().min(1),
   }),
   z.object({
     action: z.literal('cancel'),
@@ -59,6 +71,11 @@ export async function POST(request: Request) {
         parsed.data.trackingNumber,
         parsed.data.carrier || undefined
       );
+      return NextResponse.json({ ok: true });
+    }
+
+    if (parsed.data.action === 'deliver') {
+      await markDelivered(parsed.data.supplierOrderId);
       return NextResponse.json({ ok: true });
     }
 
