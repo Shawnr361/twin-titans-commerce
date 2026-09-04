@@ -24,6 +24,8 @@ export interface MailMessage {
   from?: string;
   subject: string;
   text: string;
+  /** Optional HTML alternative. When present the message goes out multipart. */
+  html?: string;
   replyTo?: string;
 }
 
@@ -67,6 +69,59 @@ function header(value: string): string {
 /** SMTP wants CRLF, and a lone "." would end the DATA stage early. */
 function dotStuff(body: string): string {
   return body.replace(/\r?\n/g, '\r\n').replace(/^\./gm, '..');
+}
+
+/**
+ * Base64, wrapped at 76 characters.
+ *
+ * NOT an optimisation — a correctness requirement. SMTP limits a line to 1000
+ * characters including the CRLF, and the HTML these messages carry is one long
+ * inline-styled line per element; several run past 1500. Sent as 8bit they are
+ * folded or rejected by the first server that enforces the limit, and the
+ * customer gets a receipt with broken markup through the middle of it.
+ */
+function base64Lines(value: string): string {
+  const encoded = Buffer.from(value, 'utf8').toString('base64');
+  return (encoded.match(/.{1,76}/g) ?? []).join('\r\n');
+}
+
+/**
+ * The content headers and body for one message.
+ *
+ * Text-only stays exactly as it was — that path delivers real customer mail
+ * today and there is no reason to disturb it. With HTML present the message
+ * becomes multipart/alternative: text first, HTML second, because a client
+ * shows the LAST part it understands.
+ */
+function buildContent(message: MailMessage): { headers: string[]; body: string } {
+  if (!message.html) {
+    return {
+      headers: ['Content-Type: text/plain; charset=utf-8'],
+      body: message.text,
+    };
+  }
+
+  const boundary = `--=_tt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+
+  return {
+    headers: [`Content-Type: multipart/alternative; boundary="${boundary}"`],
+    body: [
+      'This is a message in MIME format.',
+      '',
+      `--${boundary}`,
+      'Content-Type: text/plain; charset=utf-8',
+      'Content-Transfer-Encoding: base64',
+      '',
+      base64Lines(message.text),
+      `--${boundary}`,
+      'Content-Type: text/html; charset=utf-8',
+      'Content-Transfer-Encoding: base64',
+      '',
+      base64Lines(message.html),
+      `--${boundary}--`,
+      '',
+    ].join('\r\n'),
+  };
 }
 
 interface Conn {
@@ -198,13 +253,15 @@ export async function sendMail(message: MailMessage): Promise<void> {
   const from = header(process.env.SMTP_FROM || message.from || message.to);
   const to = header(message.to);
 
+  const content = buildContent(message);
+
   const headerBlock = [
     `From: Twin Titans Emporium <${from}>`,
     `To: <${to}>`,
     message.replyTo ? `Reply-To: <${header(message.replyTo)}>` : '',
     `Subject: ${header(message.subject)}`,
     'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
+    ...content.headers,
     `Date: ${new Date().toUTCString()}`,
   ]
     .filter(Boolean)
@@ -215,7 +272,7 @@ export async function sendMail(message: MailMessage): Promise<void> {
    * needs no mailbox password anywhere.
    */
   if (process.env.MAIL_TRANSPORT !== 'smtp') {
-    const sent = await sendViaSendmail(`${headerBlock}\r\n\r\n${message.text}\r\n`, from);
+    const sent = await sendViaSendmail(`${headerBlock}\r\n\r\n${content.body}\r\n`, from);
     if (sent) return;
   }
 
@@ -234,7 +291,7 @@ export async function sendMail(message: MailMessage): Promise<void> {
     await say(conn, `RCPT TO:<${to}>`, 250);
     await say(conn, 'DATA', 354);
 
-    conn.socket.write(`${headerBlock}\r\n\r\n${dotStuff(message.text)}\r\n.\r\n`);
+    conn.socket.write(`${headerBlock}\r\n\r\n${dotStuff(content.body)}\r\n.\r\n`);
     await say(conn, '', 250);
     await say(conn, 'QUIT', 221).catch(() => undefined);
   } finally {

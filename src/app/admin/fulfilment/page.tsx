@@ -1,6 +1,7 @@
 import { formatMoney } from '@/lib/money';
-import { PlaceWithSupplier } from '@/components/admin/PlaceWithSupplier';
+import { PlaceOnAliExpress } from '@/components/admin/PlaceOnAliExpress';
 import { FulfilmentCard } from '@/components/admin/FulfilmentCard';
+import { aliexpressItemUrl } from '@/lib/dropship/aliexpress-cart';
 import { buildOrderSheet } from '@/lib/dropship/fulfilment';
 import { prisma } from '@/lib/db';
 
@@ -66,27 +67,56 @@ export default async function FulfilmentPage() {
           */}
           {[...new Map(valid.map((s) => [s.orderId, s])).keys()].map((orderId) => {
             const group = valid.filter((s) => s.orderId === orderId);
-            const placeable = group.filter(
-              (s) => s.status === 'PENDING' && s.canPlaceAutomatically
+
+            /*
+             * Every outstanding AliExpress purchase on this payment.
+             *
+             * Note what is NOT filtered here: canPlaceAutomatically. That flag
+             * gates the API, which refuses a line with no supplier SKU because
+             * it would let AliExpress choose the variant. Buying by hand has no
+             * such problem — the merchant sees the options on the page and
+             * picks the right one — so the products that flag excludes are
+             * exactly the ones that most need this button.
+             */
+            const pending = group.filter(
+              (s) => s.status === 'PENDING' && s.platform === 'ALIEXPRESS'
             );
+
+            const lines = pending.flatMap((sheet) =>
+              sheet.lines.map((line) => ({
+                title: line.title ?? '',
+                url: aliexpressItemUrl(line.url, line.sku, line.quantity),
+                variant: line.variant,
+                sku: line.sku,
+                quantity: line.quantity,
+              }))
+            );
+
+            const shipTo = group[0].shipTo;
+            const addressText = [
+              shipTo.name,
+              shipTo.line1,
+              shipTo.line2,
+              [shipTo.city, shipTo.state].filter(Boolean).join(', '),
+              [shipTo.postcode, shipTo.country].filter(Boolean).join(' '),
+              shipTo.phone ? `Tel: ${shipTo.phone}` : '',
+            ]
+              .filter(Boolean)
+              .join('\n');
+
             return (
               <section key={orderId} className="space-y-4">
-                {placeable.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-4">
-                    <PlaceWithSupplier
-                      orderId={orderId}
-                      sellerCount={placeable.length}
-                      cost={formatMoney(
-                        placeable.reduce((sum, s) => sum + s.estimatedCostMinor, 0),
-                        group[0].currency
-                      )}
-                    />
-                    <p className="text-micro text-greige">
-                      {placeable.length > 1
-                        ? `Order #${group[0].orderNumber} spans ${placeable.length} sellers — one click places them all, one order each.`
-                        : 'Places and pays on AliExpress with the customer’s address.'}
-                    </p>
-                  </div>
+                {lines.length > 0 && (
+                  <PlaceOnAliExpress
+                    orderNumber={group[0].orderNumber}
+                    lines={lines}
+                    addressText={addressText}
+                    sellerCount={pending.length}
+                    cost={formatMoney(
+                      pending.reduce((sum, s) => sum + s.estimatedCostMinor, 0),
+                      group[0].currency
+                    )}
+                  />
                 )}
                 {group.map((sheet) => (
                   <FulfilmentCard key={sheet.supplierOrderId} sheet={sheet} />
