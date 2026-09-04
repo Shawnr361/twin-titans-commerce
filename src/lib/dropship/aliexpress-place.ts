@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { call } from '@/lib/suppliers/aliexpress-api';
 import { provinceFor } from '@/lib/dropship/address';
+import { findOrderNumber, refusalMessage } from '@/lib/dropship/aliexpress-reply';
 import { skuAttrMap } from '@/lib/suppliers/aliexpress-fetch';
 import { sendDeliveryNotice, sendShippingNotice } from '@/lib/notify';
 
@@ -282,14 +283,29 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
       })
       .catch(() => undefined);
 
+    const refusal = refusalMessage(res.body);
+
     return {
       ok: false,
       /*
-       * Raw, deliberately. A refusal here is nearly always a missing balance,
-       * an address field they will not accept, or a SKU AliExpress no longer
-       * sells — and only its own wording distinguishes them.
+       * The warning matters more than the wording.
+       *
+       * "No order number" does NOT prove no order was created — that
+       * assumption is exactly what produced four unpaid orders for two items
+       * on order #20. Whoever reads this must check the account before
+       * pressing anything again.
+       *
+       * The raw reply is kept after the plain-English part: a refusal is
+       * usually a missing balance, an address field they will not accept, or a
+       * SKU they no longer sell, and only their own wording separates those.
        */
-      detail: `AliExpress did not return an order number. Raw reply: ${text.slice(0, 700)}`,
+      detail:
+        (refusal
+          ? `AliExpress refused this order: ${refusal}. `
+          : 'AliExpress returned no order number and no reason. ') +
+        'CHECK "My Orders" ON ALIEXPRESS BEFORE TRYING AGAIN — an order can be created even when ' +
+        'the reply cannot be read, and pressing again would buy it twice. ' +
+        `Raw reply: ${text.slice(0, 600)}`,
     };
   }
 
@@ -302,13 +318,29 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
       data: {
         orderId: so.order.id,
         kind: 'supplier_placed',
-        message: `Placed with AliExpress as ${number} via the API.`,
+        message: `Placed with AliExpress as ${number} via the API — pay it on AliExpress.`,
         data: { supplierOrderId, externalOrderNo: String(number) },
       },
     }),
   ]);
 
-  return { ok: true, externalOrderNo: String(number), detail: `Placed as ${number}.` };
+  /*
+   * CREATED IS NOT PAID.
+   *
+   * The method is described as "Order Create and Pay", but on an account
+   * without auto-pay approval it only creates: order #20's legs landed in
+   * AliExpress's "To pay" list with a countdown against them, and AliExpress
+   * cancels an unpaid order when that runs out. Saying "Placed" alone would
+   * leave a merchant believing a customer's goods were bought when they were
+   * about to expire, so the amount owed is named here and on the timeline.
+   */
+  return {
+    ok: true,
+    externalOrderNo: String(number),
+    detail:
+      `Created on AliExpress as ${number}. It is NOT paid yet — open My Orders on AliExpress ` +
+      `and press Pay now, or it will be cancelled when their countdown expires.`,
+  };
 }
 
 /** AliExpress product id out of a listing URL. */
@@ -316,29 +348,6 @@ function extractProductId(url: string): string {
   return url.match(/\/item\/(\d+)/)?.[1] ?? '';
 }
 
-/** Walk the nested reply for the first order-number-looking value. */
-function findOrderNumber(body: unknown): string | number | null {
-  let found: string | number | null = null;
-  const walk = (v: unknown) => {
-    if (found || !v || typeof v !== 'object') return;
-    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-      if (found) return;
-      if (/order_?list|order_?id|order_?no|orderNumber/i.test(k)) {
-        if (typeof val === 'string' || typeof val === 'number') {
-          found = val;
-          return;
-        }
-        if (Array.isArray(val) && val.length && (typeof val[0] === 'string' || typeof val[0] === 'number')) {
-          found = val[0] as string | number;
-          return;
-        }
-      }
-      walk(val);
-    }
-  };
-  walk(body);
-  return found;
-}
 
 export interface TrackingSyncResult {
   checked: number;

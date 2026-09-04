@@ -24,6 +24,7 @@ import { categorise } from '../src/lib/categorise';
 import { pickerLabels } from '../src/lib/vendor';
 import { currencyForCountry } from '../src/lib/geo';
 import { provinceFor } from '../src/lib/dropship/address';
+import { findOrderNumber, refusalMessage } from '../src/lib/dropship/aliexpress-reply';
 import { stripInventedClaims } from '../src/lib/copywriter';
 import {
   announcementContradictsShipping,
@@ -797,6 +798,52 @@ void (async () => {
   check('a Nigerian state passes through untouched', provinceFor('NG', 'Lagos', 'Ikeja'), 'Lagos');
   check('a missing province falls back to the city', provinceFor('NG', '', 'Ikeja'), 'Ikeja');
   check('whitespace is not mistaken for a province', provinceFor('NG', '   ', 'Ikeja'), 'Ikeja');
+
+  /*
+   * THE REGRESSION THAT BOUGHT ORDER #20 TWICE.
+   *
+   * A successful create nests the number under result.order_list.number[]. The
+   * old reader matched the key `order_list`, found an object rather than a
+   * string or array, recursed, and never matched the inner key `number` — so
+   * it returned null for an order AliExpress HAD created. The caller reported
+   * a failure, the button was pressed again, and the account ended up with
+   * four unpaid orders for two items.
+   */
+  const created = {
+    aliexpress_ds_order_create_response: {
+      result: { order_list: { number: [3076056663392701] }, is_success: true },
+    },
+  };
+  check('the order number is found where it really lives', String(findOrderNumber(created)), '3076056663392701');
+
+  // The exact reply that refused order #20, kept verbatim.
+  const refused = {
+    aliexpress_ds_order_create_response: {
+      result: {
+        error_msg: 'Please select a State/Province/County',
+        error_code: 'B_DROPSHIPPER_DELIVERY_ADDRESS_VALIDATE_FAIL',
+        is_success: false,
+      },
+      request_id: '2140d60217885421868464983',
+      _trace_id_: '21013cc617885421868445646e0faa',
+    },
+  };
+  check('a refusal yields no order number', findOrderNumber(refused), null);
+  check(
+    'a refusal reports AliExpress own wording',
+    refusalMessage(refused),
+    'Please select a State/Province/County'
+  );
+  /*
+   * The fallback scan must not mistake a request id for an order number — that
+   * would mark an order placed that was never created, and the customer would
+   * wait for a parcel nobody bought.
+   */
+  assert(
+    'a request id is never mistaken for an order number',
+    findOrderNumber({ request_id: '2140d60217885421868464983' }) === null
+  );
+  check('a shape we have not seen still yields the number', String(findOrderNumber({ a: { b: ['3076176116292701'] } })), '3076176116292701');
 
   console.log(
     `\n${failures === 0 ? '✓ ALL CHECKS PASSED' : `✗ ${failures} CHECK(S) FAILED`}\n`
