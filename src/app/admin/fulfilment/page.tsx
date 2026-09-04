@@ -69,20 +69,22 @@ export default async function FulfilmentPage() {
             const group = valid.filter((s) => s.orderId === orderId);
 
             /*
-             * Every outstanding AliExpress purchase on this payment.
+             * Split by what the API will actually accept.
              *
-             * Note what is NOT filtered here: canPlaceAutomatically. That flag
-             * gates the API, which refuses a line with no supplier SKU because
-             * it would let AliExpress choose the variant. Buying by hand has no
-             * such problem — the merchant sees the options on the page and
-             * picks the right one — so the products that flag excludes are
-             * exactly the ones that most need this button.
+             * canPlaceAutomatically is false when a line carries no supplier
+             * SKU. The API refuses those before spending anything, because
+             * AliExpress would otherwise pick the variant itself and ship the
+             * wrong colour. They still have to be bought, so they are handed to
+             * the component separately as links rather than being hidden behind
+             * a button that will decline them.
              */
             const pending = group.filter(
               (s) => s.status === 'PENDING' && s.platform === 'ALIEXPRESS'
             );
+            const automatic = pending.filter((s) => s.canPlaceAutomatically);
+            const byHand = pending.filter((s) => !s.canPlaceAutomatically);
 
-            const lines = pending.flatMap((sheet) =>
+            const manualLines = byHand.flatMap((sheet) =>
               sheet.lines.map((line) => ({
                 title: line.title ?? '',
                 url: aliexpressItemUrl(line.url, line.sku, line.quantity),
@@ -106,14 +108,15 @@ export default async function FulfilmentPage() {
 
             return (
               <section key={orderId} className="space-y-4">
-                {lines.length > 0 && (
+                {pending.length > 0 && (
                   <PlaceOnAliExpress
+                    orderId={orderId}
                     orderNumber={group[0].orderNumber}
-                    lines={lines}
+                    manualLines={manualLines}
                     addressText={addressText}
-                    sellerCount={pending.length}
+                    sellerCount={automatic.length}
                     cost={formatMoney(
-                      pending.reduce((sum, s) => sum + s.estimatedCostMinor, 0),
+                      automatic.reduce((sum, s) => sum + s.estimatedCostMinor, 0),
                       group[0].currency
                     )}
                   />
