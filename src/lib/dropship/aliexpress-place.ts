@@ -258,12 +258,36 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
   const number = findOrderNumber(res.body);
 
   if (!number) {
+    /*
+     * Record the refusal, do not just return it.
+     *
+     * A failure used to leave no trace anywhere: the reason appeared in the
+     * button's panel and vanished the moment the page was navigated away
+     * from, so the only way to learn why an order would not place was to be
+     * watching at the time and copy the text by hand. The address rejection on
+     * order #20 was diagnosed exactly that way, which is not a process.
+     *
+     * Written before returning so the timeline holds it even if nobody is
+     * looking, and non-fatal — a failed audit write must not swallow the
+     * reason the caller is about to be shown.
+     */
+    await prisma.orderEvent
+      .create({
+        data: {
+          orderId: so.order.id,
+          kind: 'supplier_place_failed',
+          message: `AliExpress refused this order: ${text.slice(0, 500)}`,
+          data: { supplierOrderId },
+        },
+      })
+      .catch(() => undefined);
+
     return {
       ok: false,
       /*
        * Raw, deliberately. A refusal here is nearly always a missing balance,
-       * an unmapped logistics service, or a SKU AliExpress no longer sells —
-       * and only its own wording distinguishes them.
+       * an address field they will not accept, or a SKU AliExpress no longer
+       * sells — and only its own wording distinguishes them.
        */
       detail: `AliExpress did not return an order number. Raw reply: ${text.slice(0, 700)}`,
     };
