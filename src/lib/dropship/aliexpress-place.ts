@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { call } from '@/lib/suppliers/aliexpress-api';
+import { provinceFor } from '@/lib/dropship/address';
 import { skuAttrMap } from '@/lib/suppliers/aliexpress-fetch';
 import { sendDeliveryNotice, sendShippingNotice } from '@/lib/notify';
 
@@ -242,7 +243,7 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
         address: shipTo.line1 ?? '',
         address2: shipTo.line2 ?? '',
         city: shipTo.city ?? '',
-        province: shipTo.state ?? '',
+        province: provinceFor(code, shipTo.state, shipTo.city),
         zip: shipTo.postcode ?? '',
         country: code,
         full_name: shipTo.name ?? '',

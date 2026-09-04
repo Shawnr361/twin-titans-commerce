@@ -23,6 +23,7 @@ import { displayVendor, isPublishableBrand } from '../src/lib/vendor';
 import { categorise } from '../src/lib/categorise';
 import { pickerLabels } from '../src/lib/vendor';
 import { currencyForCountry } from '../src/lib/geo';
+import { provinceFor } from '../src/lib/dropship/address';
 import { stripInventedClaims } from '../src/lib/copywriter';
 import {
   announcementContradictsShipping,
@@ -780,6 +781,22 @@ void (async () => {
 
   check('getRate returns null for an unknown code', await getRate('ZZZ'), null);
   assert('getRate still resolves a seeded code', (await getRate('USD')) !== null);
+
+  /*
+   * Order #20 was refused twice by AliExpress with "Please select a
+   * State/Province/County" while carrying the province "s yorkshire". The
+   * field was not empty — it was not one of THEIR values, and their UK list
+   * holds no counties at all, so the only accepted entry is "Other".
+   */
+  check('a UK county becomes their own "Other"', provinceFor('GB', 's yorkshire', 'sheffield'), 'Other');
+  check('an Irish county does too', provinceFor('IE', 'Co. Cork', 'Cork'), 'Other');
+  assert(
+    'a US state is NEVER replaced with "Other"',
+    provinceFor('US', 'California', 'Los Angeles') === 'California'
+  );
+  check('a Nigerian state passes through untouched', provinceFor('NG', 'Lagos', 'Ikeja'), 'Lagos');
+  check('a missing province falls back to the city', provinceFor('NG', '', 'Ikeja'), 'Ikeja');
+  check('whitespace is not mistaken for a province', provinceFor('NG', '   ', 'Ikeja'), 'Ikeja');
 
   console.log(
     `\n${failures === 0 ? '✓ ALL CHECKS PASSED' : `✗ ${failures} CHECK(S) FAILED`}\n`
