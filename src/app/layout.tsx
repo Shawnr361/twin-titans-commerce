@@ -8,6 +8,8 @@ import { ChatWidget } from '@/components/layout/ChatWidget';
 import { CartDrawer } from '@/components/commerce/CartDrawer';
 import { SearchOverlay } from '@/components/commerce/SearchOverlay';
 import { getStoreSettings } from '@/lib/settings';
+import { getTrackingSettings } from '@/lib/tracking';
+import { Pixels } from '@/components/analytics/Pixels';
 import './globals.css';
 
 /**
@@ -77,9 +79,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
    * here — a rates query that throws must not take the storefront down, it
    * should just leave everything in the base currency.
    */
-  const [settings, rates] = await Promise.all([
+  const [settings, rates, tracking] = await Promise.all([
     getStoreSettings(),
     prisma.fxRate.findMany({ orderBy: { code: 'asc' } }).catch(() => []),
+    getTrackingSettings(),
   ]);
   const currencies = rates
     .filter((r) => r.rate > 0)
@@ -101,6 +104,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={`${fraunces.variable} ${hanken.variable}`}>
       <body className="flex min-h-screen flex-col bg-bone">
+        {/*
+          Ad pixels. Only the public pixel ids cross into the browser — the
+          Conversions/Events API tokens stay server-side in lib/tracking.
+        */}
+        <Pixels metaPixelId={tracking.metaPixelId} tiktokPixelId={tracking.tiktokPixelId} />
         <CurrencyProvider
           options={currencies}
           baseCurrency={settings.baseCurrency}

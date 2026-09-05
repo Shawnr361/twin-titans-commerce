@@ -3,6 +3,7 @@ import type { HydratedCart } from './cart';
 import type { ShippingAddress } from './dropship/fulfilment';
 import { routeOrderToSuppliers } from './dropship/fulfilment';
 import { sendOrderConfirmation } from '@/lib/notify';
+import { trackPurchase } from './tracking';
 
 export interface CreateOrderInput {
   cart: HydratedCart;
@@ -236,6 +237,17 @@ export async function markOrderPaid(params: {
    * events rather than surfacing them here.
    */
   await sendOrderConfirmation(order.id);
+
+  /*
+   * The authoritative Purchase for Meta and TikTok.
+   *
+   * Sent from here, not from the receipt page, because a shopper who closes
+   * the tab on the bank redirect never loads the receipt — and on Nigerian
+   * mobile that is a large minority of real orders. Placed after the customer
+   * email and before supplier routing, and it cannot throw: trackPurchase
+   * records its own failures as order events.
+   */
+  await trackPurchase(order.id);
 
   // Route to suppliers straight away — a paid order that sits unrouted is the
   // single worst state this system can be in.

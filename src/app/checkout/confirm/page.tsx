@@ -5,6 +5,9 @@ import { ClearCartOnMount } from '@/components/commerce/ClearCartOnMount';
 import { markOrderPaid } from '@/lib/orders';
 import { verifyByReference, verifyTransaction } from '@/lib/payments/flutterwave';
 import { Price } from '@/components/commerce/Price';
+import { TrackEvent } from '@/components/analytics/Pixels';
+import { purchaseEventId } from '@/lib/tracking';
+import { fromMinor } from '@/lib/money';
 
 export const metadata = { title: 'Order confirmed', robots: { index: false } };
 export const dynamic = 'force-dynamic';
@@ -110,6 +113,28 @@ export default async function ConfirmPage({
     <div className="shell py-16 md:py-24">
       {/* Renders nothing; empties the basket once the receipt is on screen. */}
       {paid && <ClearCartOnMount />}
+
+      {/*
+        Browser-side Purchase. The server already sent the authoritative one
+        from markOrderPaid; both carry the SAME event id, so the platforms
+        collapse them into a single conversion instead of counting two.
+        Gated on `paid` so an unverified redirect never reports revenue.
+      */}
+      {paid && (
+        <TrackEvent
+          event="Purchase"
+          eventId={purchaseEventId(order.id)}
+          orderId={String(order.number)}
+          currency={order.currency}
+          value={fromMinor(order.totalMinor, order.currency)}
+          contents={order.lineItems.map((line) => ({
+            id: line.sku || line.variantId || line.id,
+            quantity: line.quantity,
+            price: fromMinor(line.unitPriceMinor, order.currency),
+            title: line.productTitle,
+          }))}
+        />
+      )}
       <div className="mx-auto max-w-2xl">
         <hr className="rule-gold" />
         <p className="label mt-5">Order {order.number}</p>

@@ -7,6 +7,8 @@ import { ProductGallery } from "@/components/commerce/ProductGallery";
 import { VariantMediaProvider } from "@/components/commerce/VariantMediaContext";
 import { displayVendor } from "@/lib/vendor";
 import { AddToCart } from "@/components/commerce/AddToCart";
+import { TrackEvent } from "@/components/analytics/Pixels";
+import { fromMinor } from "@/lib/money";
 import { ProductCard } from "@/components/commerce/ProductCard";
 import { SectionHead } from "@/components/layout/SectionHead";
 import { Reveal } from "@/components/motion/Reveal";
@@ -340,6 +342,26 @@ export default async function ProductPage({
         </ol>
       </nav>
 
+      {/*
+        ViewContent, keyed on the product handle so navigating between two
+        products in the same session reports two views rather than one — the
+        component is remounted instead of reused.
+      */}
+      <TrackEvent
+        key={product.handle}
+        event="ViewContent"
+        currency={settings.baseCurrency}
+        value={fromMinor(product.variants[0]?.priceMinor ?? 0, settings.baseCurrency)}
+        contents={[
+          {
+            id: product.variants[0]?.sku || product.variants[0]?.id || product.handle,
+            quantity: 1,
+            price: fromMinor(product.variants[0]?.priceMinor ?? 0, settings.baseCurrency),
+            title: product.title,
+          },
+        ]}
+      />
+
       <VariantMediaProvider>
         <div className="shell grid gap-12 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-16 lg:py-14">
           {/* Capped so the frame stays a product shot rather than a billboard. */}
@@ -366,6 +388,7 @@ export default async function ProductPage({
               <AddToCart
                 variants={product.variants.map((v) => ({
                   id: v.id,
+                  sku: v.sku,
                   title: v.title,
                   priceMinor: v.priceMinor,
                   compareAtMinor: v.compareAtMinor,

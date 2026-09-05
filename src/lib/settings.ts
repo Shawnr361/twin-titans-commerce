@@ -76,7 +76,7 @@ export function announcementMessages(announcement: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-async function readSetting<T>(key: string, fallback: T): Promise<T> {
+export async function readSetting<T>(key: string, fallback: T): Promise<T> {
   try {
     const row = await prisma.setting.findUnique({ where: { key } });
     if (!row) return fallback;

@@ -7,6 +7,8 @@ import { createOrder } from '@/lib/orders';
 import { createPaypalOrder, isPaypalConfigured } from '@/lib/payments/paypal';
 import { createPaymentLink, isFlutterwaveConfigured } from '@/lib/payments/flutterwave';
 import { getStoreSettings } from '@/lib/settings';
+import { saveAttribution } from '@/lib/tracking';
+import { cookies, headers } from 'next/headers';
 
 const schema = z.object({
   email: z.string().email(),
@@ -54,6 +56,34 @@ export async function POST(request: Request) {
     phone: rest.phone,
     shippingAddress: rest.shippingAddress,
     note: rest.note,
+  });
+
+  /*
+   * Freeze the ad click identifiers onto the order, right now.
+   *
+   * This request is the LAST point where the shopper's cookies and IP are
+   * visible. The Purchase event is sent from a payment webhook, which is a
+   * server-to-server call from Flutterwave carrying none of them — so without
+   * this the conversion reaches Meta and TikTok with no click id and cannot be
+   * attributed to the ad that produced it.
+   *
+   * Deliberately not awaited into the critical path beyond its own failure
+   * handling: saveAttribution swallows its errors, because losing attribution
+   * is a reporting problem and failing a checkout is a revenue one.
+   */
+  const [jar, hdrs] = await Promise.all([cookies(), headers()]);
+  await saveAttribution(order.id, {
+    fbp: jar.get('_fbp')?.value,
+    fbc: jar.get('_fbc')?.value,
+    ttp: jar.get('_ttp')?.value,
+    ttclid: jar.get('ttclid')?.value,
+    userAgent: hdrs.get('user-agent') ?? undefined,
+    // Cloudflare sits in front of this app, so the socket address is Cloudflare's.
+    ip:
+      hdrs.get('cf-connecting-ip') ??
+      hdrs.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      undefined,
+    sourceUrl: `${siteUrl()}/checkout`,
   });
 
   const reference = `TT-${order.number}-${Date.now().toString(36).toUpperCase()}`;

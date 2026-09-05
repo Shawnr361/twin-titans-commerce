@@ -4,6 +4,8 @@ import { hydrateCart, readCart } from '@/lib/cart';
 import { isPaypalConfigured } from '@/lib/payments/paypal';
 import { isFlutterwaveConfigured } from '@/lib/payments/flutterwave';
 import { getStoreSettings } from '@/lib/settings';
+import { TrackEvent } from '@/components/analytics/Pixels';
+import { fromMinor } from '@/lib/money';
 
 export const metadata = { title: 'Checkout', robots: { index: false } };
 export const dynamic = 'force-dynamic';
@@ -28,6 +30,23 @@ export default async function CheckoutPage() {
 
   return (
     <div className="shell py-16 md:py-20">
+      {/*
+        Reaching this page with a cart IS the checkout intent — the shopper
+        cannot get here empty, that case returned above. Firing on the submit
+        button instead would miss everyone who abandons at the address form,
+        which is the audience worth retargeting.
+      */}
+      <TrackEvent
+        event="InitiateCheckout"
+        currency={cart.currency}
+        value={fromMinor(cart.totalMinor, cart.currency)}
+        contents={cart.lines.map((line) => ({
+          id: line.sku || line.variantId,
+          quantity: line.quantity,
+          price: fromMinor(line.unitPriceMinor, cart.currency),
+          title: line.productTitle,
+        }))}
+      />
       <hr className="rule-gold" />
       <h1 className="display-l mt-5">Checkout</h1>
 

@@ -8,10 +8,18 @@ import { CART_CHANGED_EVENT, openCartDrawer } from './CartDrawer';
 import { Price } from './Price';
 import { pickerLabels } from '@/lib/vendor';
 import { useVariantMedia } from './VariantMediaContext';
+import { trackClient } from '@/components/analytics/Pixels';
+import { fromMinor } from '@/lib/money';
 
 
 export interface VariantOption {
   id: string;
+  /**
+   * Ad-platform content id. Must match the `id` column of the catalogue feed
+   * and the id the server sends with the Purchase event, or the platforms
+   * cannot tie a conversion to the product that was advertised.
+   */
+  sku?: string | null;
   title: string;
   priceMinor: number;
   compareAtMinor: number | null;
@@ -78,7 +86,33 @@ export function AddToCart({
       setAdded(true);
       router.refresh();
 
+      /*
+       * Fired only after the server accepted the line. Firing on click would
+       * count adds that failed on stock or price, and those are exactly the
+       * sessions that never convert — the algorithm would learn from them.
+       */
+      const contents = [
+        {
+          id: selected.sku || selected.id,
+          quantity,
+          price: fromMinor(selected.priceMinor, currency),
+          title: selected.title,
+        },
+      ];
+      trackClient('AddToCart', {
+        currency,
+        value: fromMinor(selected.priceMinor * quantity, currency),
+        contents,
+      });
+
       if (buyNow) {
+        // Buy-now skips the cart entirely, so this is the only place the
+        // checkout intent is observable for it.
+        trackClient('InitiateCheckout', {
+          currency,
+          value: fromMinor(selected.priceMinor * quantity, currency),
+          contents,
+        });
         router.push('/checkout');
         return;
       }

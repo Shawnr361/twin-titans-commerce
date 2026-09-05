@@ -37,11 +37,24 @@ export const dynamic = 'force-dynamic';
  * one answers, its name goes into the cost model; until then nothing is
  * hardcoded on a hunch.
  */
-const FREIGHT_METHODS = [
-  'aliexpress.ds.freight.query',
-  'aliexpress.logistics.buyer.freight.calculate',
-  'aliexpress.ds.shipping.info.get',
-  'aliexpress.ds.product.shipping.get',
+/*
+ * Settled by asking. The first probe tried four names with flat parameters;
+ * two answered InvalidApiPath and do not exist, and the other two answered
+ * MissingParameter and NAMED the wrapper they want:
+ *
+ *   aliexpress.ds.freight.query              -> queryDeliveryReq
+ *   aliexpress.logistics.buyer.freight...    -> param_aeop_freight_calculate_for_buyer_d_t_o
+ *
+ * Both take a JSON-encoded object, the same way order.create takes
+ * param_place_order_request4_open_api_d_t_o. The DS one is the right home for
+ * a dropshipping cost, so it leads.
+ */
+const FREIGHT_METHODS: { method: string; param: string }[] = [
+  { method: 'aliexpress.ds.freight.query', param: 'queryDeliveryReq' },
+  {
+    method: 'aliexpress.logistics.buyer.freight.calculate',
+    param: 'param_aeop_freight_calculate_for_buyer_d_t_o',
+  },
 ];
 
 /** Pull every price-looking field out of a SKU node, whatever it is called. */
@@ -123,18 +136,28 @@ export async function GET(request: Request) {
    * does not exist answers with an error naming itself, which is just as
    * useful as a success for deciding which one to build on.
    */
+  /*
+   * The field names inside the wrapper are camelCase, matching ds.text.search
+   * rather than ds.product.get — this API is inconsistent about it, so both
+   * spellings go in and whichever it ignores costs nothing.
+   */
+  const deliveryRequest = {
+    quantity: 1,
+    shipToCountry: country,
+    productId: Number(productId),
+    selectedSkuId: skuId || undefined,
+    language: 'en_US',
+    locale: 'en_US',
+    currency: 'USD',
+    source: 'api',
+  };
+
   const freight: Record<string, unknown> = {};
-  for (const method of FREIGHT_METHODS) {
-    const res = await call(method, {
-      product_id: productId,
-      country_code: country,
-      send_goods_country_code: 'CN',
-      product_num: '1',
-      ...(skuId ? { sku_id: skuId } : {}),
-    });
+  for (const { method, param } of FREIGHT_METHODS) {
+    const res = await call(method, { [param]: JSON.stringify(deliveryRequest) });
     freight[method] = {
       ok: res.ok,
-      body: JSON.stringify(res.body).slice(0, 900),
+      body: JSON.stringify(res.body).slice(0, 1400),
     };
   }
 
