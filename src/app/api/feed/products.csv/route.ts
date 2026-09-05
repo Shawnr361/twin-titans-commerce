@@ -21,15 +21,21 @@ import { fromMinor } from '@/lib/money';
  */
 
 /*
- * Cached for an hour, NOT force-dynamic.
+ * force-dynamic is REQUIRED, not a default left in place.
  *
- * Building this from the database takes 8-19s on this host, and the platforms
- * pull it hourly on a schedule. Regenerating on every request risked a fetch
- * timing out mid-pull — and because the TikTok source is set to "replace", a
- * failed pull is not a harmless retry. An hour of staleness is exactly what the
- * upload schedule already assumes.
+ * Without it Next tries to prerender this route at build time, and the build
+ * machine has no production database — the build fails outright ("Export
+ * encountered an error on /api/feed/products.csv"). `revalidate` cannot be used
+ * alongside it either; the two contradict.
+ *
+ * So freshness is controlled at the CDN instead, via the explicit
+ * `cache-control: public, max-age=3600` on the response below. That matters:
+ * building this from the database takes 8-19s on this host and the platforms
+ * pull it hourly, so an uncached origin hit risks a fetch timing out mid-pull —
+ * and with the TikTok source set to "replace", a failed pull is not a harmless
+ * retry.
  */
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 /** RFC 4180: quote everything, double any embedded quote. Titles contain commas. */
 function cell(value: unknown): string {

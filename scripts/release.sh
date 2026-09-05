@@ -19,7 +19,22 @@ echo "==> verifying capture bookmarklet"
 npx tsx scripts/emit-bookmarklet.ts
 
 echo "==> building"
-CHECKPOINT_DISABLE=1 npx next build
+# A build over a dirty .next fails on Windows, twice observed:
+#   ENOTEMPTY: directory not empty, rmdir '.next/export'
+#   Cannot find module '.next/server/middleware-manifest.json'
+# Both are Next tripping over leftovers it could not delete — a file still held
+# open by a watcher, an editor or antivirus. Neither says so plainly, and the
+# second is especially misleading because it reads like a missing dependency.
+#
+# The first attempt keeps the incremental cache, because a warm build is ~20s
+# and a cold one is minutes. Only on failure is .next cleared and the build
+# retried, so the common path stays fast and the flaky one self-heals instead
+# of needing someone to know this.
+if ! CHECKPOINT_DISABLE=1 npx next build; then
+  echo "==> build failed; clearing .next and retrying once"
+  rm -rf .next
+  CHECKPOINT_DISABLE=1 npx next build
+fi
 
 # A .next left behind by `next dev` has no BUILD_ID. Publishing one produces a
 # server that 500s on every route, so refuse before it leaves the machine.
