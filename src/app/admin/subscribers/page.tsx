@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { prisma } from '@/lib/db';
 
 export const metadata = { title: 'Mailing list' };
@@ -14,13 +15,33 @@ function when(date: Date): string {
  * says marketing is sent "with your consent", so if anyone ever asks why they
  * were emailed, the answer has to be visible here rather than reconstructed.
  */
-export default async function SubscribersPage() {
-  const subscribers = await prisma.subscriber
-    .findMany({ orderBy: { createdAt: 'desc' }, take: 1000 })
-    .catch(() => []);
+/** Rows per page. A mailing list is the fastest-growing table a shop has. */
+const PAGE_SIZE = 500;
 
-  const active = subscribers.filter((s) => !s.unsubscribedAt);
-  const gone = subscribers.filter((s) => s.unsubscribedAt);
+export default async function SubscribersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const query = ((await searchParams).q ?? '').trim();
+
+  /*
+   * Searched in the database, and the counts come from count() rather than
+   * from the fetched rows. The list is capped, and a mailing list is the one
+   * table that grows without anyone doing anything — so counting what happened
+   * to be fetched would understate the list precisely as it got valuable, and
+   * "Subscribed: 500" would sit there looking plausible for ever.
+   */
+  const where = query ? { email: { contains: query } } : {};
+
+  const [subscribers, matching, activeCount, goneCount] = await Promise.all([
+    prisma.subscriber
+      .findMany({ where, orderBy: { createdAt: 'desc' }, take: PAGE_SIZE })
+      .catch(() => []),
+    prisma.subscriber.count({ where }).catch(() => 0),
+    prisma.subscriber.count({ where: { unsubscribedAt: null } }).catch(() => 0),
+    prisma.subscriber.count({ where: { NOT: { unsubscribedAt: null } } }).catch(() => 0),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -35,11 +56,11 @@ export default async function SubscribersPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="card p-5">
           <p className="text-xs uppercase tracking-wide text-greige">Subscribed</p>
-          <p className="mt-1.5 text-2xl font-extrabold">{active.length}</p>
+          <p className="mt-1.5 text-2xl font-extrabold">{activeCount}</p>
         </div>
         <div className="card p-5">
           <p className="text-xs uppercase tracking-wide text-greige">Unsubscribed</p>
-          <p className="mt-1.5 text-2xl font-extrabold">{gone.length}</p>
+          <p className="mt-1.5 text-2xl font-extrabold">{goneCount}</p>
         </div>
         <div className="card flex items-center p-5">
           <a href="/api/admin/subscribers/export" className="btn btn-primary !rounded-full px-6">
@@ -48,13 +69,40 @@ export default async function SubscribersPage() {
         </div>
       </div>
 
+      <form method="get" className="flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          name="q"
+          defaultValue={query}
+          placeholder="Search by email address…"
+          aria-label="Search subscribers"
+          className="field min-w-[16rem] flex-1"
+        />
+        <button type="submit" className="btn btn-secondary shrink-0">
+          Search
+        </button>
+        {query && (
+          <Link href="/admin/subscribers" className="text-micro text-greige underline underline-offset-2">
+            Clear
+          </Link>
+        )}
+      </form>
+
+      {query && (
+        <p className="text-sm text-greige">
+          {matching} matching &ldquo;{query}&rdquo;
+          {subscribers.length < matching ? ` · showing first ${subscribers.length}` : ''}
+        </p>
+      )}
+
       {subscribers.length === 0 ? (
         <div className="card p-12 text-center text-sm text-greige">
-          Nobody has signed up yet.
+          {query ? `No address matches "${query}".` : 'Nobody has signed up yet.'}
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <div className="scroll-x">
+        /* Scrolls in place — this is the list that grows fastest of all. */
+        <div className="card max-h-[calc(100vh-26rem)] min-h-[18rem] overflow-hidden">
+          <div className="scroll-x h-full overflow-y-auto overscroll-contain">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-rule text-left text-xs uppercase tracking-wide text-greige">

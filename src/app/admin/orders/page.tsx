@@ -7,11 +7,41 @@ import { formatMoney } from '@/lib/money';
 export const metadata = { title: 'Orders' };
 export const dynamic = 'force-dynamic';
 
-export default async function AdminOrdersPage() {
-  const orders = await prisma.order
+/** Rows per page. Orders accumulate for ever; the list must not try to hold them all. */
+const PAGE_SIZE = 100;
+
+export default async function AdminOrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const query = ((await searchParams).q ?? '').trim();
+
+  /*
+   * Searched in the database, for the same reason the product list is: the
+   * page holds 100 rows and orders only accumulate, so filtering what happens
+   * to be on screen would quietly stop finding older ones exactly when the
+   * shop is busy enough to need looking them up.
+   *
+   * An all-digit query is treated as an order NUMBER as well as text, because
+   * that is what a customer quotes in an email.
+   */
+  const asNumber = /^[0-9]+$/.test(query) ? Number(query) : null;
+  const where = query
+    ? {
+        OR: [
+          { email: { contains: query } },
+          ...(asNumber !== null ? [{ number: asNumber }] : []),
+        ],
+      }
+    : {};
+
+  const [orders, matching, total] = await Promise.all([
+    prisma.order
     .findMany({
+      where,
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      take: PAGE_SIZE,
       include: {
         _count: { select: { lineItems: true } },
         /*
@@ -31,20 +61,53 @@ export default async function AdminOrdersPage() {
         supplierOrders: { select: { status: true } },
       },
     })
-    .catch(() => []);
+      .catch(() => []),
+    prisma.order.count({ where }).catch(() => 0),
+    prisma.order.count().catch(() => 0),
+  ]);
 
   return (
     <div className="space-y-6">
       <header>
         <h2 className="text-lg font-bold tracking-tight">Orders</h2>
-        <p className="text-sm text-greige">{orders.length} order(s)</p>
+        {/* The real total, not the number that happened to be fetched. */}
+        <p className="text-sm text-greige">
+          {query ? `${matching} matching "${query}" · ${total} order(s)` : `${total} order(s)`}
+          {orders.length < matching ? ` · showing first ${orders.length}` : ''}
+        </p>
       </header>
 
+      <form method="get" className="flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          name="q"
+          defaultValue={query}
+          placeholder="Search by order number or email…"
+          aria-label="Search orders"
+          className="field min-w-[16rem] flex-1"
+        />
+        <button type="submit" className="btn btn-secondary shrink-0">
+          Search
+        </button>
+        {query && (
+          <Link href="/admin/orders" className="text-micro text-greige underline underline-offset-2">
+            Clear
+          </Link>
+        )}
+      </form>
+
       {orders.length === 0 ? (
-        <div className="card p-12 text-center text-sm text-greige">No orders yet.</div>
+        <div className="card p-12 text-center text-sm text-greige">
+          {query ? `Nothing matches "${query}" among your ${total} order(s).` : 'No orders yet.'}
+        </div>
       ) : (
-        <div className="card overflow-hidden">
-          <div className="scroll-x">
+        /*
+          Bounded height so the table scrolls in place. Orders only ever grow,
+          and a list that runs the length of the page pushes everything else
+          out of reach a little further every week.
+        */
+        <div className="card max-h-[calc(100vh-20rem)] min-h-[20rem] overflow-hidden">
+          <div className="scroll-x h-full overflow-y-auto overscroll-contain">
             <table className="w-full min-w-[860px] text-sm">
               <thead>
                 <tr className="border-b border-rule text-left text-xs uppercase tracking-wide text-greige">
