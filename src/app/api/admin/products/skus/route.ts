@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { UnauthorizedError, requireAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { captureFromApi } from '@/lib/suppliers/aliexpress-fetch';
+/* Shared with the standing cron, so the two cannot disagree about what
+ * "unorderable" means. */
+import { optionKey } from '@/lib/suppliers/skuAudit';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,15 +45,6 @@ const schema = z.object({
   offset: z.number().int().min(0).optional(),
 });
 
-/** Comparison key for an option set: order-independent, punctuation-blind. */
-function optionKey(options: Record<string, unknown> | null | undefined): string {
-  if (!options || typeof options !== 'object') return '';
-  return Object.values(options)
-    .map((v) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''))
-    .filter(Boolean)
-    .sort()
-    .join('|');
-}
 
 export async function POST(request: Request) {
   try {
