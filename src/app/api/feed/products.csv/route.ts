@@ -28,6 +28,44 @@ function feedCategory(product: {
 }
 
 /**
+ * The store's own category names mapped onto Google's product taxonomy.
+ *
+ * TikTok and Meta both ask for `google_product_category` and flag every row
+ * without one. Only the top level of the taxonomy is used deliberately: the
+ * deeper paths are exact strings that must match Google's list character for
+ * character, and a wrong path is treated as no path at all. A correct broad
+ * category beats a plausible-looking specific one that silently fails.
+ */
+const GOOGLE_TAXONOMY: Record<string, string> = {
+  'Beauty & Skincare': 'Health & Beauty',
+  'Pet Supplies': 'Animals & Pet Supplies',
+  'Home & Living': 'Home & Garden',
+  'Gadgets & Lighting': 'Electronics',
+  Gaming: 'Electronics',
+};
+
+/**
+ * Products that must never enter an ad catalogue, however well they sell.
+ *
+ * This is an ADVERTISING filter, not a catalogue one — the product stays on the
+ * storefront and sells exactly as before. It simply is not handed to Meta or
+ * TikTok, because both prohibit medical devices, and an ad account does not get
+ * warned politely: rejected ads accumulate against account standing and a
+ * prohibited-goods strike can take the whole account down, along with the pixel
+ * history and every campaign attached to it.
+ *
+ * Kept deliberately narrow and literal. A broad term like "needle" would catch
+ * the sewing kit; the cost of a false positive here is a product silently
+ * missing from every ad, which is exactly the kind of quiet loss nobody notices.
+ */
+const AD_EXCLUDED_TERMS = ['acupuncture'];
+
+function excludedFromAds(title: string): boolean {
+  const hay = title.toLowerCase();
+  return AD_EXCLUDED_TERMS.some((term) => hay.includes(term));
+}
+
+/**
  * Product catalogue feed for Meta Commerce Manager and TikTok Catalog.
  *
  * One row per VARIANT, not per product. Both platforms buy and report against
@@ -93,6 +131,8 @@ const COLUMNS = [
   // the category is what its optimiser uses to find lookalike demand before
   // the pixel has purchase history of its own to learn from.
   'product_type',
+  // Both platforms ask for their own taxonomy field alongside product_type.
+  'google_product_category',
 ] as const;
 
 export async function GET() {
@@ -142,6 +182,11 @@ export async function GET() {
     // A feed row with no image is rejected on ingest, so do not emit one.
     if (!image) continue;
 
+    // Restricted goods never reach an ad platform. Still sold on the storefront.
+    if (excludedFromAds(product.title)) continue;
+
+    const category = feedCategory(product);
+
     for (const variant of product.variants) {
       const available = variant.inventory == null || variant.inventory > 0;
       rows.push(
@@ -162,7 +207,8 @@ export async function GET() {
           // Groups a product's variants so the platforms show one listing with
           // options rather than five near-identical ads competing with each other.
           cell(product.handle),
-          cell(feedCategory(product)),
+          cell(category),
+          cell(GOOGLE_TAXONOMY[category] ?? ''),
         ].join(',')
       );
     }
