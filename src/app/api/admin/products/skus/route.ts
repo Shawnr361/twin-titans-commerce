@@ -68,10 +68,22 @@ export async function POST(request: Request) {
   const offset = (parsed.success && parsed.data.offset) || 0;
 
   const products = await prisma.product.findMany({
-    where: {
-      source: { platform: 'ALIEXPRESS' },
-      variants: { some: { supplierVariantId: null } },
-    },
+    /*
+     * EVERY AliExpress product, not just those missing a SKU outright.
+     *
+     * The original filter was `supplierVariantId: null`, which found two
+     * products. The pricing sweep then turned up ~300 variants that DO carry a
+     * SKU which no longer exists on the live listing — the supplier edited or
+     * removed that option since import. Those are worse than a null: a
+     * customer can buy them, and the order cannot be placed, because
+     * AliExpress answers SKU_NOT_EXIST. Same failure that stalled order #20,
+     * at a hundred times the scale, and invisible to a filter looking for
+     * nulls.
+     *
+     * So the check is now "does this variant's SKU exist upstream", asked of
+     * everything.
+     */
+    where: { source: { platform: 'ALIEXPRESS' } },
     select: {
       title: true,
       source: { select: { externalId: true } },
@@ -88,6 +100,8 @@ export async function POST(request: Request) {
   const unresolved: string[] = [];
   let checked = 0;
   let itemsUpdated = 0;
+  /* Variants whose stored SKU had gone dead upstream. */
+  let staleFixed = 0;
 
   for (const p of products) {
     const externalId = p.source?.externalId;
@@ -121,8 +135,19 @@ export async function POST(request: Request) {
     const onlySku =
       supplier.capture.variants.length === 1 ? String(supplier.capture.variants[0].skuId ?? '') : '';
 
+    /* The SKUs this listing actually has today. */
+    const liveSkus = new Set(
+      supplier.capture.variants.map((v) => String(v.skuId ?? '')).filter(Boolean)
+    );
+
     for (const v of p.variants) {
-      if (v.supplierVariantId) continue;
+      /*
+       * Left alone only if its SKU is still real. A stored id that is no
+       * longer on the listing is re-matched exactly like a missing one — it is
+       * every bit as unorderable, it just looks fine in the database.
+       */
+      if (v.supplierVariantId && liveSkus.has(String(v.supplierVariantId))) continue;
+      const wasStale = Boolean(v.supplierVariantId);
 
       const key = optionKey(v.optionValues as Record<string, unknown>);
       const candidates = theirs.get(key) ?? [];
@@ -142,13 +167,32 @@ export async function POST(request: Request) {
         continue;
       }
 
-      filled.push(`${p.title.slice(0, 34)} / ${v.title.slice(0, 22)}`);
+      filled.push(
+        `${wasStale ? 'restaled' : 'filled'}: ${p.title.slice(0, 30)} / ${v.title.slice(0, 20)}`
+      );
+      if (wasStale) staleFixed++;
 
       if (apply) {
         await prisma.variant.update({ where: { id: v.id }, data: { supplierVariantId: sku } });
-        // The queued order carries its own copy; fix that too or it stays stuck.
+        /*
+         * The queued order carries its own copy of the SKU; fix that too or it
+         * stays stuck on the old one.
+         *
+         * No longer restricted to null. A stale id needs replacing exactly
+         * like a missing one, and the previous filter would have skipped every
+         * stale case — leaving a queued order pointed at a SKU AliExpress
+         * refuses with SKU_NOT_EXIST.
+         *
+         * PENDING only: a placed leg's reference records what was actually
+         * bought, and rewriting it to match today's listing would make a real
+         * purchase untraceable.
+         */
         const res = await prisma.supplierOrderItem.updateMany({
-          where: { orderLineItem: { variantId: v.id }, externalVariantId: null },
+          where: {
+            orderLineItem: { variantId: v.id },
+            supplierOrder: { status: 'PENDING' },
+            NOT: { externalVariantId: sku },
+          },
           data: { externalVariantId: sku },
         });
         itemsUpdated += res.count;
@@ -161,6 +205,7 @@ export async function POST(request: Request) {
     productsChecked: checked,
     nextOffset: offset + products.length,
     variantsFilled: filled.length,
+    staleSkusRepaired: staleFixed,
     queuedOrderItemsFixed: itemsUpdated,
     unresolved: unresolved.slice(0, 15),
     sample: filled.slice(0, 10),

@@ -56,6 +56,8 @@ const schema = z.object({
   limit: z.number().int().min(1).max(50).optional(),
   offset: z.number().int().min(0).optional(),
   country: z.string().length(2).optional(),
+  /** Cursor: the last product id of the previous page. */
+  afterId: z.string().optional(),
   /** Largest acceptable price rise, as a multiple of today's price. */
   maxUplift: z.number().min(1).max(10).optional(),
   /** Minimum gross profit per unit, in MINOR units of the base currency. */
@@ -94,6 +96,7 @@ export async function POST(request: Request) {
   const apply = parsed.success ? Boolean(parsed.data.apply) : false;
   const limit = (parsed.success && parsed.data.limit) || 10;
   const offset = (parsed.success && parsed.data.offset) || 0;
+  const afterId = parsed.success ? parsed.data.afterId : undefined;
   const country = (parsed.success && parsed.data.country) || 'NG';
   const maxUplift = (parsed.success && parsed.data.maxUplift) || 2;
   const minProfitMinor = parsed.success ? (parsed.data.minProfitMinor ?? 150_000) : 150_000;
@@ -111,8 +114,20 @@ export async function POST(request: Request) {
         select: { id: true, title: true, priceMinor: true, supplierVariantId: true },
       },
     },
+    /*
+     * Paged by CURSOR, not by offset.
+     *
+     * The query filters on status ACTIVE, and this route delists products —
+     * so with skip/take the result set shrank underneath the pagination and
+     * every delist pushed later products past the window. The first full run
+     * silently skipped 19 of 126 that way: they were never examined, and
+     * nothing said so.
+     *
+     * A cursor on the id is immune to that, because it asks for "the next ones
+     * after this id" rather than "rows 40 to 50 of a set that keeps changing".
+     */
     orderBy: { id: 'asc' },
-    skip: offset,
+    ...(afterId ? { cursor: { id: afterId }, skip: 1 } : {}),
     take: limit,
   });
 
@@ -305,6 +320,8 @@ export async function POST(request: Request) {
     rules: { maxUplift, minProfitMinor, country, minMarginPct: rules.minMarginPct },
     productsChecked: products.length,
     nextOffset: offset + products.length,
+    /* Feed this back as afterId to get the next page safely. */
+    nextAfterId: products.length ? products[products.length - 1].id : null,
     variants: {
       keep: count('keep'),
       reprice: count('reprice'),
