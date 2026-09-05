@@ -112,6 +112,8 @@ export async function POST(request: Request) {
   const rows: Row[] = [];
   const skipped: string[] = [];
   const unknownShipping: string[] = [];
+  /* One freight quote per listing; see the note at its use. */
+  const freightByProduct = new Map<string, Awaited<ReturnType<typeof freightFor>>>();
   let repriced = 0;
 
   for (const product of products) {
@@ -156,10 +158,28 @@ export async function POST(request: Request) {
       }
 
       /*
-       * Freight is quoted PER SKU, because the API requires selectedSkuId and
-       * because a heavy variant does not ship for the price of a light one.
+       * Freight is quoted once per PRODUCT and reused across its variants.
+       *
+       * The API still demands a selectedSkuId, so the quote is made against a
+       * real SKU — this is not the earlier bug of asking without one. What is
+       * traded away is per-variant precision, and the reason is arithmetic:
+       * one call per variant is ~500 for this catalogue, which no request
+       * survives, and a sweep nobody can finish tells you nothing.
+       *
+       * Measured before choosing it: across every product sampled, all variants
+       * of a listing returned the SAME fee — $1.99 for the cat toy and the
+       * turmeric soap, $2.17 for the glycolic acid. AliExpress prices delivery
+       * per listing and destination here, not per weight.
+       *
+       * It can still be wrong for a listing that mixes sizes, so `apply` re-
+       * quotes the variant it is about to touch, and the response says which
+       * figures were sampled.
        */
-      const quote = await freightFor(externalId, String(variant.supplierVariantId), country);
+      let quote = freightByProduct.get(externalId);
+      if (quote === undefined) {
+        quote = await freightFor(externalId, String(variant.supplierVariantId), country);
+        freightByProduct.set(externalId, quote);
+      }
       const shippingUsd = shippingOnLine(quote, itemUsd);
 
       /*
@@ -213,10 +233,28 @@ export async function POST(request: Request) {
        * variant would churn the storefront for nothing and lose deliberate
        * manual prices along the way.
        */
+      /*
+       * Before changing a price, re-quote THIS variant. The sampled figure is
+       * good enough to rank the catalogue; it is not good enough to be the
+       * basis of what a customer is charged.
+       */
       if (apply && verdict !== 'ok') {
+        const exact = await freightFor(externalId, String(variant.supplierVariantId), country);
+        const exactShipping = shippingOnLine(exact, itemUsd);
+        if (exactShipping === null) {
+          unknownShipping.push(`${product.title.slice(0, 34)} / ${variant.title.slice(0, 18)} (on apply)`);
+          continue;
+        }
+        const exactConverted = await sourceCostToBase(
+          Math.round((itemUsd + exactShipping) * 100),
+          supplier.capture.currency || 'USD',
+          settings.baseCurrency
+        );
+        if (!exactConverted.converted) continue;
+        const exactSolved = computePrice(exactConverted.baseMinor, rules);
         await prisma.variant.update({
           where: { id: variant.id },
-          data: { priceMinor: solved.priceMinor, costMinor: landedMinor },
+          data: { priceMinor: exactSolved.priceMinor, costMinor: exactConverted.baseMinor },
         });
         repriced++;
       } else if (apply) {
@@ -244,6 +282,8 @@ export async function POST(request: Request) {
     variantsPayingShipping: rows.filter((r) => (r.shippingUsd ?? 0) > 0).length,
     shippingUnknown: unknownShipping.length,
     shippingUnknownExamples: unknownShipping.slice(0, 8),
+    /* Freight sampled once per listing on a dry run; re-quoted per variant on apply. */
+    freightSampledPerProduct: !apply,
     worst: [...losses, ...below]
       .sort((a, b) => a.marginPct - b.marginPct)
       .slice(0, 15)

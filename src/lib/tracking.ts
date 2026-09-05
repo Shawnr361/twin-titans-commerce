@@ -162,7 +162,20 @@ async function readAttribution(orderId: string): Promise<Attribution> {
   }
 }
 
-/** Abort rather than hang: this runs inside a payment webhook. */
+/**
+ * POST and decide honestly whether it worked.
+ *
+ * BOTH platforms answer HTTP 200 to a request they rejected. TikTok returns
+ * `{"code": 40002, "message": "..."}` with a 200; Meta returns 200 with an
+ * `error` object. Checking only `res.ok` therefore reports success for every
+ * malformed payload — the events never arrive, the dashboard stays empty, and
+ * nothing anywhere says why. That is the same silent-no-op failure that once
+ * let four deploys "succeed" while the site served a two-day-old build.
+ *
+ * So the body is parsed and a non-zero code is raised as an error, which
+ * lands on the order as a `tracking_failed` event with the platform's own
+ * message in it.
+ */
 async function postJson(url: string, body: unknown, headers: Record<string, string> = {}) {
   const res = await fetch(url, {
     method: 'POST',
@@ -171,7 +184,26 @@ async function postJson(url: string, body: unknown, headers: Record<string, stri
     signal: AbortSignal.timeout(8000),
   });
   const text = await res.text().catch(() => '');
-  if (!res.ok) throw new Error(`${res.status} ${text.slice(0, 300)}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${text.slice(0, 300)}`);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // A 200 that is not JSON is not something to celebrate, but it is not
+    // provably a rejection either. Let it pass rather than invent a failure.
+    return text;
+  }
+
+  const payload = parsed as { code?: number; message?: string; error?: { message?: string } };
+  // TikTok: code 0 means accepted. Anything else is a rejection wearing a 200.
+  if (typeof payload.code === 'number' && payload.code !== 0) {
+    throw new Error(`code ${payload.code}: ${payload.message ?? 'rejected'}`);
+  }
+  // Meta: an `error` object in a 200 body.
+  if (payload.error) {
+    throw new Error(payload.error.message ?? 'rejected');
+  }
   return text;
 }
 
