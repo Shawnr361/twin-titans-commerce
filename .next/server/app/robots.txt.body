@@ -1,0 +1,11 @@
+User-Agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /cart
+Disallow: /checkout
+Disallow: /orders/
+Disallow: /unsubscribe
+
+Host: https://twintitansemporium.store
+Sitemap: https://twintitansemporium.store/sitemap.xml

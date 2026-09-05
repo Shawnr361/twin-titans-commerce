@@ -1,0 +1,628 @@
+// Twin Titans Commerce — self-hosted store + dropshipping engine.
+//
+// MONEY RULE: every monetary value is an Int in MINOR units of its currency
+// (NGN kobo, USD cents). No floats anywhere near money. `*Minor` suffix is
+// mandatory on money columns so a raw-naira value can never be assigned by
+// accident.
+//
+// BASE CURRENCY is whatever `Setting.baseCurrency` says (NGN today). Costs from
+// suppliers are stored BOTH in their source currency and converted to base at
+// the FX rate captured at import time, so a later FX move can be detected.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Catalog
+// ---------------------------------------------------------------------------
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  handle          String        @unique
+  title           String        @db.VarChar(512)
+  descriptionHtml String        @default("") @db.Text
+  status          ProductStatus @default(DRAFT)
+  vendor          String?
+  productType     String?
+  tags            Json          @default("[]")
+
+  // Marketing landing page this product's cards should route to instead of the
+  // plain product page. Mirrors the Shopify `custom.landing_page` metafield —
+  // the funnel-integrity rule learned the hard way on the old store.
+  landingPageHandle String?
+
+  seoTitle       String? @db.VarChar(512)
+  seoDescription String? @db.Text
+
+  images      ProductImage[]
+  variants    Variant[]
+  collections CollectionProduct[]
+  source      SupplierProduct?
+
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  reviews Review[]
+
+  @@index([status])
+  @@index([landingPageHandle])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String  @db.Text
+  alt       String? @db.Text
+  position  Int     @default(0)
+  // Set once the image has been copied off the supplier CDN onto our storage.
+  rehosted  Boolean @default(false)
+
+  @@index([productId, position])
+}
+
+model Variant {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  title    String  @db.VarChar(512)
+  sku      String? @unique
+  position Int     @default(0)
+
+  // { "Color": "Midnight Blue", "Size": "XL" }
+  optionValues Json @default("{}")
+
+  priceMinor     Int
+  compareAtMinor Int?
+  // Landed cost for THIS variant specifically. Never share one cost across a
+  // product: per-SKU supplier cost variance is what caused loss-making variants
+  // on the old store three separate times.
+  costMinor      Int  @default(0)
+
+  // null = unlimited (pure dropship, supplier holds stock)
+  inventory Int?
+
+  // Supplier CDN URLs routinely exceed MySQL's default VARCHAR(191).
+  imageUrl String? @db.Text
+
+  supplierVariantId  String?
+  supplierSku        String?
+  // Cost in the supplier's own currency, for drift detection.
+  sourceCostMinor    Int?
+  sourceCostCurrency String?
+
+  lineItems OrderLineItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId, position])
+}
+
+model Collection {
+  id              String  @id @default(cuid())
+  handle          String  @unique
+  title           String  @db.VarChar(512)
+  descriptionHtml String  @default("") @db.Text
+  imageUrl        String? @db.Text
+  position        Int     @default(0)
+  published       Boolean @default(true)
+
+  products CollectionProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CollectionProduct {
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  position     Int        @default(0)
+
+  @@id([collectionId, productId])
+  @@index([productId])
+}
+
+// Marketing landing pages (the `.ttlp` pages) and static content pages.
+model Page {
+  id        String  @id @default(cuid())
+  handle    String  @unique
+  title     String  @db.VarChar(512)
+  // Landing-page HTML is the largest thing this app stores.
+  bodyHtml  String  @default("") @db.LongText
+  published Boolean @default(true)
+
+  seoTitle       String? @db.VarChar(512)
+  seoDescription String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// A permanent redirect, e.g. after renaming a product handle. Renaming without
+// one silently kills the old URL and any ad linking to it.
+model UrlRedirect {
+  id        String   @id @default(cuid())
+  // Indexed, so it must stay VARCHAR — MySQL cannot index TEXT without a
+  // prefix length. 500 chars is comfortably under the 3072-byte index limit.
+  fromPath  String   @unique @db.VarChar(500)
+  toPath    String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Suppliers & dropshipping
+// ---------------------------------------------------------------------------
+
+enum SupplierPlatform {
+  ALIEXPRESS
+  ALIBABA
+  C1688 // 1688.com
+  CJ
+  MANUAL
+  OTHER
+}
+
+model Supplier {
+  id       String           @id @default(cuid())
+  name     String
+  platform SupplierPlatform @default(MANUAL)
+  storeUrl String?          @db.Text
+
+  // How we place orders with them. See lib/suppliers/adapters.
+  contactEmail String?
+  contactPhone String?
+  notes        String? @db.Text
+
+  // Typical door-to-door days, used for the delivery estimate shown to buyers.
+  shipDaysMin Int @default(7)
+  shipDaysMax Int @default(21)
+
+  active Boolean @default(true)
+
+  products       SupplierProduct[]
+  supplierOrders SupplierOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// The link between one of our products and the supplier listing it came from.
+// This is the "paste a link" record — the whole dropship model hangs off it.
+model SupplierProduct {
+  id         String   @id @default(cuid())
+  productId  String   @unique
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+
+  platform   SupplierPlatform
+  externalId String
+  sourceUrl  String           @db.Text
+
+  sourceCurrency    String @default("USD")
+  sourcePriceMinor  Int    @default(0)
+  shippingCostMinor Int    @default(0)
+  // FX rate (base per 1 source unit) captured at import, so drift is visible.
+  importFxRate      Float  @default(1)
+
+  // Full scraped/API payload, kept for re-mapping without re-fetching.
+  raw Json?
+
+  lastCheckedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([platform, externalId])
+  @@index([supplierId])
+}
+
+// ---------------------------------------------------------------------------
+// Customers & orders
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id             String  @id @default(cuid())
+  email          String  @unique
+  name           String?
+  phone          String?
+  marketingOptIn Boolean @default(false)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum OrderStatus {
+  PENDING // created, not paid
+  PAID
+  FULFILLING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  UNPAID
+  AUTHORIZED
+  PAID
+  PARTIALLY_REFUNDED
+  REFUNDED
+  FAILED
+}
+
+model Order {
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  email String
+  phone String?
+
+  status        OrderStatus   @default(PENDING)
+  paymentStatus PaymentStatus @default(UNPAID)
+
+  // Amounts are in BASE currency.
+  currency      String @default("NGN")
+  subtotalMinor Int    @default(0)
+  shippingMinor Int    @default(0)
+  discountMinor Int    @default(0)
+  totalMinor    Int    @default(0)
+  // Total landed cost of goods at time of sale — lets margin be reported per
+  // order without re-deriving it from a supplier price that may have moved.
+  costMinor     Int    @default(0)
+
+  // What the buyer actually saw / was charged, if not base currency.
+  presentmentCurrency String?
+  presentmentRate     Float?
+
+  discountCode String?
+
+  shippingAddress Json
+  billingAddress  Json?
+
+  note String? @db.Text
+
+  lineItems      OrderLineItem[]
+  payments       Payment[]
+  supplierOrders SupplierOrder[]
+  events         OrderEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reviews Review[]
+
+  @@index([status])
+  @@index([email])
+}
+
+model OrderLineItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  variantId String?
+  variant   Variant? @relation(fields: [variantId], references: [id])
+
+  // Snapshotted so the order stays readable if the product is later edited or
+  // deleted — the old store had landing pages pointing at deleted variant ids.
+  // These mirror Product.title / Variant.title, so they need the same width —
+  // otherwise a long supplier title makes the whole order fail to insert.
+  productTitle  String  @db.VarChar(512)
+  variantTitle  String  @db.VarChar(512)
+  sku           String?
+  imageUrl      String? @db.Text
+  productHandle String?
+
+  quantity       Int
+  unitPriceMinor Int
+  unitCostMinor  Int @default(0)
+
+  // Everything needed to re-place this item with the supplier, frozen at sale.
+  sourceUrl         String?           @db.Text
+  sourcePlatform    SupplierPlatform?
+  supplierId        String?
+  supplierVariantId String?
+
+  supplierOrderItems SupplierOrderItem[]
+
+  @@index([orderId])
+}
+
+enum PaymentProvider {
+  // Retired in favour of FLUTTERWAVE, but KEPT: existing Payment rows still
+  // carry it, and removing an enum value orphans the history that proves those
+  // orders were paid.
+  PAYSTACK
+  FLUTTERWAVE
+  PAYPAL
+  BANK_TRANSFER
+  CASH_ON_DELIVERY
+}
+
+model Payment {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  provider  PaymentProvider
+  reference String          @unique
+  status    PaymentStatus   @default(UNPAID)
+
+  amountMinor Int
+  currency    String
+  feeMinor    Int    @default(0)
+
+  raw Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+}
+
+/// Marketing list signups from the footer form.
+///
+/// Kept in our own database rather than pushed to a third-party list provider:
+/// the privacy policy promises we do not share personal data with third parties
+/// for their own marketing, and an address sitting in someone else's SaaS is
+/// harder to honour a deletion request against.
+model Subscriber {
+  id    String @id @default(cuid())
+  email String @unique
+
+  /// Where the address came from, so a later complaint can be answered with
+  /// evidence of how consent was obtained.
+  source String @default("footer")
+
+  /// When consent was given. The policy commits to keeping marketing consents
+  /// only until they are withdrawn, so this is the record that proves it.
+  consentAt DateTime @default(now())
+
+  /// NULL means subscribed. Deliberately a nullable timestamp rather than an
+  /// enum or a boolean: it answers "are they subscribed" and "when did they
+  /// leave" in one column, and adds no enum to migrate on a host where schema
+  /// changes have to be run by hand in phpMyAdmin.
+  unsubscribedAt DateTime?
+
+  /// Unguessable id for the unsubscribe link. Never the email address itself —
+  /// that would let anyone unsubscribe anyone by editing the URL.
+  token String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unsubscribedAt])
+}
+
+/// A review written by someone who actually bought and received the item.
+///
+/// Two jobs, and the second is the reason this exists:
+///   1. social proof on the product page;
+///   2. **supplier quality evidence** — every product traces to one supplier
+///      via SupplierProduct, so ratings roll up into "which suppliers are worth
+///      keeping". That signal is only worth anything if the reviews are real,
+///      which is why there is no way to leave one without a delivered order.
+model Review {
+  id String @id @default(cuid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  /// The order that earns the right to review. Also the audit trail: a review
+  /// with no order behind it cannot exist.
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Copied from the order, so a later change of account email cannot orphan
+  /// the review or let someone else claim it.
+  email String
+
+  /// Shown publicly. Optional — a reviewer may not want to be named.
+  authorName String? @db.VarChar(120)
+
+  /// 1 to 5. Enforced in code as well; MySQL has no cheap CHECK here.
+  rating Int
+
+  body String @db.Text
+
+  /// Set by an admin to take a review off the storefront. It still counts in
+  /// the supplier statistics: hiding abuse from customers must not also hide
+  /// the fact that a supplier's goods disappointed someone.
+  hiddenAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One review per product per order — buying twice earns a second review,
+  /// clicking submit twice does not.
+  @@unique([orderId, productId])
+  @@index([productId, hiddenAt])
+}
+
+model OrderEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  kind      String
+  message   String   @db.Text
+  data      Json?
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Supplier fulfilment — the half that makes it a dropshipping store
+// ---------------------------------------------------------------------------
+
+enum SupplierOrderStatus {
+  PENDING // awaiting placement with the supplier
+  PLACED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  FAILED
+}
+
+model SupplierOrder {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  supplierId String
+  supplier   Supplier         @relation(fields: [supplierId], references: [id])
+  platform   SupplierPlatform
+
+  status SupplierOrderStatus @default(PENDING)
+
+  externalOrderNo String?
+  trackingNumber  String?
+  trackingCarrier String?
+  trackingUrl     String? @db.Text
+
+  costMinor Int    @default(0)
+  currency  String @default("USD")
+
+  // Ship-to snapshot: the CUSTOMER's address, never ours. This is the core of
+  // dropshipping — supplier ships direct, we never touch the goods.
+  shipTo Json
+
+  placedAt    DateTime?
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+  notes       String?   @db.Text
+
+  items SupplierOrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model SupplierOrderItem {
+  id              String        @id @default(cuid())
+  supplierOrderId String
+  supplierOrder   SupplierOrder @relation(fields: [supplierOrderId], references: [id], onDelete: Cascade)
+
+  orderLineItemId String
+  orderLineItem   OrderLineItem @relation(fields: [orderLineItemId], references: [id])
+
+  sourceUrl         String  @db.Text
+  externalVariantId String?
+  variantLabel      String? @db.VarChar(512)
+  quantity          Int
+  note              String? @db.Text
+
+  @@index([supplierOrderId])
+}
+
+// ---------------------------------------------------------------------------
+// Ops
+// ---------------------------------------------------------------------------
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  passwordHash String
+  role         String    @default("owner")
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+// Display-currency rates. Base currency always has rate 1.
+model FxRate {
+  code      String   @id
+  rate      Float // how many `code` units per 1 base unit
+  symbol    String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+  FREE_SHIPPING
+}
+
+model Discount {
+  id               String       @id @default(cuid())
+  code             String       @unique
+  type             DiscountType @default(PERCENT)
+  value            Int          @default(0) // percent points, or minor units for FIXED
+  active           Boolean      @default(true)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  usageLimit       Int?
+  usedCount        Int          @default(0)
+  minSubtotalMinor Int          @default(0)
+
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Browser captures
+// ---------------------------------------------------------------------------
+
+/// A product captured from a supplier page by the in-browser script.
+///
+/// Kept separate from Product deliberately: a capture is raw supplier truth,
+/// not yet a thing we sell. It is reviewed and priced in the import wizard
+/// before any Product row exists, so a bad capture can never quietly become a
+/// live listing.
+model SupplierCapture {
+  id         String           @id @default(cuid())
+  platform   SupplierPlatform
+  externalId String?
+  sourceUrl  String           @db.Text
+
+  title    String @db.VarChar(512)
+  currency String @default("USD")
+
+  /// Full captured payload: images, videos, variants, reviews, shipping.
+  payload Json
+
+  variantCount       Int @default(0)
+  pricedVariantCount Int @default(0)
+  imageCount         Int @default(0)
+  videoCount         Int @default(0)
+  reviewCount        Int @default(0)
+
+  /// Set once this capture has been turned into a Product.
+  importedProductId String?
+  importedAt        DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([platform, externalId])
+  @@index([createdAt])
+}
