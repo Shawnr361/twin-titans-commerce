@@ -10,39 +10,126 @@ import { getPricingRules, getStoreSettings } from '@/lib/settings';
 export const metadata = { title: 'Products' };
 export const dynamic = 'force-dynamic';
 
-export default async function AdminProductsPage() {
+/** How many rows one page of the list holds. */
+const PAGE_SIZE = 100;
+
+export default async function AdminProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const [settings, rules] = await Promise.all([getStoreSettings(), getPricingRules()]);
 
-  const products = await prisma.product
-    .findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: {
-        images: { take: 1, orderBy: { position: 'asc' } },
-        variants: true,
-        source: { select: { sourceUrl: true, platform: true, raw: true } },
-      },
-    })
-    .catch(() => []);
+  const query = ((await searchParams).q ?? '').trim();
+
+  /*
+   * Searched on the SERVER, not by filtering what is on screen.
+   *
+   * The list is capped at 100 rows and the catalogue is larger, so 26 products
+   * were not merely below the fold — they were never sent to the browser at
+   * all, and the heading called the fetched count "in catalog" as though it
+   * were the whole thing. A client-side filter would have inherited that: a
+   * search that quietly cannot find a quarter of the shop is worse than none,
+   * because it answers "no such product" with confidence.
+   *
+   * Matching the handle as well as the title, since that is what a product URL
+   * carries and it is often what someone is holding when they come looking.
+   */
+  const where = query
+    ? {
+        OR: [
+          { title: { contains: query } },
+          { handle: { contains: query } },
+        ],
+      }
+    : {};
+
+  const [products, matching, total] = await Promise.all([
+    prisma.product
+      .findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: PAGE_SIZE,
+        include: {
+          images: { take: 1, orderBy: { position: 'asc' } },
+          variants: true,
+          source: { select: { sourceUrl: true, platform: true, raw: true } },
+        },
+      })
+      .catch(() => []),
+    prisma.product.count({ where }).catch(() => 0),
+    prisma.product.count().catch(() => 0),
+  ]);
 
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold tracking-tight">Products</h2>
-          <p className="text-sm text-greige">{products.length} in catalog</p>
+          {/*
+            The honest count. This said "{products.length} in catalog", which
+            was the number FETCHED — capped at 100 — so a 126-product shop
+            read as 100 and nothing hinted at the missing 26.
+          */}
+          <p className="text-sm text-greige">
+            {query ? (
+              <>
+                {matching} matching &ldquo;{query}&rdquo; · {total} in catalog
+              </>
+            ) : (
+              <>{total} in catalog</>
+            )}
+            {products.length < matching && <> · showing first {products.length}</>}
+          </p>
         </div>
         <Link href="/admin/import" className="btn btn-primary">
           Import from link
         </Link>
       </header>
 
+      {/*
+        A plain GET form: it works before React hydrates, the query lives in
+        the URL so a search can be linked or reloaded, and the back button
+        behaves. Nothing here needs to be a client component.
+      */}
+      <form method="get" className="flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          name="q"
+          defaultValue={query}
+          placeholder="Search products by name or handle…"
+          aria-label="Search products"
+          className="field min-w-[16rem] flex-1"
+        />
+        <button type="submit" className="btn btn-secondary shrink-0">
+          Search
+        </button>
+        {query && (
+          <Link href="/admin/products" className="text-micro text-greige underline underline-offset-2">
+            Clear
+          </Link>
+        )}
+      </form>
+
       {products.length === 0 ? (
         <div className="card space-y-4 p-12 text-center">
-          <p className="text-sm text-greige">No products yet.</p>
-          <Link href="/admin/import" className="btn btn-primary">
-            Import your first product
-          </Link>
+          {query ? (
+            <>
+              <p className="text-sm text-greige">
+                Nothing matches &ldquo;{query}&rdquo; among your {total} products.
+              </p>
+              <Link href="/admin/products" className="btn btn-secondary">
+                Clear the search
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-greige">No products yet.</p>
+              <Link href="/admin/import" className="btn btn-primary">
+                Import your first product
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         /*
