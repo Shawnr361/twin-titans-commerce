@@ -102,6 +102,8 @@ export async function POST(request: Request) {
   let itemsUpdated = 0;
   /* Variants whose stored SKU had gone dead upstream. */
   let staleFixed = 0;
+  /* Variants made unbuyable because they cannot be ordered. */
+  let blocked = 0;
 
   for (const p of products) {
     const externalId = p.source?.externalId;
@@ -164,6 +166,31 @@ export async function POST(request: Request) {
             candidates.length > 1 ? 'several SKUs match' : 'no SKU matches'
           }`
         );
+
+        /*
+         * Make it unbuyable, because it is unorderable.
+         *
+         * This variant cannot be placed with AliExpress — either the option is
+         * gone from the listing, or several SKUs claim it and picking one would
+         * risk shipping the wrong thing. Either way a customer can still add it
+         * to a basket and pay, and the order then cannot be fulfilled. That is
+         * order #20's failure exactly: money taken, nothing buyable.
+         *
+         * inventory = 0 is what the cart already enforces ("This variant is out
+         * of stock", quantity clamped to zero), so it stops the sale without
+         * touching the product, its other variants, or its price. It is one
+         * edit to undo once the listing is re-imported.
+         *
+         * The whole PRODUCT is deliberately left alone. Measured before
+         * choosing this: the Rosabeauty wig has 216 variants and 15 bad ones,
+         * the mosquito lamp 2 and 1. Unpublishing on the strength of a dead
+         * option would have taken 201 working wig variants and a live seller
+         * off the shelf.
+         */
+        if (apply && v.supplierVariantId !== null) {
+          await prisma.variant.update({ where: { id: v.id }, data: { inventory: 0 } });
+          blocked++;
+        }
         continue;
       }
 
@@ -206,6 +233,7 @@ export async function POST(request: Request) {
     nextOffset: offset + products.length,
     variantsFilled: filled.length,
     staleSkusRepaired: staleFixed,
+    unorderableVariantsBlocked: blocked,
     queuedOrderItemsFixed: itemsUpdated,
     unresolved: unresolved.slice(0, 15),
     sample: filled.slice(0, 10),

@@ -50,6 +50,19 @@ export const CATEGORY_RULES: CategoryRule[] = [
       'nail', 'lipstick', 'makeup', 'cosmetic', 'wig', 'hair dryer', 'straightener',
       'curler', 'massager', 'massage', 'back scratcher', 'toothbrush', 'epilator',
       /*
+       * Found 2026-09-05 by auditing the ad feed, not by imagining vocabulary:
+       * these nine products matched no rule at all, so they sat in no
+       * collection AND shipped a blank category to the ad platforms. A blank
+       * category is invisible twice over — a shopper browsing Beauty never
+       * sees them, and TikTok's optimiser has nothing to generalise from.
+       *
+       * "balm" and "essence" are safe as bare words here; "patch" is not
+       * (it would claim a tyre patch or a fabric patch), so it is qualified.
+       */
+      'lip balm', 'balm', 'essence', 'whitening', 'whiten', 'firming patch',
+      'hydrocrystalline', 'moisturizing', 'moisturising', 'foot sock',
+      'hair pin', 'bobby pin', 'earpick', 'ear wax', 'ear pick',
+      /*
        * Personal care the first pass had no vocabulary for. Found by previewing
        * a re-file: turmeric soap and a tongue scraper were about to be moved
        * into Home & Living, because "cleaning" is a homeware word and nothing
@@ -127,6 +140,8 @@ export const CATEGORY_RULES: CategoryRule[] = [
        * by auditing the live catalogue rather than by imagining vocabulary.
        */
       'shelf', 'shelves', 'rack', 'bathroom', 'toilet', 'sink', 'funnel',
+      // Wall and floor coverings: the self-adhesive tile rolls matched nothing.
+      'tile', 'wallpaper', 'self-adhesive', 'wall sticker', 'floor mat',
       'sewing', 'household', 'wall mount', 'drawer', 'basket', 'bin',
       'laundry', 'ironing', 'doormat', 'rug', 'clothes',
     ],

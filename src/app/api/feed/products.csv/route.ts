@@ -1,6 +1,31 @@
 import { prisma } from '@/lib/db';
 import { getStoreSettings } from '@/lib/settings';
 import { fromMinor } from '@/lib/money';
+import { CATEGORY_RULES, categorise } from '@/lib/categorise';
+
+/**
+ * The category string for a feed row, best source first.
+ *
+ * 1. `productType` — authoritative when set, though DSers imports never set it.
+ * 2. The product's own collection — how the storefront actually files it.
+ * 3. The store's categoriser, run over the title — the same rules that file a
+ *    product on publish, so a product that simply has not been filed yet still
+ *    reports the category it WOULD be filed under.
+ *
+ * The fallback matters: TikTok flags every row with no category, and a blank
+ * cell means its optimiser has nothing to generalise from before the pixel has
+ * purchase history of its own.
+ */
+function feedCategory(product: {
+  title: string;
+  productType: string | null;
+  collections: { collection: { title: string } }[];
+}): string {
+  if (product.productType) return product.productType;
+  if (product.collections[0]) return product.collections[0].collection.title;
+  const handle = categorise(product.title, product.productType);
+  return CATEGORY_RULES.find((rule) => rule.handle === handle)?.title ?? '';
+}
 
 /**
  * Product catalogue feed for Meta Commerce Manager and TikTok Catalog.
@@ -137,7 +162,7 @@ export async function GET() {
           // Groups a product's variants so the platforms show one listing with
           // options rather than five near-identical ads competing with each other.
           cell(product.handle),
-          cell(product.productType || product.collections[0]?.collection.title || ''),
+          cell(feedCategory(product)),
         ].join(',')
       );
     }
