@@ -342,6 +342,70 @@ export async function markShipped(
  * and REVIEWS WERE UNREACHABLE, because a review requires a shipment marked
  * delivered. The store could not have collected a single one.
  */
+/**
+ * Put a supplier order back in the queue after its purchase died.
+ *
+ * WHY THIS HAD TO EXIST
+ * ---------------------
+ * Order #20 is the case. Both legs were created on AliExpress and recorded
+ * PLACED, and then every one of those AliExpress orders EXPIRED unpaid — the
+ * "Order Create and Pay" method only CREATES on an account without auto-pay
+ * approval, and the countdown ran out overnight. The customer had paid us
+ * NGN39,998, nothing had been bought, and the store believed it was handled.
+ *
+ * That state was unrecoverable from the UI. A PLACED leg is deliberately not
+ * offered by the queue, so that nobody buys the same goods twice — which left
+ * no way back to PENDING, and the order would have sat there for ever while
+ * the tracking cron politely polled a dead reference.
+ *
+ * WHAT IT REFUSES
+ * ---------------
+ * Only a PLACED leg can be reopened. A SHIPPED or DELIVERED one has a real
+ * parcel against it, and putting that back in the queue invites buying it a
+ * second time — the exact mistake that produced four unpaid orders for two
+ * items. The dead reference is kept on the timeline rather than discarded, so
+ * the failed purchase stays traceable.
+ */
+export async function reopenSupplierOrder(
+  supplierOrderId: string,
+  reason: string
+): Promise<{ ok: boolean; detail: string }> {
+  const existing = await prisma.supplierOrder.findUnique({
+    where: { id: supplierOrderId },
+    select: { status: true, externalOrderNo: true, orderId: true },
+  });
+  if (!existing) return { ok: false, detail: 'That supplier order no longer exists.' };
+
+  if (existing.status !== 'PLACED') {
+    return {
+      ok: false,
+      detail:
+        `Only a placed order can be reopened; this one is ${existing.status.toLowerCase()}. ` +
+        `A shipped or delivered leg has a real parcel against it.`,
+    };
+  }
+
+  await prisma.$transaction([
+    prisma.supplierOrder.update({
+      where: { id: supplierOrderId },
+      data: { status: 'PENDING', externalOrderNo: null, placedAt: null },
+    }),
+    prisma.orderEvent.create({
+      data: {
+        orderId: existing.orderId,
+        kind: 'supplier_reopened',
+        message: `Supplier order ${existing.externalOrderNo ?? '(no reference)'} reopened for re-placing: ${reason}`,
+        data: { supplierOrderId, deadReference: existing.externalOrderNo },
+      },
+    }),
+  ]);
+
+  return {
+    ok: true,
+    detail: `Back in the queue. The dead reference ${existing.externalOrderNo ?? '(none)'} is on the timeline.`,
+  };
+}
+
 export async function markDelivered(supplierOrderId: string): Promise<void> {
   const so = await prisma.supplierOrder.update({
     where: { id: supplierOrderId },

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { UnauthorizedError, requireAdmin } from '@/lib/auth';
 import {
   markDelivered,
+  reopenSupplierOrder,
   markOrderRefunded,
   markPlaced,
   markShipped,
@@ -31,6 +32,16 @@ const schema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('deliver'),
     supplierOrderId: z.string().min(1),
+  }),
+  /*
+   * Put a leg back in the queue when its AliExpress purchase died unpaid.
+   * A reason is required because this is how a "handled" order becomes
+   * unhandled again, and the timeline should say who decided that and why.
+   */
+  z.object({
+    action: z.literal('reopen'),
+    supplierOrderId: z.string().min(1),
+    reason: z.string().min(1).max(300),
   }),
   z.object({
     action: z.literal('cancel'),
@@ -77,6 +88,11 @@ export async function POST(request: Request) {
     if (parsed.data.action === 'deliver') {
       await markDelivered(parsed.data.supplierOrderId);
       return NextResponse.json({ ok: true });
+    }
+
+    if (parsed.data.action === 'reopen') {
+      const r = await reopenSupplierOrder(parsed.data.supplierOrderId, parsed.data.reason);
+      return NextResponse.json(r, { status: r.ok ? 200 : 400 });
     }
 
     if (parsed.data.action === 'cancel') {

@@ -55,7 +55,7 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
   };
 
   const act = async (
-    action: 'place' | 'ship' | 'deliver' | 'cancel' | 'refund',
+    action: 'place' | 'ship' | 'deliver' | 'cancel' | 'refund' | 'reopen',
     payload: Record<string, string>
   ) => {
     setBusy(true);
@@ -246,6 +246,38 @@ export function FulfilmentCard({ sheet }: { sheet: Sheet }) {
         and until something does, the customer hears nothing and CANNOT leave a
         review, because a review requires a delivered shipment.
       */}
+      {/*
+        A placed order whose AliExpress purchase died.
+
+        Not hypothetical: both legs of order #20 were created, recorded PLACED,
+        then expired unpaid overnight — the customer had paid and nothing had
+        been bought, while the queue considered it handled and would never
+        offer it again. Only on PLACED, because a shipped leg has a real parcel
+        and re-queueing that would buy the goods a second time.
+      */}
+      {sheet.status === 'PLACED' && (
+        <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-5">
+          <button
+            type="button"
+            onClick={() => {
+              const reason = window.prompt(
+                'Why is this going back in the queue? (e.g. the AliExpress order expired unpaid)'
+              );
+              if (!reason?.trim()) return;
+              act('reopen', { reason: reason.trim() });
+            }}
+            disabled={busy}
+            className="btn !rounded-full px-5 py-2 text-xs disabled:opacity-60"
+          >
+            Put back in the queue
+          </button>
+          <p className="text-[11px] text-greige">
+            For an AliExpress order that expired or was cancelled without being paid. Clears the
+            dead reference so it can be placed again.
+          </p>
+        </div>
+      )}
+
       {sheet.status === 'SHIPPED' && (
         <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-5">
           <button
