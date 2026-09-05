@@ -136,16 +136,48 @@ export async function freightFor(
     source: 'api',
   };
 
-  let res;
-  try {
-    res = await call('aliexpress.ds.freight.query', {
-      queryDeliveryReq: JSON.stringify(request),
-    });
-  } catch {
-    return null;
+  /*
+   * Retried, because giving up once is how a catalogue sweep loses its data.
+   *
+   * AliExpress throttles this endpoint progressively: a short run answers
+   * every call, and a long one starts refusing — measured across a full
+   * catalogue pass, coverage fell from 93% to about 25% as the sweep went on.
+   * Those refusals are transient, and treating the first one as "no delivery
+   * cost exists" is what left three quarters of the catalogue uncosted and
+   * undecidable.
+   *
+   * Backoff is exponential and deliberately patient. The alternative to
+   * waiting is a pricing decision made without a price.
+   */
+  const BACKOFF_MS = [0, 900, 2500, 6000];
+  let option: Record<string, unknown> | null = null;
+
+  for (const wait of BACKOFF_MS) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+
+    let res;
+    try {
+      res = await call('aliexpress.ds.freight.query', {
+        queryDeliveryReq: JSON.stringify(request),
+      });
+    } catch {
+      continue;
+    }
+
+    option = pickOption(optionsOf(res.body));
+    if (option) break;
+
+    /*
+     * A listing that genuinely has no delivery option to this country will
+     * say so the same way every time, and retrying it is wasted patience.
+     * Only a throttle or an outage is worth another attempt, so anything that
+     * is not one stops here.
+     */
+    const text = JSON.stringify(res.body ?? {});
+    const transient = /limit|flow|busy|timeout|System|ServiceUnavailable|502|503/i.test(text);
+    if (!transient) return null;
   }
 
-  const option = pickOption(optionsOf(res.body));
   if (!option) return null;
 
   const fee = money(option.shipping_fee_cent ?? option.shipping_fee_format);

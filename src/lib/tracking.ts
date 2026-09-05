@@ -221,7 +221,9 @@ interface PurchasePayload {
 
 async function sendMetaPurchase(settings: TrackingSettings, p: PurchasePayload) {
   const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(settings.metaPixelId)}/events`;
-  await postJson(url, {
+  // Returned, not discarded: the self-test prints the platform's own reply, and
+  // "events_received" in it is the only real confirmation the call landed.
+  return postJson(url, {
     access_token: settings.metaCapiToken,
     ...(settings.metaTestEventCode ? { test_event_code: settings.metaTestEventCode } : {}),
     data: [
@@ -258,7 +260,7 @@ async function sendMetaPurchase(settings: TrackingSettings, p: PurchasePayload) 
 }
 
 async function sendTiktokPurchase(settings: TrackingSettings, p: PurchasePayload) {
-  await postJson(
+  return postJson(
     'https://business-api.tiktok.com/open_api/v1.3/event/track/',
     {
       event_source: 'web',
@@ -297,6 +299,96 @@ async function sendTiktokPurchase(settings: TrackingSettings, p: PurchasePayload
     },
     { 'Access-Token': settings.tiktokEventsToken }
   );
+}
+
+/**
+ * Send one synthetic event through the real senders, and report what the
+ * platform actually said.
+ *
+ * Deliberately reuses `sendMetaPurchase` / `sendTiktokPurchase` rather than
+ * building a sample payload of its own. A test that exercises a different
+ * request shape from production proves nothing — the whole point is to find
+ * out whether the exact body `trackPurchase` sends is accepted, before a real
+ * order depends on the answer.
+ *
+ * Safe to run against live: it is a self-contained fake order with a unique
+ * event id, so nothing can collide with a real purchase. Pass a test event
+ * code and the platforms route it to Test Events instead of counting it.
+ */
+export async function sendTestPurchase(testEventCode?: string): Promise<{
+  meta: { attempted: boolean; ok: boolean; response: string };
+  tiktok: { attempted: boolean; ok: boolean; response: string };
+  payloadPreview: Record<string, unknown>;
+  warning: string | null;
+}> {
+  const stored = await getTrackingSettings();
+  /*
+   * A test code passed here overrides the stored one for this call only.
+   *
+   * Without a code the platforms record the synthetic purchase as a REAL
+   * conversion — a fake sale sitting in reporting forever, which is a small
+   * mess in a fresh pixel and a real one in an account with live campaigns
+   * optimising against purchase volume. Passing the code per-call means a
+   * clean test does not require editing settings and remembering to undo it.
+   */
+  const settings: TrackingSettings = testEventCode
+    ? { ...stored, metaTestEventCode: testEventCode, tiktokTestEventCode: testEventCode }
+    : stored;
+  const stamp = Date.now();
+
+  const payload: PurchasePayload = {
+    eventId: `tt-test-${stamp}`,
+    eventTime: Math.floor(stamp / 1000),
+    value: 1000,
+    currency: 'NGN',
+    orderNumber: 0,
+    email: 'tracking-test@twintitansemporium.store',
+    phone: '08000000000',
+    contents: [{ id: 'TEST-SKU', quantity: 1, price: 1000, title: 'Tracking test item' }],
+    attribution: {
+      sourceUrl: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://twintitansemporium.store'}/`,
+      userAgent: 'TwinTitansTrackingSelfTest/1.0',
+      // Documentation IP range, so no real visitor is ever implicated by a test.
+      ip: '203.0.113.1',
+    },
+  };
+
+  const run = async (ready: boolean, fn: () => Promise<string>) => {
+    if (!ready) return { attempted: false, ok: false, response: 'No pixel id or token set.' };
+    try {
+      return { attempted: true, ok: true, response: (await fn()).slice(0, 800) };
+    } catch (err) {
+      return { attempted: true, ok: false, response: String(err).slice(0, 800) };
+    }
+  };
+
+  const [meta, tiktok] = await Promise.all([
+    run(Boolean(settings.metaPixelId && settings.metaCapiToken), () =>
+      sendMetaPurchase(settings, payload)
+    ),
+    run(Boolean(settings.tiktokPixelId && settings.tiktokEventsToken), () =>
+      sendTiktokPurchase(settings, payload)
+    ),
+  ]);
+
+  const untagged = !settings.metaTestEventCode && !settings.tiktokTestEventCode;
+
+  return {
+    meta,
+    tiktok,
+    warning: untagged
+      ? 'No test event code was used, so any accepted event counts as a REAL conversion in reporting. Pass testEventCode next time.'
+      : null,
+    payloadPreview: {
+      event_id: payload.eventId,
+      event_time: payload.eventTime,
+      value: payload.value,
+      currency: payload.currency,
+      contents: payload.contents,
+      metaTestEventCode: settings.metaTestEventCode || null,
+      tiktokTestEventCode: settings.tiktokTestEventCode || null,
+    },
+  };
 }
 
 /**
