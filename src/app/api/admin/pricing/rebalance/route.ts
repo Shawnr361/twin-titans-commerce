@@ -118,6 +118,7 @@ export async function POST(request: Request) {
 
   const decisions: Decision[] = [];
   const delisted: string[] = [];
+  const undecided: string[] = [];
   let repriced = 0;
   let productsDelisted = 0;
 
@@ -233,7 +234,28 @@ export async function POST(request: Request) {
      */
     const costed = here.filter((d) => d.action !== 'uncosted');
     const anyViable = costed.some((d) => d.action === 'keep' || d.action === 'reprice');
-    const takeDown = costed.length > 0 && !anyViable;
+
+    /*
+     * A product is never taken down on thin evidence.
+     *
+     * Under rate limiting roughly three quarters of variants come back
+     * uncosted, and "every costed variant failed" can mean one variant out of
+     * ten. Delisting a listing because its single readable option looked bad
+     * is the same error as costing it without delivery: a confident decision
+     * resting on data that is mostly missing.
+     *
+     * So most of a listing must actually have been priced before it can be
+     * pulled. Anything short of that is reported as needing another pass.
+     */
+    const coverage = here.length > 0 ? costed.length / here.length : 0;
+    const enoughEvidence = costed.length > 0 && coverage >= 0.5;
+    const takeDown = enoughEvidence && !anyViable;
+
+    if (!enoughEvidence && !anyViable && costed.length > 0) {
+      undecided.push(
+        `${product.title.slice(0, 46)} - only ${costed.length}/${here.length} variants costed`
+      );
+    }
 
     if (takeDown) {
       delisted.push(
@@ -290,6 +312,16 @@ export async function POST(request: Request) {
       uncosted: count('uncosted'),
     },
     productsToDelist: delisted.length,
+    productsNeedingAnotherPass: undecided.length,
+    /* Why a variant could not be priced — the remedy differs per reason. */
+    uncostedReasons: decisions
+      .filter((d) => d.action === 'uncosted')
+      .reduce<Record<string, number>>((acc, d) => {
+        const key = d.why ?? 'unknown';
+        acc[key] = (acc[key] ?? 0) + 1;
+        return acc;
+      }, {}),
+    undecidedExamples: undecided.slice(0, 8),
     productsDelisted,
     repriced,
     delistExamples: delisted.slice(0, 10),
