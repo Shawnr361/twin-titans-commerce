@@ -251,7 +251,16 @@ export interface ApiCaptureResult {
 export async function captureFromApi(
   productId: string,
   sourceUrl: string,
-  currency = 'USD'
+  currency = 'USD',
+  /*
+   * Ask for delivery cost too, for this destination.
+   *
+   * OFF BY DEFAULT, ON PURPOSE. It is a second supplier call per product, and
+   * the routes that repair SKUs or variant photographs walk the whole
+   * catalogue without needing it — turning it on for them would double a
+   * hundred lookups to no end. Import passes a country; maintenance does not.
+   */
+  freightCountry?: string
 ): Promise<ApiCaptureResult> {
   const problems: string[] = [];
 
@@ -329,6 +338,26 @@ export async function captureFromApi(
     ordersCount: num(pick(base, 'sales_count', 'total_sales')),
     reviews: [],
   } as CapturedProduct;
+
+  /*
+   * Delivery, which this path used to omit entirely.
+   *
+   * Left UNDEFINED when it cannot be had, never 0. fromCapture treats 0 as
+   * "the supplier ships this free" and undefined as "unknown", and warns on
+   * the second — collapsing them is precisely how every API-imported product
+   * came to be costed at the item price alone.
+   */
+  if (freightCountry) {
+    const { freightFor } = await import('@/lib/suppliers/aliexpress-freight');
+    const quote = await freightFor(productId, null, freightCountry);
+    if (quote) {
+      capture.shippingCost = quote.freeShipping ? 0 : quote.shippingFee;
+    } else {
+      problems.push(
+        `Delivery cost to ${freightCountry} could not be read — this landed cost excludes shipping.`
+      );
+    }
+  }
 
   return { capture, problems };
 }

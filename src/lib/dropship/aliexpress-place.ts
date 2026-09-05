@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { call } from '@/lib/suppliers/aliexpress-api';
 import { provinceFor } from '@/lib/dropship/address';
+import { freightFor } from '@/lib/suppliers/aliexpress-freight';
 import { findOrderNumber, refusalMessage } from '@/lib/dropship/aliexpress-reply';
 import { skuAttrMap } from '@/lib/suppliers/aliexpress-fetch';
 import { sendDeliveryNotice, sendShippingNotice } from '@/lib/notify';
@@ -209,12 +210,26 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
       continue;
     }
 
+    /*
+     * The shipping service is ASKED FOR, not assumed.
+     *
+     * This was hardcoded to CAINIAO_FULFILLMENT_STD for every product and
+     * every destination. The freight API returns the services actually offered
+     * on a listing, and for the KIKO lip gloss into GB that is
+     * CAINIAO_FULFILLMENT_PRE — a code we were never sending. A service the
+     * seller does not offer on that route is a plausible way for an order to
+     * be refused or to ship on something we did not price for.
+     *
+     * The old constant remains the fallback, so a freight lookup that fails
+     * leaves placement exactly as it behaved before rather than blocking it.
+     */
+    const quote = await freightFor(productId, skuId, code);
     productItems.push({
       product_count: i.quantity,
       product_id: productId,
       sku_attr: skuAttr,
       sku_id: skuId,
-      logistics_service_name: 'CAINIAO_FULFILLMENT_STD',
+      logistics_service_name: quote?.serviceCode ?? 'CAINIAO_FULFILLMENT_STD',
       order_memo: `Store order #${so.order.number}. Please ship with no invoice or price tag.`,
     });
   }

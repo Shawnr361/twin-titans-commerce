@@ -125,7 +125,20 @@ export async function POST(request: Request) {
 
   let result;
   try {
-    result = await captureFromApi(productId, sourceUrl);
+    /*
+     * Quote delivery to the store's home market.
+     *
+     * Settings carry a base CURRENCY but no base country, and delivery is
+     * priced per destination — so NGN implies Nigeria and that is what the
+     * landed cost is built on. Orders do arrive from elsewhere (order #20 went
+     * to Sheffield), and for those the true shipping can differ; the pricing
+     * audit re-quotes per country, so a market that becomes material gets
+     * re-costed rather than guessed at here.
+     *
+     * Without this argument the capture carries no shipping at all, which is
+     * what made every API import look cheaper than it is.
+     */
+    result = await captureFromApi(productId, sourceUrl, 'USD', 'NG');
   } catch (err) {
     return NextResponse.json(
       {
