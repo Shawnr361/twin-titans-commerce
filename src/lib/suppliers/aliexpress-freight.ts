@@ -108,20 +108,33 @@ function pickOption(options: Record<string, unknown>[]): Record<string, unknown>
  */
 export async function freightFor(
   productId: string,
-  skuId: string | null,
+  /*
+   * REQUIRED, not optional.
+   *
+   * Called without it the API answers "The input parameter selectedSkuId that
+   * is mandatory for processing this request is not supplied" — and the first
+   * version of the pricing audit did exactly that, once per product. Every
+   * quote failed, every failure became null, and null was read as zero
+   * shipping: the audit silently reproduced the very fault it was written to
+   * catch, and reported the catalogue clean. The type now makes that
+   * impossible to write by accident.
+   */
+  skuId: string,
   country: string,
   quantity = 1
 ): Promise<FreightQuote | null> {
+  if (!skuId) return null;
+
   const request: Record<string, unknown> = {
     quantity,
     shipToCountry: country,
     productId: Number(productId),
+    selectedSkuId: skuId,
     language: 'en_US',
     locale: 'en_US',
     currency: 'USD',
     source: 'api',
   };
-  if (skuId) request.selectedSkuId = skuId;
 
   let res;
   try {

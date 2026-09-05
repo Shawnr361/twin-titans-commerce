@@ -349,7 +349,23 @@ export async function captureFromApi(
    */
   if (freightCountry) {
     const { freightFor } = await import('@/lib/suppliers/aliexpress-freight');
-    const quote = await freightFor(productId, null, freightCountry);
+    /*
+     * Quoted against the CHEAPEST variant, and it must be quoted against one:
+     * selectedSkuId is mandatory, and asking without it fails outright.
+     *
+     * The cheapest is the deliberate choice. Delivery is what turns a low-price
+     * variant into a loss — $1.99 on a $4.20 item — so the option most at risk
+     * is the one the import warning should reflect. The pricing audit re-quotes
+     * every variant individually; this is the figure that decides whether the
+     * product is worth publishing at all.
+     */
+    const cheapest = [...capture.variants]
+      .filter((v) => v.skuId && (v.promoPrice ?? v.price ?? 0) > 0)
+      .sort((a, b) => (a.promoPrice ?? a.price ?? 0) - (b.promoPrice ?? b.price ?? 0))[0];
+
+    const quote = cheapest?.skuId
+      ? await freightFor(productId, String(cheapest.skuId), freightCountry)
+      : null;
     if (quote) {
       capture.shippingCost = quote.freeShipping ? 0 : quote.shippingFee;
     } else {

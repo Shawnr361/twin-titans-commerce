@@ -111,6 +111,7 @@ export async function POST(request: Request) {
 
   const rows: Row[] = [];
   const skipped: string[] = [];
+  const unknownShipping: string[] = [];
   let repriced = 0;
 
   for (const product of products) {
@@ -128,8 +129,6 @@ export async function POST(request: Request) {
       skipped.push(`${product.title.slice(0, 40)} — no data returned`);
       continue;
     }
-
-    const quote = await freightFor(externalId, null, country);
 
     /* Their SKUs by id, so a variant is matched rather than guessed at. */
     const bySku = new Map<string, { price: number; promo?: number | null }>();
@@ -156,8 +155,27 @@ export async function POST(request: Request) {
         continue;
       }
 
+      /*
+       * Freight is quoted PER SKU, because the API requires selectedSkuId and
+       * because a heavy variant does not ship for the price of a light one.
+       */
+      const quote = await freightFor(externalId, String(variant.supplierVariantId), country);
       const shippingUsd = shippingOnLine(quote, itemUsd);
-      const sourceTotal = itemUsd + (shippingUsd ?? 0);
+
+      /*
+       * Unknown shipping is never treated as free.
+       *
+       * That substitution is what made the first run of this audit report a
+       * clean catalogue: every freight call had failed, and `?? 0` turned each
+       * silence into free delivery. A row we cannot cost is reported as
+       * uncosted, and is never re-priced on a number we do not have.
+       */
+      if (shippingUsd === null) {
+        unknownShipping.push(`${product.title.slice(0, 34)} / ${variant.title.slice(0, 18)}`);
+        continue;
+      }
+
+      const sourceTotal = itemUsd + shippingUsd;
 
       const { baseMinor: landedMinor, converted } = await sourceCostToBase(
         Math.round(sourceTotal * 100),
@@ -223,7 +241,9 @@ export async function POST(request: Request) {
     sellingAtALoss: losses.length,
     belowFloor: below.length,
     repriced,
-    shippingMissingFromStoredCost: rows.filter((r) => (r.shippingUsd ?? 0) > 0).length,
+    variantsPayingShipping: rows.filter((r) => (r.shippingUsd ?? 0) > 0).length,
+    shippingUnknown: unknownShipping.length,
+    shippingUnknownExamples: unknownShipping.slice(0, 8),
     worst: [...losses, ...below]
       .sort((a, b) => a.marginPct - b.marginPct)
       .slice(0, 15)
