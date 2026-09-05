@@ -45,7 +45,23 @@ export default async function AdminProductsPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-3">
+        /*
+          The list scrolls in its own pane rather than running down the page.
+
+          With 126 products the page grew to a wall you had to scroll past to
+          reach anything else, and the header — the count and Import button —
+          disappeared the moment you started looking. Bounding it keeps those
+          in view and makes the list feel like a working surface.
+
+          Height is viewport-relative, not a fixed pixel figure: the admin is
+          used on a phone as much as a desktop, and a hardcoded height either
+          wastes a large screen or swallows a small one. The minimum stops it
+          collapsing to a sliver on a short window.
+
+          overscroll-contain stops a flick at the end of the list scrolling the
+          page behind it, which on a touchpad reads as the panel jumping.
+        */
+        <div className="max-h-[calc(100vh-16rem)] min-h-[24rem] space-y-3 overflow-y-auto overscroll-contain rounded-sm pr-1">
           {products.map((product) => {
             // Worst variant decides the product's health badge — an average
             // would hide exactly the one SKU that is losing money.

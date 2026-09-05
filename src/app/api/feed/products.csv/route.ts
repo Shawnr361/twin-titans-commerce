@@ -20,9 +20,15 @@ import { fromMinor } from '@/lib/money';
  * and both platforms fetch it unauthenticated on a schedule.
  */
 
-export const dynamic = 'force-dynamic';
-// Re-fetched by the platforms on their own schedule; an hour of staleness is
-// cheaper than rebuilding the whole catalogue on every crawl.
+/*
+ * Cached for an hour, NOT force-dynamic.
+ *
+ * Building this from the database takes 8-19s on this host, and the platforms
+ * pull it hourly on a schedule. Regenerating on every request risked a fetch
+ * timing out mid-pull — and because the TikTok source is set to "replace", a
+ * failed pull is not a harmless retry. An hour of staleness is exactly what the
+ * upload schedule already assumes.
+ */
 export const revalidate = 3600;
 
 /** RFC 4180: quote everything, double any embedded quote. Titles contain commas. */
@@ -31,7 +37,17 @@ function cell(value: unknown): string {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+/*
+ * Two identifier columns, same value, on purpose.
+ *
+ * Meta's catalogue keys on `id`; TikTok's keys on `sku_id`. Emitting both lets
+ * ONE feed URL serve both platforms, which matters because the id is the join
+ * key for the whole ad system — the pixel's `content_ids`, the server-side
+ * Purchase and the catalogue row must all agree, and maintaining two feeds is
+ * how they drift apart.
+ */
 const COLUMNS = [
+  'sku_id',
   'id',
   'title',
   'description',
@@ -42,6 +58,10 @@ const COLUMNS = [
   'image_link',
   'brand',
   'item_group_id',
+  // Optional per the spec, but TikTok's ingest flags every row without it:
+  // the category is what its optimiser uses to find lookalike demand before
+  // the pixel has purchase history of its own to learn from.
+  'product_type',
 ] as const;
 
 export async function GET() {
@@ -52,6 +72,17 @@ export async function GET() {
       include: {
         variants: true,
         images: { orderBy: { position: 'asc' }, take: 1 },
+        /*
+         * Collections are the only real category signal this catalogue has.
+         * `Product.productType` exists in the schema but is null on every row —
+         * DSers imports never set it — so a feed built on it ships 1,700 empty
+         * category cells and TikTok flags every one of them.
+         */
+        collections: {
+          include: { collection: true },
+          orderBy: { position: 'asc' },
+          take: 1,
+        },
       },
       orderBy: { createdAt: 'desc' },
     }),
@@ -85,6 +116,7 @@ export async function GET() {
       rows.push(
         [
           cell(variant.sku || variant.id),
+          cell(variant.sku || variant.id),
           cell(product.title),
           cell(description),
           cell(available ? 'in stock' : 'out of stock'),
@@ -99,6 +131,7 @@ export async function GET() {
           // Groups a product's variants so the platforms show one listing with
           // options rather than five near-identical ads competing with each other.
           cell(product.handle),
+          cell(product.productType || product.collections[0]?.collection.title || ''),
         ].join(',')
       );
     }
