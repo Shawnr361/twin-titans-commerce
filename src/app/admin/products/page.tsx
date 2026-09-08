@@ -10,8 +10,21 @@ import { getPricingRules, getStoreSettings } from '@/lib/settings';
 export const metadata = { title: 'Products' };
 export const dynamic = 'force-dynamic';
 
-/** How many rows one page of the list holds. */
-const PAGE_SIZE = 100;
+/*
+ * No cap. The whole catalogue renders, and every product added later renders
+ * with it, because the list scrolls in its own pane — there is nowhere for a
+ * hundredth row to be "below".
+ *
+ * The cap that used to be here was worse than a slow page: it was silent. 28
+ * products were absent from the admin with nothing on screen saying so, and
+ * the heading counted the fetched rows, so the shop read as 100 products.
+ *
+ * The cost is bounded by what this page actually needs per product — one
+ * image and its variants — and the catalogue is the merchant's own, not a
+ * public feed. If it ever grows enough to feel slow, the fix is to fetch the
+ * variant count and cheapest price as aggregates rather than loading every
+ * variant row; the answer is not to hide products again.
+ */
 
 export default async function AdminProductsPage({
   searchParams,
@@ -23,14 +36,13 @@ export default async function AdminProductsPage({
   const query = ((await searchParams).q ?? '').trim();
 
   /*
-   * Searched on the SERVER, not by filtering what is on screen.
+   * Searched in the database rather than by filtering what is on screen.
    *
-   * The list is capped at 100 rows and the catalogue is larger, so 26 products
-   * were not merely below the fold — they were never sent to the browser at
-   * all, and the heading called the fetched count "in catalog" as though it
-   * were the whole thing. A client-side filter would have inherited that: a
-   * search that quietly cannot find a quarter of the shop is worse than none,
-   * because it answers "no such product" with confidence.
+   * Every product is rendered now, so a client-side filter would work — but it
+   * would go wrong again the moment anyone reintroduced a limit, and it would
+   * make the browser hold the whole catalogue to answer one question the
+   * database can answer directly. Asking for what was wanted is both cheaper
+   * and harder to break.
    *
    * Matching the handle as well as the title, since that is what a product URL
    * carries and it is often what someone is holding when they come looking.
@@ -49,7 +61,6 @@ export default async function AdminProductsPage({
       .findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        take: PAGE_SIZE,
         include: {
           images: { take: 1, orderBy: { position: 'asc' } },
           variants: true,
@@ -79,7 +90,6 @@ export default async function AdminProductsPage({
             ) : (
               <>{total} in catalog</>
             )}
-            {products.length < matching && <> · showing first {products.length}</>}
           </p>
         </div>
         <Link href="/admin/import" className="btn btn-primary">
