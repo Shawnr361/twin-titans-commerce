@@ -1,171 +1,145 @@
-# Twin Titans Emporium — continuation prompt
+# Twin Titans Emporium — continuation prompt (2026-09-15)
 
 Paste everything below the line into a new session.
 
 ---
 
 I'm continuing work on **Twin Titans Emporium**, a self-hosted Next.js dropshipping
-store. Read this before doing anything.
+store. **The store is DOWN right now (502 Bad Gateway on every page). Fixing that is
+the only priority.** Read this whole prompt first.
 
-## Do these two things first
+## Before anything else
 
-1. **Use Chrome, not the in-app browser.** All the logged-in sessions — store admin,
-   AliExpress, DirectAdmin — live in the real Chrome profile. Load the tools in ONE
-   call: `ToolSearch` with
-   `select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__claude-in-chrome__javascript_tool,mcp__claude-in-chrome__find`
-2. **Check the open items below.** Real customer money is mid-flight.
+1. **Use Claude in Chrome** (my real, logged-in Chrome). Load the tools in ONE call:
+   `ToolSearch` → `select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__claude-in-chrome__javascript_tool,mcp__claude-in-chrome__find`
+   The previous session lost ALL desktop-app built-in tools (Chrome, the browser pane,
+   connectors) to a "uses a name reserved for the desktop app's built-in tools" error.
+   If that happens again, say so immediately — don't retry in circles.
+2. **Never enter my passwords or pull login cookies.** I log in; you drive.
 
 ## Where things are
 
-- **Repo:** `C:\Users\User\twin-titans-commerce`, branch `mysql-support` (not `main`)
-- **Live store:** https://twintitansemporium.store (the `.com` 301s to it, except `/api`)
-- **Host:** Go54 / HostAfrica, DirectAdmin at `da35.host-ww.net:2222`, user `twintita`,
-  app at `/home/twintita/store`
-- **Stack:** Next.js 15 / React 19 / TypeScript / Prisma 6 / MySQL / Tailwind
-- **Last deployed build:** `i2USsFg2ytQ1rwGwFuCEs` (commit `3645a4c4`)
+- **Repo:** `C:\Users\User\twin-titans-commerce`, branch **`mysql-support`** (not main).
+  Clean tree, HEAD `40c12cb9`.
+- **Live store:** https://twintitansemporium.store — the `.com` is `twintitanemporium.com`
+- **Host:** Go54 / WhoGoHost, DirectAdmin at **https://da35.host-ww.net:2222** (da35,
+  NOT da34), user `twintita`, app at `/home/twintita/store`
+- **Stack:** Next.js 15 / React 19 / TypeScript / Prisma 6 (binary engine) / MySQL
+- **My real domains (registrar):** `twintitanemporium.com` (titan, singular) and
+  `twintitansemporium.store` (titans, plural). **`twintitansemporium.com` (plural + .com)
+  is NOT mine** — it resolves to Shopify (23.227.38.32) and answers 402.
 
-## OPEN — do this first, it is real money
+## THE OUTAGE — what happened
 
-Order **#20** (Julie Derby, Sheffield, paid via PayPal) was placed with AliExpress
-**three times**, because a parser bug reported created orders as failures. Current state:
+At some point the DirectAdmin account's **primary domain was renamed** from
+`twintitanemporium.com` → **`twintitansemporium.com`** (the Shopify domain). Nobody has
+confirmed who did it; the previous Claude session only ever read that page. The `.store`
+is a **domain pointer** attached to the primary domain, and the Node app is bound to it.
 
-| AliExpress ref | Item | Amount | Status |
-|---|---|---|---|
-| `3076056663392701` | KIKO lip gloss | $6.19 | To pay — **keep** |
-| `3076176116292701` | Hair Curling Iron | $19.13 | To pay — **keep** |
-| `3076322850022701` | KIKO lip gloss | $6.19 | To pay — **duplicate, cancel** |
-| `3076322138852701` | Hair Curling Iron | $19.13 | To pay — **duplicate, cancel** |
-| `3076189080552701` | KIKO lip gloss | $6.19 | Canceled ✓ |
-| `3076176192412701` | Hair Curling Iron | $19.13 | Canceled ✓ |
+Timeline of evidence:
+- DirectAdmin dashboard showed `twintitansemporium.com` as the account domain
+- `twintitanemporium.com` stopped answering at all (HTTP 000) → server no longer knew it
+- Later it answered **502** instead of 000 → the rename back appears to have happened
+- I then did **Stop → Start** in Setup Node.js App → **still 502** on both domains
+  (last checked 2026-09-15 14:58, `/api/health` 502 on `.store` and `.com`)
 
-Then:
+So the domain is probably reconnected, but **the Node app is not coming up.**
 
-1. The two kept orders must be **paid by hand** on AliExpress (Pay now). Created is not
-   paid — see the traps below. They expire on a countdown.
-2. Once paid, record them against order #20 with **Mark placed** in the supplier queue,
-   or the store keeps thinking both legs are PENDING and the button will offer to buy
-   them a fourth time.
-3. `/admin/fulfilment` shows order #20 as unplaced until step 2 is done.
+## Diagnose in this order
 
-**Cancel flow** (there is no API for it — drive Chrome): open
-`https://www.aliexpress.com/p/order/detail.html?orderId=<ref>`, verify the ref on the
-page, click Cancel → "I do not need this order any more" → "Ordered by mistake" →
-Confirm → Submit → "Cancel the order". It opens a second tab that closes itself; verify
-by reloading the detail page and reading the status.
+1. **Domains page** (`/evo/CMD_ADDITIONAL_DOMAINS`): confirm it reads
+   `twintitanemporium.com` AND that `twintitansemporium.store` is still listed under it as
+   a pointer (`P:`). If the rename isn't reversed, reverse it (Rename Domain). If the
+   pointer vanished, re-add it.
+2. **Setup Node.js App**: check the `store` app's **domain / application URL**. If it still
+   references `twintitansemporium.com`, that alone explains the 502. NOTE: the Node.js
+   selector **cannot save settings on da35** (CloudLinux licence check fails) — Stop/Start
+   work, Save does not. Recreating the app may need a Go54 support ticket.
+3. **Read the actual crash** — File Manager: look for `~/store/stderr.log`, Passenger logs,
+   and `~/keepalive.log`. Don't guess; the log will name the error.
+4. **Check for a half-finished deploy.** The last verified-live build was
+   `YFhDAfRIMmtICYxJsmbyN`. `origin/deploy` holds `xFMKKd_liSz_7J7l4LeDP`, and one deploy
+   POST ended in "Failed to fetch" and was never confirmed. In File Manager compare
+   `~/store/.next/BUILD_ID` with `~/store/.next-prev/BUILD_ID`. If `.next` is broken or
+   partial: rename `.next` → `.next-bad`, `.next-prev` → `.next`, then Stop → Start.
+5. **Fork exhaustion** (known history): out of process slots makes `fork()` fail and the
+   app won't boot. Close any browser terminal sessions (they each hold a process), then
+   Stop → Start again. `~/store/.env` line 20 pins `PRISMA_QUERY_ENGINE_BINARY` — leave it.
+6. If still down: **open a Go54 ticket** citing the domain rename and 502 from nginx.
 
-## Also open
+Verify recovery with `/api/health` returning `{"ok":true,"db":true}` AND
+`/collections/all` rendering products — not just an HTTP 200.
 
-- **Per-product review section** — asked for and never started. The review system
-  already exists (`/reviews`, `/api/reviews`, `/admin/reviews`, display on the product
-  page) and is now reachable since deliveries finally set `DELIVERED`. What is missing
-  is reviews collected and shown per product page.
-- **Orders #17 and #18 got their tracking emails in the OLD plain-text format**
-  (sent before the redesign). Everything from now on is the branded HTML. Re-sending
-  those two needs a deliberate path — `sendShippingNotice` refuses to send twice for
-  the same tracking number.
-- **`no_reply@twintitansemporium.store` does not exist.** The setting is built
-  (Settings → "Send automatic emails from") but the mailbox must be created in
-  DirectAdmin **by the user** — I must not create accounts or handle passwords. Email
-  works without it, sending from support.
-- **`public/` is not deployed** — `/icons/*` and `/sw.js` are 404 live, so the PWA
-  manifest advertises three broken icons and Android will not offer "Install". That is
-  why the AliExpress share-target never worked. Fixing it needs a line in `release.sh`
-  AND a matching stage/swap in `~/server-deploy.sh`, which is not in the repo, so half
-  a fix is a no-op.
-- `CAINIAO_FULFILLMENT_STD` is hardcoded as the shipping service for every product and
-  destination (`aliexpress-place.ts`). Unproven either way — order creation has never
-  got far enough to judge it. First suspect if shipping fails oddly on a non-UK route.
+## Once the store is back — do these immediately
 
-## How to deploy — the button, never the terminal
+1. **Fix the no-reply sender.** The mailbox moved with the rename. Store Settings →
+   "Send automatic emails from" currently says `no_reply@twintitansemporium.com`, which
+   would no longer exist. Set it to the address that actually exists now (probably
+   `no_reply@twintitanemporium.com`), then `POST /api/admin/mail/test` and confirm
+   `ok: true`. **Exim rejects unverifiable senders and that stops EVERY order email.**
+2. **Reconcile payments made during the outage.** Flutterwave webhook
+   (`src/app/api/payments/flutterwave/webhook/route.ts`) and PayPal capture
+   (`src/app/api/payments/paypal/capture/route.ts`) both go through the site. Check the
+   Flutterwave and PayPal dashboards for successful payments whose store orders are still
+   UNPAID, and fix each one.
+3. **Order #20 (Julie Derby, paid ₦39,998 via PayPal on 4 Sep) is still not fulfilled.**
+   All its AliExpress orders expired unpaid; the store still shows both legs PLACED against
+   dead refs (`3076322138852701`, `3076322850022701`). `reopenSupplierOrder` was committed
+   (`07b8716c`) — confirm there's a button for it, reopen both legs, re-place, and
+   **I pay them on AliExpress within the countdown** (created ≠ paid).
+
+## Deploying
 
 ```bash
 bash scripts/release.sh     # builds locally, pushes artifact to origin/deploy
 ```
+Then POST `/api/admin/deploy` with `{"confirm":"DEPLOY"}` from an admin session and poll
+`GET /api/admin/deploy` for `VERIFIED live: <buildId>`. Rules:
+- Redirect release output to a file and grep it — piping masks a failed push. Confirm with
+  `git fetch origin deploy && git show FETCH_HEAD:.next/BUILD_ID`.
+- 30-second cooldown on the deploy button; a second press inside it silently does nothing.
+- **Go easy on repeated deploys** — each restart can leave orphaned processes, and a pile
+  of them is a known cause of this exact outage.
+- Never use the DirectAdmin browser terminal.
 
-Then POST `/api/admin/deploy` with `{"confirm":"DEPLOY"}` from an admin session, or
-press **Deploy latest build** on `/admin`. Poll `GET /api/admin/deploy` until
-`state: "done"` and confirm the log says `VERIFIED live: <buildId>`.
+## What was built recently (all committed and pushed)
 
-Three things that will otherwise waste your time:
-
-- **`release.sh` can fail to push and still exit 0** if you pipe its output — a broken
-  pipe masks the failure. Redirect to a file and grep it, then confirm with
-  `git ls-remote origin deploy`. It also hit a plain SSH timeout to GitHub once; re-run.
-- **There is a 30-second cooldown** in `src/lib/deploy.ts`. A second press inside it
-  silently does nothing and the log still shows the previous run.
-- **Never use the DirectAdmin browser terminal.** It renders output but silently
-  swallows all typed input.
-
-## Verification style this project expects
-
-Measure, don't assert. Things that caught real bugs this session:
-
-- Reading the order **timeline wording** to prove whether the API or a human placed an
-  order — `markPlaced` and the API write different messages, and that is how "the API
-  has never once worked" was established
-- `curl -o /dev/null -w "%{http_code} %{content_type} %{size_download}"` to prove
-  `/icons/icon-192.png` was 404 while `/apple-icon.png` was not
-- Rendering the emails to HTML and **looking at them** in a browser
-- Reading AliExpress's own order page to discover the orders existed after the code had
-  reported failure
-
-Run `npx tsx scripts/verify-logic.ts` after touching pricing, categorising, titles,
-option labels, variants, addresses, or the AliExpress reply parsing — it needs no
-database. `npx tsx scripts/preview-emails.ts` renders the three customer emails to
-`.email-preview/` so they can be looked at.
+- **True landed cost.** Cost from `offer_sale_price` (the billed field), real shipping from
+  `aliexpress.ds.freight.query` (param `queryDeliveryReq`, **`selectedSkuId` required**),
+  today's FX. Freight retries with backoff. Old stored costs had no shipping and frozen FX
+  — some products sold at a loss (turmeric soap −51%).
+- **Pricing rebalance** `POST /api/admin/pricing/rebalance` — dry-run default, cursor-paged
+  (`afterId`), re-prices viable variants, delists (DRAFT) products where no variant clears
+  2× uplift AND ₦1,500 profit, needs ≥50% of variants costed before delisting, leaves
+  uncosted rows alone. **Only partly applied across the catalogue — resume it.**
+- **Pricing audit** `POST /api/admin/pricing/audit` and probe `GET /api/admin/pricing/probe`.
+- **SKU check runs for ever**: one batch rides along on the tracking cron (`*/30`); it
+  blocks variants whose supplier SKU is gone (`inventory = 0`, checkout refuses) and
+  restores them if the option returns. Full pass completed; 188 variants blocked.
+- **Order placement**: UK/IE province = `"Other"`; order number parsed from
+  `result.order_list.number[0]`; refusals logged as `supplier_place_failed` events; uses the
+  shipping service code the freight API returns.
+- **Branded HTML emails** (crest, product photos, totals). Mail test route
+  `POST /api/admin/mail/test` emails only the signed-in admin.
+- **Admin lists**: Products (no cap, renders all), Orders, Customers, Mailing list all have
+  server-side search, honest counts, and scroll panes. Build `xFMKKd_liSz_7J7l4LeDP` holds
+  the uncapped products list and may not be live yet.
 
 ## Traps that bite
 
-- Every monetary value is an **Int in MINOR units**, suffixed `*Minor`.
-  **Paystack took kobo (minor); Flutterwave takes naira (MAJOR)** — 100x trap.
-- `supplierCostBasis(list, promo)` = `min(list, promo × 1.2)`. AliExpress "regular"
-  prices are frequently fiction.
-- **The Bash tool collapses `\\` → `\` in heredocs**, so Python or JS written that way
-  gets its regexes and `\n` mangled. Use the Write/Edit tools for anything containing
-  backslashes.
-- **AliExpress `ds.order.create`:** there is **no add-to-cart API** (only product
-  details, shipping calculation, order create — DSers uses the same one). UK/IE province
-  must be the literal string `"Other"`. **Created is NOT paid** without auto-pay
-  approval. The order number hides at `result.order_list.number[0]`. A false failure
-  here is far worse than a false success — it makes a human buy twice. Always check My
-  Orders on AliExpress before retrying a placement.
-- `sku_id` ≠ `sku_attr` — both are required, and sending the id in the attr field
-  returns `SKU_NOT_EXIST`.
-- Customer emails: images must go through `/api/og-image` (the AliExpress CDN answers
-  WebP, which no mail client renders), and the HTML part must be base64 with wrapped
-  lines (SMTP caps a line at 1000 characters).
+- Money is **Int in minor units**. Flutterwave takes naira (major) — 100× trap.
+- The Bash tool collapses `\\` in heredocs; use Write/Edit for anything with backslashes.
+- `public/` isn't deployed; use `/apple-icon.png` for any logo URL.
+- There is **no AliExpress add-to-cart API**. `ds.order.create` creates but doesn't pay
+  without auto-pay approval, and unpaid orders expire. Check My Orders before retrying.
+- Server crons run `$HOME` scripts holding the cron secret — never put the secret in a
+  cron line or a new file.
 
-## Skills and routines available
+## How I want you to work
 
-Reach for these by name rather than improvising:
-
-- **`resume-dropship`** — reload store state at the start of a fresh session.
-- **`advanced-task-execution`** — when one message bundles several sub-tasks or spans
-  many products. This user routinely asks for four or five things at once, mid-turn;
-  decompose, flag blockers honestly instead of skipping them, report per-item status.
-- **`winning-product-scout`** — find new products to add; four-signal sourced scorecard.
-- **`business-analytics`** — validate a single product, price, margin, supplier or
-  trend. Anchors to today's date and cites every source.
-- **`predictive-market-score`** — score the store against competitors once live.
-- **`frontend-ui-ux`** — storefront and admin UI, motion, dark theming, and the
-  z-index/overflow gotchas that break dropdowns.
-- **`icon-asset-cleanup`** — trim white padding from generated icons and favicons.
-- **`facebook-page`**, **`shopify-theme-dev`** — marketing surface and the legacy
-  Shopify store.
-- **`code-review`** / **`security-review`** before shipping anything touching money or
-  customer data.
-
-## Working style the user expects
-
-- **Act without asking for routine steps, and deploy yourself** — they built the deploy
-  button so nobody waits. Send customer emails on sight for real orders.
-- **But never spend money or handle credentials without explicit, per-action say-so.**
-  I do not sign in, create mailboxes, or type passwords; they do those. A purchase needs
-  a specific yes, and the amount must be quoted accurately — I once quoted ₦3,526 for
-  what was really ₦24,915, and that kind of error must be corrected loudly and at once.
-- **Be blunt about what is broken or unproven.** Do not soften bad news, and when a fix
-  does not work say "that didn't work" rather than re-explaining the theory.
-- **Never claim something is fixed without evidence.** Check the live state.
-- They ask for a lot at once, often mid-turn. Finish what is running, then address it.
-- Explain in plain terms — they have said several times that they do not follow the
-  jargon.
+- **Fix anything that costs money or breaks an order without waiting to be asked.** Build,
+  test, deploy, then tell me. Only spending money and handling credentials need my yes.
+- Be blunt about what's broken or unproven. Verify live; never claim fixed without evidence.
+- Explain in plain terms — I'm not the developer, you are.
+- Relevant skills: `resume-dropship`, `advanced-task-execution`, `business-analytics`,
+  `code-review`.
