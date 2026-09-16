@@ -58,6 +58,19 @@ export async function generateMetadata(): Promise<Metadata> {
     twitter: { card: 'summary_large_image' },
     robots: { index: true, follow: true },
     alternates: { canonical: '/' },
+    /*
+     * Google Search Console ownership for twintitansemporium.store.
+     *
+     * The token was issued in the DNS TXT form (google-site-verification=…),
+     * which is what a Domain property requires — so the TXT record in DNS is
+     * what actually proves ownership. This meta tag carries the same token for
+     * a URL-prefix property, and costs nothing if unused.
+     *
+     * It lives in code rather than as a public/ HTML file because public/ is not
+     * part of the deployed artifact on this host; a verification file there
+     * would 404 in production.
+     */
+    verification: { google: '_p_zaaCfRGRKhmepiOPHbNhb_4vCBSaXMjZ6SRdzKtQ' },
   };
 }
 
