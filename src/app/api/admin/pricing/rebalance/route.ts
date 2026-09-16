@@ -134,6 +134,8 @@ export async function POST(request: Request) {
   const decisions: Decision[] = [];
   const delisted: string[] = [];
   const undecided: string[] = [];
+  /* Flagged for re-pricing but not written, each with the reason. */
+  const applySkipped: string[] = [];
   let repriced = 0;
   let productsDelisted = 0;
 
@@ -281,25 +283,54 @@ export async function POST(request: Request) {
         productsDelisted++;
       }
     } else if (apply) {
+      /*
+       * Every variant flagged for re-pricing either gets re-priced or gets a
+       * REASON in the response. The first catalogue run reported
+       * "reprice: 1, repriced: 0" with nothing in between: the exact-variant
+       * freight re-quote came back empty and the variant was skipped with a
+       * bare `continue`. A skip nobody can see is how a run's numbers stop
+       * matching what the catalogue actually charges.
+       */
+      const skip = (d: Decision, why: string) =>
+        applySkipped.push(`${d.product} / ${d.variant}: ${why}`);
+
       for (const d of here) {
         if (d.action !== 'reprice') continue;
         const variant = product.variants.find((v) => v.id === d.variantId);
-        if (!variant) continue;
+        if (!variant) {
+          skip(d, 'variant no longer exists');
+          continue;
+        }
 
         /* Re-quote the exact variant before its price changes. */
         const exact = await freightFor(externalId, String(variant.supplierVariantId), country);
         if (delayMs) await sleep(delayMs);
         const sku = bySku.get(String(variant.supplierVariantId));
         const itemUsd = sku ? (sku.promo && sku.promo > 0 ? sku.promo : sku.price) : 0;
+        if (!itemUsd) {
+          skip(d, 'no supplier price on re-check');
+          continue;
+        }
         const exactShipping = shippingOnLine(exact, itemUsd);
-        if (exactShipping === null || !itemUsd) continue;
+        if (exactShipping === null) {
+          /*
+           * The listing-level quote worked but THIS option has no delivery
+           * route to the destination. Pricing it would be pricing something
+           * that cannot be sent — so it is left for a human, not guessed at.
+           */
+          skip(d, `no delivery to ${country} for this option`);
+          continue;
+        }
 
         const conv = await sourceCostToBase(
           Math.round((itemUsd + exactShipping) * 100),
           supplier.capture.currency || 'USD',
           settings.baseCurrency
         );
-        if (!conv.converted) continue;
+        if (!conv.converted) {
+          skip(d, 'no exchange rate');
+          continue;
+        }
 
         const exactSolved = computePrice(conv.baseMinor, rules);
         await prisma.variant.update({
@@ -330,6 +361,8 @@ export async function POST(request: Request) {
     },
     productsToDelist: delisted.length,
     productsNeedingAnotherPass: undecided.length,
+    applySkipped: applySkipped.length,
+    applySkippedExamples: applySkipped.slice(0, 10),
     /* Why a variant could not be priced — the remedy differs per reason. */
     uncostedReasons: decisions
       .filter((d) => d.action === 'uncosted')
