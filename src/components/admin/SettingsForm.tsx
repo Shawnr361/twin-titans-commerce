@@ -5,6 +5,7 @@ import { useState } from 'react';
 import type { StoreSettings } from '@/lib/settings';
 import type { PricingRules } from '@/lib/pricing';
 import { fromMinor, toMinor } from '@/lib/money';
+import { MailTestButton } from '@/components/admin/MailTestButton';
 
 export function SettingsForm({
   settings,
@@ -122,7 +123,13 @@ export function SettingsForm({
             id="notificationEmail"
             name="notificationEmail"
             className="field"
-            placeholder="no_reply@twintitansemporium.store"
+            /*
+              Not an example address. The old placeholder showed a no_reply
+              mailbox that did not exist, and greyed-out text in a field reads
+              as a saved value — it was taken for one during the September
+              domain incident.
+            */
+            placeholder="Empty — sends from your support address"
             defaultValue={settings.notificationEmail}
           />
           <p className="mt-1 text-micro text-greige">
@@ -131,6 +138,7 @@ export function SettingsForm({
             the mail server refuses to send from an address it cannot verify, so create it in
             your hosting panel first. Leave empty to send from support.
           </p>
+          <MailTestButton />
         </div>
 
         <div>
