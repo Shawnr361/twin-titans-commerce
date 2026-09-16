@@ -101,9 +101,57 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     currencies.map((c) => c.code)
   );
 
+  /*
+   * Who this site is, in the form Google reads.
+   *
+   * Search results showed a generic globe beside the listing and the bare
+   * domain where the name should be. Google takes the site NAME from WebSite
+   * markup and the brand LOGO from Organization markup, and the homepage had
+   * neither — so it had nothing to say "this is Twin Titans Emporium".
+   *
+   * The logo points at /icon.png because that is a file Next genuinely serves
+   * from the app directory. public/ is not part of the deployed artifact on
+   * this host, so a logo placed there would be a 404 and Google would ignore
+   * the markup. At 192px it clears Google's 112px minimum for logos.
+   *
+   * The favicon itself is the separate half of this: favicon.ico and a
+   * 192x192 icon.png in the app directory, because Google wants a square
+   * favicon whose size is a multiple of 48px, and the old 512px icon was not.
+   */
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/+$/, '');
+  const brandJsonLd = siteUrl
+    ? [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: settings.storeName,
+          alternateName: ['Twin Titans', 'twintitansemporium.store'],
+          url: `${siteUrl}/`,
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: settings.storeName,
+          url: `${siteUrl}/`,
+          logo: `${siteUrl}/icon.png`,
+          ...(settings.supportEmail ? { email: settings.supportEmail } : {}),
+        },
+      ]
+    : [];
+
   return (
     <html lang="en" className={`${fraunces.variable} ${hanken.variable}`}>
       <body className="flex min-h-screen flex-col bg-bone">
+        {brandJsonLd.length > 0 && (
+          <script
+            type="application/ld+json"
+            // JSON.stringify escapes quotes; the < replacement stops a store name
+            // containing "</script>" from ending the tag early.
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify(brandJsonLd).replace(/</g, '\\u003c'),
+            }}
+          />
+        )}
         {/*
           Ad pixels. Only the public pixel ids cross into the browser — the
           Conversions/Events API tokens stay server-side in lib/tracking.
