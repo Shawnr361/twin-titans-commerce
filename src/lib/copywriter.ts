@@ -352,6 +352,7 @@ export async function ensureDescription(
       descriptionHtml: true,
       variants: { select: { title: true, priceMinor: true } },
       collections: { select: { collection: { select: { handle: true } } } },
+      source: { select: { raw: true } },
     },
   });
   if (!product) return { written: false, reason: 'product not found' };
@@ -364,8 +365,18 @@ export async function ensureDescription(
     0
   );
 
+  /*
+   * Write from the SUPPLIER's title when it is known, not the shop title. The
+   * shop title is short by design, and the invented-claim filter only allows a
+   * spec the title states — checked against "Portable Fruit Juicer" it would
+   * strip the true "USB" and "450ml" that the supplier title does state.
+   */
+  const raw = product.source?.raw as { supplierTitle?: unknown } | null | undefined;
+  const factsTitle =
+    typeof raw?.supplierTitle === 'string' && raw.supplierTitle.trim() ? raw.supplierTitle : product.title;
+
   const generated = await generateDescription({
-    title: product.title,
+    title: factsTitle,
     // "Default" is the placeholder for a single-variant product, not a choice.
     options: product.variants
       .map((v) => v.title.replace(/^[^:]+:\s*/, '').trim())
@@ -382,6 +393,97 @@ export async function ensureDescription(
     data: { descriptionHtml: generated.html },
   });
   return { written: true, chars: generated.html.length };
+}
+
+/**
+ * One plain-text answer from whichever provider is configured.
+ *
+ * For short, tightly-checked jobs like shop titles, where the caller validates
+ * the answer itself. Same providers and same model settings as descriptions, so
+ * there is one place to switch model or key. Never throws.
+ */
+export async function completeText(
+  system: string,
+  user: string,
+  { maxTokens = 1000, temperature = 0.2 }: { maxTokens?: number; temperature?: number } = {}
+): Promise<{ text: string | null; error?: string }> {
+  const provider = copywriterProvider();
+  if (!provider) return { text: null, error: 'no OPENROUTER_API_KEY or ANTHROPIC_API_KEY' };
+
+  if (provider === 'anthropic') {
+    const workspace = process.env.ANTHROPIC_WORKSPACE_ID?.trim();
+    const client = new Anthropic({
+      timeout: TIMEOUT_MS,
+      maxRetries: 1,
+      ...(workspace ? { defaultHeaders: { 'anthropic-workspace-id': workspace } } : {}),
+    });
+    try {
+      const response = await client.messages.create({
+        model: 'claude-opus-5',
+        max_tokens: maxTokens,
+        output_config: { effort: 'low' },
+        system,
+        messages: [{ role: 'user', content: user }],
+      });
+      if (response.stop_reason === 'refusal') return { text: null, error: 'refusal' };
+      const text = response.content
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join('')
+        .trim();
+      return text ? { text } : { text: null, error: 'empty answer' };
+    } catch (err) {
+      return { text: null, error: String(err instanceof Error ? err.message : err).slice(0, 200) };
+    }
+  }
+
+  const key = process.env.OPENROUTER_API_KEY?.trim();
+  const model = process.env.OPENROUTER_MODEL?.trim() || DEFAULT_OPENROUTER_MODEL;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      signal: abort.signal,
+      headers: {
+        authorization: `Bearer ${key}`,
+        'content-type': 'application/json',
+        'http-referer': 'https://twintitansemporium.store',
+        'x-title': 'Twin Titans Emporium',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        temperature,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+      }),
+    });
+    const body = (await res.json().catch(() => null)) as {
+      choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
+      error?: { message?: string };
+    } | null;
+    if (!res.ok) {
+      return {
+        text: null,
+        error: `OpenRouter (${model}): ${String(body?.error?.message ?? `HTTP ${res.status}`).slice(0, 160)}`,
+      };
+    }
+    const choice = body?.choices?.[0];
+    const text = choice?.message?.content?.trim() ?? '';
+    return text
+      ? { text }
+      : { text: null, error: `OpenRouter (${model}) returned no content, finish_reason=${choice?.finish_reason}` };
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return { text: null, error: `OpenRouter timed out after ${TIMEOUT_MS / 1000}s` };
+    }
+    return { text: null, error: String(err).slice(0, 200) };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**

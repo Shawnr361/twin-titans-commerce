@@ -22,6 +22,7 @@ import { prisma } from "@/lib/db";
 import { CARD_SELECT, toCard } from "@/lib/catalog";
 import { formatMoney } from "@/lib/money";
 import { getStoreSettings } from "@/lib/settings";
+import { DELIVERY_DAYS, DISPATCH_DAYS } from "@/content/delivery";
 
 export const dynamic = "force-dynamic";
 
@@ -161,8 +162,8 @@ export default async function ProductPage({
     })
     .catch(() => []);
 
-  const shipMin = product.source?.supplier.shipDaysMin ?? 7;
-  const shipMax = product.source?.supplier.shipDaysMax ?? 21;
+  const shipMin = product.source?.supplier.shipDaysMin ?? DELIVERY_DAYS.min;
+  const shipMax = product.source?.supplier.shipDaysMax ?? DELIVERY_DAYS.max;
   const cheapest = product.variants.reduce(
     (min, v) => (v.priceMinor < min ? v.priceMinor : min),
     product.variants[0]?.priceMinor ?? 0,
@@ -289,14 +290,15 @@ export default async function ProductPage({
           "@type": "ShippingDeliveryTime",
           handlingTime: {
             "@type": "QuantitativeValue",
-            minValue: 1,
-            maxValue: 3,
+            minValue: DISPATCH_DAYS.min,
+            maxValue: DISPATCH_DAYS.max,
             unitCode: "DAY",
           },
           transitTime: {
             "@type": "QuantitativeValue",
-            minValue: 7,
-            maxValue: 21,
+            // The same window the page shows the shopper, not a second copy.
+            minValue: shipMin,
+            maxValue: shipMax,
             unitCode: "DAY",
           },
         },

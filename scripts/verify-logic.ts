@@ -26,6 +26,7 @@ import { currencyForCountry } from '../src/lib/geo';
 import { provinceFor } from '../src/lib/dropship/address';
 import { findOrderNumber, refusalMessage } from '../src/lib/dropship/aliexpress-reply';
 import { stripInventedClaims } from '../src/lib/copywriter';
+import { isFaithfulTitle, tidyTitleAnswer } from '../src/lib/suppliers/shopTitle';
 import {
   announcementContradictsShipping,
   announcementMessages,
@@ -181,6 +182,9 @@ console.log(
 const cheap = computePrice(toMinor(1200, 'NGN'), DEFAULT_RULES);
 assert('cheap items stay profitable too', cheap.profitMinor > 0, formatMoney(cheap.profitMinor));
 
+// No invented "was" price, even when a saved setting still carries the old 1.45 multiplier.
+check('no generated compare-at price', computePrice(toMinor(1200, 'NGN'), { ...DEFAULT_RULES, compareAtMultiplier: 1.45 }).compareAtMinor, null);
+
 // Fixed-profit strategy: Kenny's "$30 per unit" instruction from the Nivea call.
 const fixed = computePrice(toMinor(31833, 'NGN'), {
   ...DEFAULT_RULES,
@@ -213,6 +217,22 @@ assert('floor raise is reported as a warning', floored.warnings.length > 0);
 
 // --- generated copy may not assert specs the supplier title never gave -------
 //
+// ---------------------------------------------------------------------------
+// Shop titles: a model names products unattended, so the guard is the guarantee.
+// Every meaningful word must already be in the supplier's title.
+// ---------------------------------------------------------------------------
+const seat = 'Toilet Seat Cover Warm Soft Acrylic Washable Mat Home Decor Closestool';
+check('a name built from the supplier words passes', isFaithfulTitle('Warm Washable Toilet Seat Cover', seat).ok, true);
+check('a plural of a supplier word passes', isFaithfulTitle('Toilet Seat Covers', seat).ok, true);
+check('an added material is refused', isFaithfulTitle('Cotton Toilet Seat Cover', seat).ok, false);
+check('a sales word is refused even if the supplier used it', isFaithfulTitle('Premium Soft Towels', '1 Pack of Premium Soft Absorbent Towels').ok, false);
+check('an invented number is refused', isFaithfulTitle('3-Piece Toilet Seat Cover', seat).ok, false);
+check('the supplier count is allowed', isFaithfulTitle('60-Piece Collagen Eye Mask', '60pcs Gold Crystal Collagen Eye Mask Beauty 60 pieces').ok, true);
+check('a prefix is not a word family: water is not waterproof', isFaithfulTitle('Waterproof Water Bottle', 'Water Bottle Sports').ok, false);
+check('a grammatical ending is a word family', isFaithfulTitle('Washing Brush', 'Wash Brush Cleaning Tool').ok, true);
+check('over-long names are refused', isFaithfulTitle('Warm Soft Acrylic Washable Toilet Seat Cover Mat Decor', seat).ok, false);
+check('model answer is tidied', tidyTitleAnswer('Name: "Portable Fruit Juicer."\nextra'), 'Portable Fruit Juicer');
+
 // gemini-2.5-flash published "Recharges via USB for ease" for a clipper whose
 // title said only "Cordless". The prompt forbids it twice, by rule and by that
 // exact example, and the model did it anyway — so the guarantee lives here.

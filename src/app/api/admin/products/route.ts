@@ -6,6 +6,7 @@ import { auditMargin } from '@/lib/pricing';
 import { getPricingRules } from '@/lib/settings';
 import { fileProduct } from '@/lib/filing';
 import { ensureDescription } from '@/lib/copywriter';
+import { ensureShopTitle } from '@/lib/suppliers/shopTitleJob';
 
 const schema = z.object({
   productId: z.string().min(1),
@@ -75,8 +76,15 @@ export async function PATCH(request: Request) {
    */
   let filing: Awaited<ReturnType<typeof fileProduct>> | null = null;
   let copy: Awaited<ReturnType<typeof ensureDescription>> | null = null;
+  let title: Awaited<ReturnType<typeof ensureShopTitle>> | null = null;
   if (parsed.data.status === 'ACTIVE') {
     filing = await fileProduct(product.id).catch(() => null);
+    /*
+     * A shop name instead of the supplier's keyword string, before anything
+     * shopper-facing is written. Runs once per product (see shopTitleJob), so
+     * republishing never undoes a title the merchant edited, and never fatal.
+     */
+    title = await ensureShopTitle(product.id).catch(() => null);
     /*
      * Imports arrive with an empty description, so without this every product
      * page shows nothing but a supplier title and the meta description falls
@@ -86,7 +94,7 @@ export async function PATCH(request: Request) {
     copy = await ensureDescription(product.id).catch(() => null);
   }
 
-  return NextResponse.json({ ok: true, filing, copy });
+  return NextResponse.json({ ok: true, filing, title, copy });
 }
 
 const deleteSchema = z.object({

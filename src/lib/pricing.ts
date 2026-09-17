@@ -73,7 +73,10 @@ export interface PricingRules {
   roundToMinor: number;
   roundEndingMinor: number;
 
-  /** Auto compare-at price, as a multiple of the final price. 0 disables. */
+  /**
+   * RETIRED — computePrice no longer generates a compare-at price at all (see
+   * the note there). Kept only so older saved settings still type-check.
+   */
   compareAtMultiplier: number;
 }
 
@@ -91,7 +94,7 @@ export const DEFAULT_RULES: PricingRules = {
   fees: FLUTTERWAVE_NG_FEES,
   roundToMinor: toMinor(1000, 'NGN'),
   roundEndingMinor: toMinor(999, 'NGN'),
-  compareAtMultiplier: 1.45,
+  compareAtMultiplier: 0,
 };
 
 export function gatewayFee(priceMinor: number, fees: GatewayFeeModel): number {
@@ -200,14 +203,19 @@ export function computePrice(rawCostMinor: number, rules: PricingRules = DEFAULT
     warnings.push('This variant would sell at a LOSS. Do not publish it.');
   }
 
-  const compareAtMinor =
-    rules.compareAtMultiplier > 1
-      ? charmRound(
-          Math.round(price * rules.compareAtMultiplier),
-          rules.roundToMinor,
-          rules.roundEndingMinor
-        )
-      : null;
+  /*
+   * NO INVENTED "WAS" PRICE.
+   *
+   * This used to be price × compareAtMultiplier (1.45), so every product carried
+   * a struck-through price it had never sold at and a "-31%" badge to match. A
+   * reference price the goods were never offered at is a misleading price
+   * representation under the FCCPA, and it sat directly under a homepage that
+   * says everything is "priced honestly". It is now always null — ignoring the
+   * multiplier even where an older saved pricing setting still carries one — so
+   * no import, reprice or rebalance can bring it back. A genuine reduction has
+   * to be set deliberately, never generated.
+   */
+  const compareAtMinor: number | null = null;
 
   return { priceMinor: price, compareAtMinor, costMinor, feeMinor, profitMinor, marginPct, warnings };
 }

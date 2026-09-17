@@ -9,6 +9,8 @@ import { Spotlight } from '@/components/motion/Spotlight';
 import { prisma } from '@/lib/db';
 import { CARD_SELECT, toCard } from '@/lib/catalog';
 import { getStoreSettings } from '@/lib/settings';
+import { FEATURED_TAG, hasTag } from '@/lib/tags';
+import { deliveryWindow, dispatchWindow } from '@/content/delivery';
 
 // Prices, stock and the catalogue all change from the admin, and prerendering
 // would additionally require a database connection at build time, which the
@@ -20,7 +22,7 @@ export default async function HomePage() {
 
   // The departments strip is gone, so the collection query goes with it rather
   // than running on every homepage render for nothing.
-  const [newest, productCount] = await Promise.all([
+  const [newest, productCount, featured] = await Promise.all([
     prisma.product
       .findMany({
         where: { status: 'ACTIVE' },
@@ -37,14 +39,32 @@ export default async function HomePage() {
       .catch(() => []),
 
     prisma.product.count({ where: { status: 'ACTIVE' } }).catch(() => 0),
+
+    /*
+     * Hand-picked hero products. Filtered here rather than in SQL: tags is a
+     * JSON column, the live catalogue is a few hundred rows at most, and a
+     * JSON path filter is one more thing that behaves differently per database.
+     */
+    prisma.product
+      .findMany({
+        where: { status: 'ACTIVE' },
+        orderBy: { updatedAt: 'desc' },
+        select: { ...CARD_SELECT, tags: true },
+      })
+      .then((rows) => rows.filter((p) => hasTag(p.tags, FEATURED_TAG)))
+      .catch(() => []),
   ]);
 
   /*
    * One slide per product, first image only. Products with no image are
    * skipped rather than shown as a gap, and the list is capped so the hero
    * stays a taste of the catalogue rather than all of it.
+   *
+   * The merchant's featured picks lead. Newest-first is only the fallback when
+   * nothing is featured — left to itself it put a toilet seat cover under the
+   * headline, because that happened to be the latest import.
    */
-  const heroSlides = newest
+  const heroSlides = (featured.length > 0 ? featured : newest)
     .filter((p) => p.images?.[0]?.url)
     .slice(0, 6)
     .map((p) => ({ handle: p.handle, title: p.title, url: p.images[0].url }));
@@ -85,6 +105,16 @@ export default async function HomePage() {
                 Track an order
               </Link>
             </div>
+
+            {/*
+              The delivery time, said up front. Goods ship from overseas
+              suppliers, and a shopper who assumed three days is the one who
+              writes "where is my order" on day eight — or disputes the charge.
+              Same numbers as the shipping policy, from one source.
+            */}
+            <p className="mt-8 text-label text-quiet">
+              Dispatched in {dispatchWindow} · delivered in {deliveryWindow} · tracked all the way
+            </p>
           </Reveal>
 
           <Reveal>
@@ -147,7 +177,7 @@ export default async function HomePage() {
           {[
             {
               title: 'Shipped direct',
-              body: 'Orders go straight from our supplier to your address, which is how the pricing stays where it is.',
+              body: `Orders go straight from our supplier to your address, which is how the pricing stays where it is. Expect it within ${deliveryWindow} of dispatch.`,
             },
             {
               title: 'Tracked throughout',

@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { ProductStatusToggle } from '@/components/admin/ProductStatusToggle';
 import { ProductDeleteButton } from '@/components/admin/ProductDeleteButton';
+import { FeatureToggle } from '@/components/admin/FeatureToggle';
+import { FEATURED_TAG, hasTag } from '@/lib/tags';
 import { prisma } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import { EditPricing } from '@/components/admin/EditPricing';
@@ -255,6 +257,11 @@ export default async function AdminProductsPage({
                     {worst.severity === 'loss' ? 'LOSS' : `${worst.marginPct.toFixed(0)}% margin`}
                   </span>
                 )}
+
+                <FeatureToggle
+                  productId={product.id}
+                  featured={hasTag(product.tags, FEATURED_TAG)}
+                />
 
                 <ProductStatusToggle
                   productId={product.id}

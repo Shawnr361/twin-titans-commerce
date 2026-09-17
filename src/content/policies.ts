@@ -1,5 +1,6 @@
 import { formatMoney } from '@/lib/money';
 import type { StoreSettings } from '@/lib/settings';
+import { deliveryWindow, dispatchWindow } from '@/content/delivery';
 
 /**
  * The store's legal pages, generated from live settings.
@@ -300,7 +301,7 @@ export function buildPolicies(settings: StoreSettings): PolicyDoc[] {
 <p>${shippingLine(settings)} The exact charge for your order is shown at checkout before you pay.</p>
 
 <h2>Dispatch and delivery times</h2>
-<p>Orders are prepared for dispatch within <strong>1–3 business days</strong>. Delivery then typically takes <strong>7–21 days</strong>, depending on the item and on your location. Business days exclude weekends and public holidays.</p>
+<p>Orders are prepared for dispatch within <strong>${dispatchWindow}</strong>. Delivery then typically takes <strong>${deliveryWindow}</strong>, depending on the item and on your location. Business days exclude weekends and public holidays.</p>
 <p>These are <strong>estimates, not guaranteed dates</strong>. We do not offer guaranteed or timed delivery and cannot be held to a specific arrival date. Delivery may take longer because of customs or regulatory inspection, carrier delays or backlogs at peak periods, incomplete address details, industrial action, or extreme weather. Where a delay becomes unreasonable, contact us and we will chase the carrier or, if the item cannot be delivered at all, cancel and refund it.</p>
 
 <h2>Orders that arrive in more than one parcel</h2>

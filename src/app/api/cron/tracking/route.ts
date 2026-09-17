@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { syncTracking } from '@/lib/dropship/aliexpress-place';
 import { runSkuAuditBatch } from '@/lib/dropship/sku-audit';
+import { runShopTitleBatch } from '@/lib/suppliers/shopTitleJob';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +63,21 @@ async function run(request: Request) {
       skuAudit = { error: err instanceof Error ? err.message : 'SKU audit batch failed.' };
     }
 
-    return NextResponse.json({ ok: true, ...result, skuAudit });
+    /*
+     * Shop titles ride along the same way, last and non-fatal. This is the
+     * standing sweep that means a batch of captures never needs a rename pass:
+     * anything live that publish did not name (a provider outage, a product
+     * published by another route) is picked up here within half an hour.
+     * Three products a run, each processed once for good.
+     */
+    let shopTitles: unknown = null;
+    try {
+      shopTitles = await runShopTitleBatch(3);
+    } catch (err) {
+      shopTitles = { error: err instanceof Error ? err.message : 'Shop title batch failed.' };
+    }
+
+    return NextResponse.json({ ok: true, ...result, skuAudit, shopTitles });
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : 'Tracking sync failed.' },
