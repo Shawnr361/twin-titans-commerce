@@ -2,6 +2,22 @@ import { prisma } from '@/lib/db';
 import { getStoreSettings } from '@/lib/settings';
 import { fromMinor } from '@/lib/money';
 import { CATEGORY_RULES, categorise } from '@/lib/categorise';
+import { htmlToText } from '@/lib/seo';
+
+/**
+ * A variant's option value by any of the names suppliers use for it.
+ *
+ * Google asks for color and size on variant products and flags rows without
+ * them; Meta and TikTok read the same columns. Only exact option names are
+ * matched — guessing "Style" is a colour would publish a wrong attribute.
+ */
+function optionValue(options: unknown, names: string[]): string {
+  if (!options || typeof options !== 'object') return '';
+  for (const [key, value] of Object.entries(options as Record<string, unknown>)) {
+    if (names.includes(key.trim().toLowerCase()) && typeof value === 'string') return value.trim();
+  }
+  return '';
+}
 
 /**
  * The category string for a feed row, best source first.
@@ -133,9 +149,21 @@ const COLUMNS = [
   'product_type',
   // Both platforms ask for their own taxonomy field alongside product_type.
   'google_product_category',
+  'color',
+  'size',
 ] as const;
 
-export async function GET() {
+export async function GET(request: Request) {
+  /*
+   * Which channel is reading. The ad catalogues keep the paid UTM tags they
+   * were set up with; Google Merchant Center reads ?channel=google, so free
+   * Shopping listings are not reported as paid traffic in analytics.
+   */
+  const channel = new URL(request.url).searchParams.get('channel');
+  const utm =
+    channel === 'google'
+      ? 'utm_source=google&utm_medium=organic_shopping'
+      : 'utm_source=catalogue&utm_medium=paid';
   const [settings, products] = await Promise.all([
     getStoreSettings(),
     prisma.product.findMany({
@@ -177,7 +205,16 @@ export async function GET() {
       ? `${base}/pages/${product.landingPageHandle}`
       : `${base}/products/${product.handle}`;
 
-    const description = product.seoDescription?.trim() || product.title;
+    /*
+     * The written description, as plain text. This used to fall back to the
+     * title, so most rows said the same thing twice — Google scores that as a
+     * missing description. Capped at Google's 5,000 characters.
+     */
+    const description = (
+      product.seoDescription?.trim() ||
+      htmlToText(product.descriptionHtml ?? '').trim() ||
+      product.title
+    ).slice(0, 5000);
     const image = product.images[0]?.url ?? '';
     // A feed row with no image is rejected on ingest, so do not emit one.
     if (!image) continue;
@@ -201,7 +238,7 @@ export async function GET() {
           // platforms parse. Minor units here would list a ₦19,999 product at
           // ₦1,999,900 and quietly destroy every ROAS figure downstream.
           cell(`${fromMinor(variant.priceMinor, settings.baseCurrency).toFixed(2)} ${settings.baseCurrency}`),
-          cell(`${link}?utm_source=catalogue&utm_medium=paid`),
+          cell(`${link}?${utm}`),
           cell(variant.imageUrl || image),
           cell(product.vendor || settings.storeName),
           // Groups a product's variants so the platforms show one listing with
@@ -209,6 +246,8 @@ export async function GET() {
           cell(product.handle),
           cell(category),
           cell(GOOGLE_TAXONOMY[category] ?? ''),
+          cell(optionValue(variant.optionValues, ['color', 'colour', 'color name'])),
+          cell(optionValue(variant.optionValues, ['size', 'sizes', 'shoe size'])),
         ].join(',')
       );
     }
