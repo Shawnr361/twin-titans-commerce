@@ -63,7 +63,7 @@ export default async function HomePage() {
 
             <h1 className="display-xl mt-8">
               <span className="reveal-line" style={{ '--i': 0 } as React.CSSProperties}>
-                <span>Considered things,</span>
+                <span>Consider it</span>
               </span>
               <span className="reveal-line" style={{ '--i': 1 } as React.CSSProperties}>
                 <span className="gold italic">delivered.</span>
