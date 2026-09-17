@@ -14,6 +14,7 @@ const NAV = [
   ['/admin/margins', 'Margin audit'],
   ['/admin/reviews', 'Reviews'],
   ['/admin/customers', 'Customers'],
+  ['/admin/compose', 'Email a customer'],
   ['/admin/subscribers', 'Mailing list'],
   ['/admin/settings', 'Settings'],
 ] as const;
