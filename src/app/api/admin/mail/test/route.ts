@@ -22,13 +22,14 @@ export const dynamic = 'force-dynamic';
  * same path an order confirmation takes — same from, same reply-to, same
  * transport — and reports what came back.
  *
- * IT ONLY EVER EMAILS THE ADMIN
- * -----------------------------
- * The recipient is the signed-in admin's own address, never a value from the
- * request. A test endpoint that accepts a destination is a way to send mail
- * from someone else's domain to anywhere, which is worth avoiding even behind
- * a login.
+ * WHO RECEIVES IT
+ * ---------------
+ * The signed-in admin, plus the owner's second inbox below, so delivery is
+ * checked at two mailboxes in one press. Recipients are fixed here, never a
+ * value from the request: a test endpoint that accepts a destination is a way
+ * to send mail from the shop's domain to anywhere, even behind a login.
  */
+const ALSO_SEND_TEST_TO = 'kennywestkid@gmail.com';
 export async function POST() {
   let session;
   try {
@@ -62,18 +63,23 @@ export async function POST() {
     supportEmail: settings.supportEmail || undefined,
   });
 
+  const recipients = [...new Set([session.email, ALSO_SEND_TEST_TO].map((a) => a.toLowerCase()))];
+
   try {
-    await sendMail({
-      to: session.email,
-      from,
-      replyTo,
-      subject: `Mail test — ${settings.storeName}`,
-      text,
-      html,
-    });
+    // One message each, so one inbox never sees the other address.
+    for (const to of recipients) {
+      await sendMail({
+        to,
+        from,
+        replyTo,
+        subject: `Mail test — ${settings.storeName}`,
+        text,
+        html,
+      });
+    }
     return NextResponse.json({
       ok: true,
-      sentTo: session.email,
+      sentTo: recipients.join(' and '),
       from: from ?? '(default)',
       detail: 'Accepted by the mail server. Check the inbox to confirm delivery.',
     });
