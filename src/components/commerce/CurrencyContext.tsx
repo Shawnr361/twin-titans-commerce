@@ -45,6 +45,7 @@ export function CurrencyProvider({
   options,
   baseCurrency,
   geoCurrency,
+  forcedCurrency = null,
   children,
 }: {
   options: CurrencyOption[];
@@ -55,16 +56,27 @@ export function CurrencyProvider({
    * browser-locale guess — see the effect.
    */
   geoCurrency?: string | null;
+  /**
+   * Named in the link (?currency=GBP). Known on the server, so the first render
+   * already uses it — this is what Google Shopping's crawler reads — and it
+   * outranks every other signal, including a saved choice, for that visit.
+   */
+  forcedCurrency?: string | null;
   children: React.ReactNode;
 }) {
   /*
-   * Always start on the base currency. The stored preference is applied after
-   * mount instead of during the first render, because the server cannot know
-   * it — rendering anything else here would be a hydration mismatch.
+   * Start on the base currency, or on the currency the link named. The stored
+   * preference is applied after mount instead of during the first render,
+   * because the server cannot know it — rendering anything else here would be a
+   * hydration mismatch. A forced currency IS known to the server, so it is safe.
    */
-  const [active, setActiveState] = useState(baseCurrency);
+  const [active, setActiveState] = useState(forcedCurrency ?? baseCurrency);
 
   useEffect(() => {
+    if (forcedCurrency) {
+      setActiveState(forcedCurrency);
+      return;
+    }
     let chosen: string | null = null;
 
     try {
@@ -101,7 +113,7 @@ export function CurrencyProvider({
     }
 
     if (chosen) setActiveState(chosen);
-  }, [options, geoCurrency]);
+  }, [options, geoCurrency, forcedCurrency]);
 
   const setActive = useCallback((code: string) => {
     setActiveState(code);

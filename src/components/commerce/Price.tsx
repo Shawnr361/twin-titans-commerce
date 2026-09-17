@@ -1,6 +1,6 @@
 'use client';
 
-import { formatMoney, friendlyCeiling } from '@/lib/money';
+import { displayConvert, formatMoney, friendlyCeiling } from '@/lib/money';
 import { useCurrency } from './CurrencyContext';
 
 /**
@@ -48,8 +48,10 @@ export function Price({
 
   let text: string;
   if (option && option.rate > 0) {
-    const exact = (minor / 100) * option.rate;
-    const converted = roundUp ? friendlyCeiling(exact) : exact;
+    // Rounded the same way the Google Shopping feeds round, so the two agree.
+    const converted = roundUp
+      ? friendlyCeiling((minor / 100) * option.rate)
+      : displayConvert(minor, option.rate);
     text = new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: option.code,

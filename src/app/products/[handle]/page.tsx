@@ -8,7 +8,7 @@ import { VariantMediaProvider } from "@/components/commerce/VariantMediaContext"
 import { displayVendor } from "@/lib/vendor";
 import { AddToCart } from "@/components/commerce/AddToCart";
 import { TrackEvent } from "@/components/analytics/Pixels";
-import { fromMinor } from "@/lib/money";
+import { displayConvert, fromMinor } from "@/lib/money";
 import { ProductCard } from "@/components/commerce/ProductCard";
 import { SectionHead } from "@/components/layout/SectionHead";
 import { Reveal } from "@/components/motion/Reveal";
@@ -144,11 +144,31 @@ export async function generateMetadata({
 
 export default async function ProductPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ handle: string }>;
+  searchParams: Promise<{ currency?: string }>;
 }) {
   const { handle } = await params;
   const settings = await getStoreSettings();
+
+  /*
+   * A Google Shopping link names its currency (?currency=GBP). The structured
+   * data then states the price in that currency, exactly as the page shows it,
+   * because Google checks the listing against both. Unknown or missing codes
+   * leave everything in the base currency.
+   */
+  const requested = (await searchParams).currency?.toUpperCase();
+  const listingRate =
+    requested && requested !== settings.baseCurrency && /^[A-Z]{3}$/.test(requested)
+      ? await prisma.fxRate
+          .findFirst({ where: { code: requested }, select: { rate: true } })
+          .then((r) => (r && r.rate > 0 ? r.rate : null))
+          .catch(() => null)
+      : null;
+  const listingCurrency = listingRate ? requested! : settings.baseCurrency;
+  const listingAmount = (minor: number) =>
+    listingRate ? displayConvert(minor, listingRate).toFixed(2) : (minor / 100).toFixed(2);
   const product = await getProduct(handle);
 
   if (!product) notFound();
@@ -266,10 +286,10 @@ export default async function ProductPage({
       : undefined,
     offers: {
       "@type": "AggregateOffer",
-      priceCurrency: settings.baseCurrency,
-      lowPrice: (cheapest / 100).toFixed(2),
+      priceCurrency: listingCurrency,
+      lowPrice: listingAmount(cheapest),
       // Google wants both bounds once more than one offer is advertised.
-      highPrice: (Math.max(dearest, cheapest) / 100).toFixed(2),
+      highPrice: listingAmount(Math.max(dearest, cheapest)),
       offerCount: product.variants.length,
       url: productUrl,
       availability: inStock

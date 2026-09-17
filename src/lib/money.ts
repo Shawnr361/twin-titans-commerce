@@ -56,6 +56,19 @@ export function formatMoney(minor: number, currency = 'NGN'): string {
 }
 
 /**
+ * A base-currency price as the storefront DISPLAYS it in another currency.
+ *
+ * Above 100 the shop shows whole units ("$134"), below it cents ("$33.88").
+ * The Price component and the Google Shopping feeds both go through this, so
+ * the figure Google is sent is exactly the figure its crawler reads on the
+ * page — a mismatch there disapproves the product.
+ */
+export function displayConvert(minor: number, rate: number): number {
+  const exact = (minor / 100) * rate;
+  return exact >= 100 ? Math.round(exact) : Math.round(exact * 100) / 100;
+}
+
+/**
  * Convert between currencies using a rate expressed as "target units per 1 base
  * unit". Rounds once, at the end, in the target currency's minor units.
  */

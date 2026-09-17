@@ -16,7 +16,7 @@ import {
   type GatewayFeeModel,
 } from '../src/lib/pricing';
 import { DEFAULT_RULES, supplierCostBasis } from '../src/lib/pricing';
-import { formatMoney, friendlyCeiling, fromMinor, toMinor } from '../src/lib/money';
+import { displayConvert, formatMoney, friendlyCeiling, fromMinor, toMinor } from '../src/lib/money';
 import { getRate, sourceCostToBase } from '../src/lib/fx';
 import { assessCapture } from '../src/lib/suppliers/capture';
 import { displayVendor, isPublishableBrand } from '../src/lib/vendor';
@@ -183,6 +183,10 @@ console.log(
 // A cheap item where the flat fee dominates.
 const cheap = computePrice(toMinor(1200, 'NGN'), DEFAULT_RULES);
 assert('cheap items stay profitable too', cheap.profitMinor > 0, formatMoney(cheap.profitMinor));
+
+// Display conversion — the storefront and the Google currency feeds must agree to the cent.
+check('under 100 keeps cents', displayConvert(4_499_900, 0.000753), 33.88);
+check('over 100 rounds to whole units', displayConvert(17_999_900, 0.000753), 136);
 
 // Delivery by destination — the same figures Merchant Center is given.
 const rates = { shippingFlatMinor: 350_000, freeShippingOverMinor: 3_000_000, intlShippingFlatMinor: 750_000, intlFreeShippingOverMinor: 7_500_000 };

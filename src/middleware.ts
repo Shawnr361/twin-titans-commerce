@@ -65,6 +65,16 @@ export async function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', pathname);
 
+  /*
+   * ?currency=GBP from a Google Shopping link. The layout cannot read search
+   * params, so it is handed over as a header and rendered on the SERVER in that
+   * currency — Google's crawler checks a UK listing's price from a US address,
+   * and without this it would be shown dollars and disapprove the product.
+   */
+  requestHeaders.delete('x-currency');
+  const forced = request.nextUrl.searchParams.get('currency')?.toUpperCase();
+  if (forced && /^[A-Z]{3}$/.test(forced)) requestHeaders.set('x-currency', forced);
+
   const isAdminPage = pathname.startsWith('/admin');
   const isLogin = pathname.startsWith('/admin/login');
 

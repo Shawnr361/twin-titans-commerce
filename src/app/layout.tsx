@@ -109,10 +109,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
    * Absent when the site is not behind Cloudflare, in which case this is null
    * and the browser-locale guess takes over exactly as it did before.
    */
+  const requestHeaders = await headers();
   const geoCurrency = currencyForCountry(
-    countryFromHeaders(await headers()),
+    countryFromHeaders(requestHeaders),
     currencies.map((c) => c.code)
   );
+
+  /*
+   * A currency named in the link (?currency=GBP, set by middleware) outranks
+   * everything, and is rendered server-side so the first HTML already carries
+   * it. Google Shopping links use it; a shopper can still switch afterwards.
+   */
+  const forcedHeader = requestHeaders.get('x-currency');
+  const forcedCurrency =
+    forcedHeader && (forcedHeader === settings.baseCurrency || currencies.some((c) => c.code === forcedHeader))
+      ? forcedHeader
+      : null;
 
   /*
    * Who this site is, in the form Google reads.
@@ -174,6 +186,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           options={currencies}
           baseCurrency={settings.baseCurrency}
           geoCurrency={geoCurrency}
+          forcedCurrency={forcedCurrency}
         >
         {/* Warm washes + grain + vignette. Fixed, so it never repaints on scroll. */}
         <div className="ground" aria-hidden />

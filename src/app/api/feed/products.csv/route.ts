@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { getStoreSettings } from '@/lib/settings';
-import { fromMinor } from '@/lib/money';
+import { displayConvert, fromMinor } from '@/lib/money';
 import { CATEGORY_RULES, categorise } from '@/lib/categorise';
 import { htmlToText } from '@/lib/seo';
 
@@ -159,13 +159,45 @@ export async function GET(request: Request) {
    * were set up with; Google Merchant Center reads ?channel=google, so free
    * Shopping listings are not reported as paid traffic in analytics.
    */
-  const channel = new URL(request.url).searchParams.get('channel');
-  const utm =
-    channel === 'google'
-      ? 'utm_source=google&utm_medium=organic_shopping'
-      : 'utm_source=catalogue&utm_medium=paid';
-  const [settings, products] = await Promise.all([
+  const query = new URL(request.url).searchParams;
+  const channel = query.get('channel');
+  const isGoogle = channel === 'google';
+  const utm = isGoogle
+    ? 'utm_source=google&utm_medium=organic_shopping'
+    : 'utm_source=catalogue&utm_medium=paid';
+
+  /*
+   * ?currency=GBP — one Google Shopping feed per local currency.
+   *
+   * Google limits a naira-priced listing in the UK, the US and the euro area
+   * ("unsupported currency"), so each of those markets gets its own feed priced
+   * in its own money. The figure is converted with the SAME stored rate and the
+   * SAME rounding (displayConvert) the storefront uses, and every link carries
+   * the currency so the page renders that figure server-side — Google compares
+   * the two, and a mismatch disapproves the product.
+   *
+   * This is a DISPLAY price. Checkout still settles in naira (Flutterwave) or
+   * USD (PayPal), as it always has for shoppers who switch currency by hand.
+   */
+  const requested = query.get('currency')?.toUpperCase() ?? null;
+  const [settings, rateRow] = await Promise.all([
     getStoreSettings(),
+    requested
+      ? prisma.fxRate.findFirst({ where: { code: requested }, select: { rate: true } }).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  const converting = Boolean(requested && requested !== settings.baseCurrency);
+  if (converting && !(rateRow && rateRow.rate > 0)) {
+    return new Response(`No exchange rate is stored for ${requested}.`, { status: 400 });
+  }
+  const feedCurrency = converting ? requested! : settings.baseCurrency;
+  const priceText = (minor: number) =>
+    converting
+      ? `${displayConvert(minor, rateRow!.rate).toFixed(2)} ${feedCurrency}`
+      : `${fromMinor(minor, settings.baseCurrency).toFixed(2)} ${feedCurrency}`;
+  const linkQuery = converting ? `${utm}&currency=${feedCurrency}` : utm;
+
+  const [products] = await Promise.all([
     prisma.product.findMany({
       where: { status: 'ACTIVE' },
       include: {
@@ -201,9 +233,12 @@ export async function GET(request: Request) {
      * page while organic traffic gets the landing page would make every ad
      * test measure the wrong page.
      */
-    const link = product.landingPageHandle
-      ? `${base}/pages/${product.landingPageHandle}`
-      : `${base}/products/${product.handle}`;
+    // Google gets the product page itself: that is where the structured-data
+    // price it verifies against lives, in whatever currency the link names.
+    const link =
+      product.landingPageHandle && !isGoogle
+        ? `${base}/pages/${product.landingPageHandle}`
+        : `${base}/products/${product.handle}`;
 
     /*
      * The written description, as plain text. This used to fall back to the
@@ -237,8 +272,8 @@ export async function GET(request: Request) {
           // "1999.00 NGN" — major units with the currency code, the format both
           // platforms parse. Minor units here would list a ₦19,999 product at
           // ₦1,999,900 and quietly destroy every ROAS figure downstream.
-          cell(`${fromMinor(variant.priceMinor, settings.baseCurrency).toFixed(2)} ${settings.baseCurrency}`),
-          cell(`${link}?${utm}`),
+          cell(priceText(variant.priceMinor)),
+          cell(`${link}?${linkQuery}`),
           cell(variant.imageUrl || image),
           cell(product.vendor || settings.storeName),
           // Groups a product's variants so the platforms show one listing with
