@@ -51,6 +51,31 @@ const C = {
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 
+/*
+ * GMAIL'S IPHONE APP REPAINTS DARK EMAILS
+ * --------------------------------------
+ * In dark mode the Gmail iOS app inverts an email's colours whatever the email
+ * declares: this near-black design arrived cream, with its light text turned
+ * dark, while the same message in Gmail on the web stayed black and gold. The
+ * crest survived because images are never inverted — and that is the way out.
+ *
+ * 1. Backgrounds. Gmail leaves background-image alone, so every fill is also a
+ *    one-colour gradient. bgcolor and background-color stay underneath for
+ *    Outlook, which has no background-image at all.
+ * 2. Text. The inverted text is flipped back with two blend layers (Rémi
+ *    Parmentier's technique). `u + .body` only matches inside Gmail, where the
+ *    doctype becomes a <u>, so no other client sees these rules. It restores
+ *    light neutrals faithfully; saturated gold may not survive the round trip,
+ *    so gold text is left unwrapped rather than risk a hue shift.
+ */
+function fill(color: string): string {
+  return `background-color:${color};background-image:linear-gradient(${color},${color});`;
+}
+
+function keepLight(inner: string): string {
+  return `<div class="gm-screen"><div class="gm-diff">${inner}</div></div>`;
+}
+
 export interface EmailItem {
   title: string;
   variant?: string | null;
@@ -138,7 +163,7 @@ function masthead(storeName: string): string {
   const origin = siteOrigin();
   return `
   <tr>
-    <td align="center" bgcolor="${C.band}" style="background-color:${C.band};padding:28px 24px 24px;">
+    <td align="center" bgcolor="${C.band}" style="${fill(C.band)}padding:28px 24px 24px;">
       <a href="${origin}" style="text-decoration:none;display:block;">
         <img src="${origin}/apple-icon.png" width="64" alt=""
              style="display:block;width:64px;height:auto;margin:0 auto 14px;border:0;border-radius:10px;" />
@@ -148,7 +173,7 @@ function masthead(storeName: string): string {
       </a>
     </td>
   </tr>
-  <tr><td bgcolor="${C.gold}" style="background-color:${C.gold};height:2px;line-height:2px;font-size:0;">&nbsp;</td></tr>`;
+  <tr><td bgcolor="${C.gold}" style="${fill(C.gold)}height:2px;line-height:2px;font-size:0;">&nbsp;</td></tr>`;
 }
 
 function itemRows(items: EmailItem[]): string {
@@ -162,8 +187,8 @@ function itemRows(items: EmailItem[]): string {
        */
       const thumb = image
         ? `<img src="${image}" width="62" alt=""
-                style="display:block;width:62px;height:auto;border:0;border-radius:6px;background-color:${C.inset};" />`
-        : `<div style="width:62px;height:62px;border-radius:6px;background-color:${C.inset};"></div>`;
+                style="display:block;width:62px;height:auto;border:0;border-radius:6px;${fill(C.inset)}" />`
+        : `<div style="width:62px;height:62px;border-radius:6px;${fill(C.inset)}"></div>`;
 
       const variant =
         item.variant && item.variant !== 'Default'
@@ -171,20 +196,20 @@ function itemRows(items: EmailItem[]): string {
           : '';
 
       const price = item.price
-        ? `<td align="right" valign="top" style="font-family:${FONT};font-size:13px;color:${C.ink};white-space:nowrap;padding:14px 0 14px 10px;">${escapeHtml(item.price)}</td>`
+        ? `<td align="right" valign="top" style="font-family:${FONT};font-size:13px;color:${C.ink};white-space:nowrap;padding:14px 0 14px 10px;">${keepLight(escapeHtml(item.price))}</td>`
         : '<td></td>';
 
       return `
       <tr>
         <td valign="top" width="62" style="padding:14px 14px 14px 0;">${thumb}</td>
         <td valign="top" style="padding:14px 0;">
-          <div style="font-family:${FONT};font-size:14px;line-height:1.45;color:${C.onyx};">${escapeHtml(item.title)}</div>
+          ${keepLight(`<div style="font-family:${FONT};font-size:14px;line-height:1.45;color:${C.onyx};">${escapeHtml(item.title)}</div>
           ${variant}
-          <div style="font-family:${FONT};font-size:12px;color:${C.greige};padding-top:4px;">Qty ${item.quantity}</div>
+          <div style="font-family:${FONT};font-size:12px;color:${C.greige};padding-top:4px;">Qty ${item.quantity}</div>`)}
         </td>
         ${price}
       </tr>
-      <tr><td colspan="3" bgcolor="${C.rule}" style="background-color:${C.rule};height:1px;line-height:1px;font-size:0;">&nbsp;</td></tr>`;
+      <tr><td colspan="3" bgcolor="${C.rule}" style="${fill(C.rule)}height:1px;line-height:1px;font-size:0;">&nbsp;</td></tr>`;
     })
     .join('');
 }
@@ -196,8 +221,8 @@ function totalRows(totals: EmailTotal[]): string {
       const weight = t.strong ? '700' : '400';
       return `
       <tr>
-        <td style="font-family:${FONT};font-size:${size};font-weight:${weight};color:${t.strong ? C.onyx : C.greige};padding:5px 0;">${escapeHtml(t.label)}</td>
-        <td align="right" style="font-family:${FONT};font-size:${size};font-weight:${weight};color:${t.strong ? C.gold : C.ink};padding:5px 0;white-space:nowrap;">${escapeHtml(t.value)}</td>
+        <td style="font-family:${FONT};font-size:${size};font-weight:${weight};color:${t.strong ? C.onyx : C.greige};padding:5px 0;">${keepLight(escapeHtml(t.label))}</td>
+        <td align="right" style="font-family:${FONT};font-size:${size};font-weight:${weight};color:${t.strong ? C.gold : C.ink};padding:5px 0;white-space:nowrap;">${t.strong ? escapeHtml(t.value) : keepLight(escapeHtml(t.value))}</td>
       </tr>`;
     })
     .join('');
@@ -213,7 +238,7 @@ function button(label: string, href: string): string {
   return `
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:26px 0 6px;">
     <tr>
-      <td bgcolor="${C.gold}" style="background-color:${C.gold};border-radius:4px;">
+      <td bgcolor="${C.gold}" style="${fill(C.gold)}border-radius:4px;">
         <a href="${escapeHtml(href)}"
            style="display:inline-block;padding:13px 30px;font-family:${FONT};font-size:14px;font-weight:700;letter-spacing:0.4px;color:${C.bg};text-decoration:none;">
           ${escapeHtml(label)}
@@ -267,7 +292,7 @@ export function renderEmail(options: EmailOptions): { html: string; text: string
   const itemsBlock =
     items.length > 0
       ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px;border-collapse:collapse;">
-           <tr><td colspan="3" bgcolor="${C.rule}" style="background-color:${C.rule};height:1px;line-height:1px;font-size:0;">&nbsp;</td></tr>
+           <tr><td colspan="3" bgcolor="${C.rule}" style="${fill(C.rule)}height:1px;line-height:1px;font-size:0;">&nbsp;</td></tr>
            ${itemRows(items)}
          </table>`
       : '';
@@ -282,15 +307,17 @@ export function renderEmail(options: EmailOptions): { html: string; text: string
   const calloutBlock = callout
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;border-collapse:collapse;">
          <tr>
-           <td bgcolor="${C.inset}" style="background-color:${C.inset};border-left:3px solid ${C.gold};padding:16px 18px;">
+           <td bgcolor="${C.inset}" style="${fill(C.inset)}border-left:3px solid ${C.gold};padding:16px 18px;">
              <div style="font-family:${FONT};font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:${C.gold};padding-bottom:7px;">${escapeHtml(callout.label)}</div>
-             ${callout.lines
-               .filter(Boolean)
-               .map(
-                 (line) =>
-                   `<div style="font-family:${FONT};font-size:14px;line-height:1.6;color:${C.onyx};">${escapeHtml(line)}</div>`
-               )
-               .join('')}
+             ${keepLight(
+               callout.lines
+                 .filter(Boolean)
+                 .map(
+                   (line) =>
+                     `<div style="font-family:${FONT};font-size:14px;line-height:1.6;color:${C.onyx};">${escapeHtml(line)}</div>`
+                 )
+                 .join('')
+             )}
            </td>
          </tr>
        </table>`
@@ -311,13 +338,17 @@ export function renderEmail(options: EmailOptions): { html: string; text: string
 <meta name="color-scheme" content="dark" />
 <meta name="supported-color-schemes" content="dark" />
 <title>${escapeHtml(heading)}</title>
+<style>
+  u + .body .gm-screen { background:#000000; mix-blend-mode:screen; }
+  u + .body .gm-diff { background:#000000; mix-blend-mode:difference; }
+</style>
 </head>
-<body style="margin:0;padding:0;background-color:${C.bg};">
+<body class="body" style="margin:0;padding:0;${fill(C.bg)}">
   <!-- The line a phone shows beside the subject, and nowhere else. -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(preheader)}</div>
 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-         bgcolor="${C.bg}" style="background-color:${C.bg};">
+         bgcolor="${C.bg}" style="${fill(C.bg)}">
     <tr>
       <td align="center" style="padding:24px 12px 40px;">
 
@@ -326,33 +357,33 @@ export function renderEmail(options: EmailOptions): { html: string; text: string
           ${masthead(storeName)}
 
           <tr>
-            <td bgcolor="${C.paper}" style="background-color:${C.paper};padding:32px 30px 34px;">
+            <td bgcolor="${C.paper}" style="${fill(C.paper)}padding:32px 30px 34px;">
 
-              <h1 style="margin:0 0 16px;font-family:${FONT};font-size:21px;line-height:1.3;font-weight:700;color:${C.onyx};">
+              ${keepLight(`<h1 style="margin:0 0 16px;font-family:${FONT};font-size:21px;line-height:1.3;font-weight:700;color:${C.onyx};">
                 ${escapeHtml(heading)}
-              </h1>
+              </h1>`)}
 
-              ${paragraphs(intro, C.ink)}
+              ${keepLight(paragraphs(intro, C.ink))}
               ${itemsBlock}
               ${totalsBlock}
               ${calloutBlock}
               ${cta ? button(cta.label, cta.href) : ''}
-              ${addressBlock}
-              ${outro.length > 0 ? `<div style="margin-top:24px;">${paragraphs(outro, C.greige)}</div>` : ''}
+              ${addressBlock ? keepLight(addressBlock) : ''}
+              ${outro.length > 0 ? `<div style="margin-top:24px;">${keepLight(paragraphs(outro, C.greige))}</div>` : ''}
 
             </td>
           </tr>
 
           <tr>
-            <td bgcolor="${C.band}" style="background-color:${C.band};padding:22px 30px 26px;border-top:1px solid ${C.rule};">
-              <div style="font-family:${FONT};font-size:12px;line-height:1.7;color:${C.quiet};">
+            <td bgcolor="${C.band}" style="${fill(C.band)}padding:22px 30px 26px;border-top:1px solid ${C.rule};">
+              ${keepLight(`<div style="font-family:${FONT};font-size:12px;line-height:1.7;color:${C.quiet};">
                 ${supportLine}
                 <a href="${origin}" style="color:${C.greige};text-decoration:none;">${escapeHtml(storeName)}</a>
                 &nbsp;&middot;&nbsp;
                 <a href="${origin}/orders/track" style="color:${C.greige};text-decoration:none;">Track an order</a>
                 &nbsp;&middot;&nbsp;
                 <a href="${origin}/policies/returns" style="color:${C.greige};text-decoration:none;">Returns</a>
-              </div>
+              </div>`)}
             </td>
           </tr>
         </table>
