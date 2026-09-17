@@ -91,6 +91,8 @@ function words(text: string): string[] {
     // Supplier titles glue words together ("Makeup ToolsPortable Face Razor"),
     // which would otherwise hide a word that is really there.
     .replace(/([a-z])([A-Z])/g, '$1 $2')
+    // …and glue a count to its unit ("60pcs", "3PCS"), which hid the number.
+    .replace(/(\d)([a-z])/gi, '$1 $2')
     .toLowerCase()
     .replace(/&/g, ' and ')
     .split(/[^a-z0-9%]+/)

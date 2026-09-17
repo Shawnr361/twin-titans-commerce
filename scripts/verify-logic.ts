@@ -232,6 +232,8 @@ check('a prefix is not a word family: water is not waterproof', isFaithfulTitle(
 check('a grammatical ending is a word family', isFaithfulTitle('Washing Brush', 'Wash Brush Cleaning Tool').ok, true);
 check('over-long names are refused', isFaithfulTitle('Warm Soft Acrylic Washable Toilet Seat Cover Mat Decor', seat).ok, false);
 check('a word glued to the previous one still counts', isFaithfulTitle('Portable Eyebrow Trimmer', 'Eyebrow Trimmer Knives Makeup ToolsPortable Face Razor').ok, true);
+check('a count glued to its unit is still the supplier count', isFaithfulTitle('3-Pack Cat Plush Bell Ball', '3PCS Cat Toys Cat Plush Ball Toy Pet Elastic Bell Ball').ok, true);
+check('a broader word than the supplier used is still refused', isFaithfulTitle('Soft Rubber Pet Brush', 'Soft Rubber Dog Brush Comb Cat Bath Brush').ok, false);
 check('model answer is tidied', tidyTitleAnswer('Name: "Portable Fruit Juicer."\nextra'), 'Portable Fruit Juicer');
 
 // gemini-2.5-flash published "Recharges via USB for ease" for a clipper whose
