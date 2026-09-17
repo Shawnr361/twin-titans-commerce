@@ -49,6 +49,14 @@ export function SettingsForm({
               Number(form.get('freeShippingOver') ?? 0),
               settings.baseCurrency
             ),
+            intlShippingFlatMinor: toMinor(
+              Number(form.get('intlShippingFlat') ?? 0),
+              settings.baseCurrency
+            ),
+            intlFreeShippingOverMinor: toMinor(
+              Number(form.get('intlFreeShippingOver') ?? 0),
+              settings.baseCurrency
+            ),
           },
           pricing: {
             marginPct: Number(form.get('marginPct')),
@@ -214,7 +222,41 @@ export function SettingsForm({
               0 disables the threshold entirely.
             </p>
           </div>
+          <div>
+            <label className="field-label" htmlFor="intlShippingFlat">
+              Outside Nigeria: delivery charge ({settings.baseCurrency})
+            </label>
+            <input
+              id="intlShippingFlat"
+              name="intlShippingFlat"
+              type="number"
+              min={0}
+              step="any"
+              className="field"
+              defaultValue={fromMinor(settings.intlShippingFlatMinor, settings.baseCurrency)}
+            />
+          </div>
+          <div>
+            <label className="field-label" htmlFor="intlFreeShippingOver">
+              Outside Nigeria: free delivery over ({settings.baseCurrency})
+            </label>
+            <input
+              id="intlFreeShippingOver"
+              name="intlFreeShippingOver"
+              type="number"
+              min={0}
+              step="any"
+              className="field"
+              defaultValue={fromMinor(settings.intlFreeShippingOverMinor, settings.baseCurrency)}
+            />
+          </div>
         </div>
+
+        <p className="text-micro leading-relaxed text-warn">
+          Google Merchant Center holds a copy of these rates in its shipping policies. Change one
+          here and change it there too, or Google will show shoppers a delivery price checkout
+          does not charge.
+        </p>
 
         <p className="text-micro leading-relaxed text-warn">
           If you set a threshold, check the announcement bar above still tells the truth. A header

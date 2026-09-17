@@ -440,6 +440,26 @@ export default async function ProductPage({
                   ) : (
                     <span className="block text-onyx">Free delivery</span>
                   )}
+                  {/*
+                    Overseas shoppers arrive from Google and ads too; they must
+                    see their own charge here, not meet it first at checkout.
+                  */}
+                  {settings.intlShippingFlatMinor > 0 && (
+                    <span className="block">
+                      {"Outside Nigeria: "}
+                      <Price minor={settings.intlShippingFlatMinor} currency={settings.baseCurrency} />
+                      {settings.intlFreeShippingOverMinor > 0 && (
+                        <>
+                          {" · free over "}
+                          <Price
+                            minor={settings.intlFreeShippingOverMinor}
+                            currency={settings.baseCurrency}
+                            roundUp
+                          />
+                        </>
+                      )}
+                    </span>
+                  )}
                   <span className="block">
                     {shipMin}–{shipMax} days after dispatch
                   </span>

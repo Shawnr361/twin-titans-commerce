@@ -73,13 +73,26 @@ export interface PolicyDoc {
   bodyHtml: string;
 }
 
-/** The delivery charge sentence, phrased for whatever the settings actually say. */
+/** One region's charge, phrased for whatever the settings actually say. */
+function rateSentence(where: string, flatMinor: number, overMinor: number, currency: string): string {
+  const flat = formatMoney(flatMinor, currency);
+  const over = formatMoney(overMinor, currency);
+  if (flatMinor <= 0) return `Delivery ${where} is currently free on every order.`;
+  if (overMinor <= 0) return `Delivery ${where} is charged at a flat ${flat} per order.`;
+  return `Delivery ${where} is charged at a flat ${flat} per order, and is free on orders of ${over} or more.`;
+}
+
+/**
+ * The delivery charge sentences — Nigeria and everywhere else. Charges are
+ * calculated on the order value before delivery, and are the same figures
+ * checkout charges and Google Merchant Center displays.
+ */
 function shippingLine(s: StoreSettings): string {
-  const flat = formatMoney(s.shippingFlatMinor, s.baseCurrency);
-  const over = formatMoney(s.freeShippingOverMinor, s.baseCurrency);
-  if (s.shippingFlatMinor <= 0) return 'Delivery is currently free on every order.';
-  if (s.freeShippingOverMinor <= 0) return `Delivery is charged at a flat ${flat} per order.`;
-  return `Delivery is charged at a flat ${flat} per order, and is free on orders of ${over} or more, calculated on the order value before delivery charges.`;
+  return [
+    rateSentence('within Nigeria', s.shippingFlatMinor, s.freeShippingOverMinor, s.baseCurrency),
+    rateSentence('to addresses outside Nigeria', s.intlShippingFlatMinor, s.intlFreeShippingOverMinor, s.baseCurrency),
+    'Thresholds are calculated on the order value before delivery charges.',
+  ].join(' ');
 }
 
 export function buildPolicies(settings: StoreSettings): PolicyDoc[] {
@@ -318,7 +331,7 @@ export function buildPolicies(settings: StoreSettings): PolicyDoc[] {
 <p>Where an item ships from outside Nigeria, any customs duty, import VAT, clearance or handling fee is set by the authorities or by the carrier, is <strong>payable by you</strong>, and is not included in the price you paid us. We cannot tell you in advance what it will be, and we cannot mark parcels as gifts or declare a value other than the true one.</p>
 
 <h2>Where we deliver</h2>
-<p>We deliver throughout Nigeria. Some remote or restricted locations may not be served by our carriers, and certain items cannot be shipped by air because of battery, liquid or aerosol restrictions. If your order is affected we will contact you and refund it in full.</p>
+<p>We deliver throughout Nigeria and internationally — to the United Kingdom, the United States and most other countries our suppliers ship to. The countries we currently deliver to are the ones offered at checkout. Some remote or restricted locations may not be served by our carriers, and certain items cannot be shipped by air because of battery, liquid or aerosol restrictions. If your order is affected we will contact you and refund it in full.</p>
 
 <h2>Risk</h2>
 <p>Risk in the goods passes to you on delivery to the address you gave, or to any person at that address who accepts the parcel. If your parcel has not arrived, our <a href="/pages/returns">Returns &amp; refunds</a> policy explains how and when to raise it with us.</p>

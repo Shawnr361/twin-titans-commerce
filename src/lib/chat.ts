@@ -108,7 +108,13 @@ async function buildContext(question: string): Promise<string> {
     `SUPPORT EMAIL: ${settings.supportEmail}`,
     settings.supportPhone ? `SUPPORT PHONE: ${settings.supportPhone}` : null,
     `PRICES SHOWN IN: ${settings.baseCurrency}`,
-    `DELIVERY: ${flat} per order` + (freeOver ? `, free over ${freeOver}` : ''),
+    `DELIVERY IN NIGERIA: ${flat} per order` + (freeOver ? `, free over ${freeOver}` : ''),
+    `DELIVERY OUTSIDE NIGERIA (we ship internationally): ${
+      settings.intlShippingFlatMinor ? formatMoney(settings.intlShippingFlatMinor, settings.baseCurrency) : 'free'
+    } per order` +
+      (settings.intlFreeShippingOverMinor
+        ? `, free over ${formatMoney(settings.intlFreeShippingOverMinor, settings.baseCurrency)}`
+        : ''),
     `PAYMENT: Flutterwave charges in ${settings.baseCurrency}; PayPal charges in ${settings.paypalCurrency}.`,
     '',
     'PRODUCTS THAT MATCH THE QUESTION:',

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { prisma } from './db';
 import { getStoreSettings } from './settings';
+import { rateFor, shippingFor, type ShippingRate } from './shipping';
 
 /**
  * Cart lives in a cookie as nothing but {variantId, quantity} pairs.
@@ -46,6 +47,11 @@ export interface HydratedCart {
   /** Threshold for complimentary delivery; 0 when not configured. Exposed so
    *  the cart can show progress toward it without re-reading settings. */
   freeShippingOverMinor: number;
+  /**
+   * Both delivery rates, so checkout can re-price the summary the moment a
+   * country is picked. Display only — /api/checkout re-prices on the server.
+   */
+  shippingRates: { domestic: ShippingRate; international: ShippingRate };
 }
 
 export async function readCart(): Promise<CartLine[]> {
@@ -90,9 +96,18 @@ export function mergeLine(lines: CartLine[], variantId: string, quantity: number
 }
 
 /** Resolve cart lines against live catalog data and compute totals. */
-export async function hydrateCart(lines: CartLine[]): Promise<HydratedCart> {
+export async function hydrateCart(
+  lines: CartLine[],
+  /** Delivery country, when known. Unknown is priced as domestic. */
+  country?: string | null
+): Promise<HydratedCart> {
   const settings = await getStoreSettings();
   const issues: string[] = [];
+  const shippingRates = {
+    domestic: rateFor(settings, 'NG'),
+    international: rateFor(settings, 'GB'),
+  };
+  const rate = rateFor(settings, country);
 
   if (lines.length === 0) {
     return {
@@ -102,7 +117,8 @@ export async function hydrateCart(lines: CartLine[]): Promise<HydratedCart> {
       totalMinor: 0,
       costMinor: 0,
       currency: settings.baseCurrency,
-      freeShippingOverMinor: settings.freeShippingOverMinor,
+      freeShippingOverMinor: rate.freeOverMinor,
+      shippingRates,
       itemCount: 0,
       issues,
     };
@@ -161,10 +177,7 @@ export async function hydrateCart(lines: CartLine[]): Promise<HydratedCart> {
   const subtotalMinor = sellable.reduce((s, l) => s + l.lineTotalMinor, 0);
   const costMinor = sellable.reduce((s, l) => s + l.unitCostMinor * l.quantity, 0);
 
-  const shippingMinor =
-    settings.freeShippingOverMinor > 0 && subtotalMinor >= settings.freeShippingOverMinor
-      ? 0
-      : settings.shippingFlatMinor;
+  const shippingMinor = shippingFor(settings, subtotalMinor, country);
 
   return {
     lines: hydrated,
@@ -175,6 +188,7 @@ export async function hydrateCart(lines: CartLine[]): Promise<HydratedCart> {
     currency: settings.baseCurrency,
     itemCount: sellable.reduce((s, l) => s + l.quantity, 0),
     issues,
-    freeShippingOverMinor: settings.freeShippingOverMinor,
+    freeShippingOverMinor: rate.freeOverMinor,
+    shippingRates,
   };
 }

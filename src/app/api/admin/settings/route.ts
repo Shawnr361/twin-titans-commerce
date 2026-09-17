@@ -26,6 +26,10 @@ const schema = z.object({
      */
     shippingFlatMinor: z.number().int().min(0),
     freeShippingOverMinor: z.number().int().min(0),
+    // Outside Nigeria. Optional so an older cached form still saves; the stored
+    // value is kept when absent.
+    intlShippingFlatMinor: z.number().int().min(0).optional(),
+    intlFreeShippingOverMinor: z.number().int().min(0).optional(),
   }),
   pricing: z.object({
     marginPct: z.number().min(0).max(95),

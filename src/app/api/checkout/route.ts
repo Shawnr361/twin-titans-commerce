@@ -41,8 +41,9 @@ export async function POST(request: Request) {
   }
 
   // Re-hydrate from the cookie so the amount charged is derived from the
-  // database, never from anything the browser sent.
-  const cart = await hydrateCart(await readCart());
+  // database, never from anything the browser sent. Delivery is priced for the
+  // country actually submitted — overseas orders carry their own rate.
+  const cart = await hydrateCart(await readCart(), parsed.data.shippingAddress.country);
   if (cart.itemCount === 0) {
     return NextResponse.json({ error: 'Your cart is empty.' }, { status: 400 });
   }

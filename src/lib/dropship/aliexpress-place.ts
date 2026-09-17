@@ -5,6 +5,7 @@ import { freightFor } from '@/lib/suppliers/aliexpress-freight';
 import { findOrderNumber, refusalMessage } from '@/lib/dropship/aliexpress-reply';
 import { skuAttrMap } from '@/lib/suppliers/aliexpress-fetch';
 import { sendDeliveryNotice, sendShippingNotice } from '@/lib/notify';
+import { COUNTRIES, countryByName } from '@/lib/countries';
 
 /**
  * Place supplier orders with AliExpress, and pull tracking back.
@@ -42,48 +43,18 @@ export interface PlaceResult {
  * AliExpress wants a two-letter country code; orders carry a country name.
  * A wrong code silently ships to the wrong country, so anything unrecognised
  * fails loudly instead of guessing.
+ *
+ * Codes and dialling codes come from src/lib/countries.ts — the same list the
+ * checkout dropdown offers. This used to be its own 12-country table, so an
+ * order from a country checkout accepted could still refuse to place here.
  */
-const COUNTRY_CODES: Record<string, string> = {
-  nigeria: 'NG',
-  'united states': 'US',
-  usa: 'US',
-  'united kingdom': 'GB',
-  uk: 'GB',
-  canada: 'CA',
-  ghana: 'GH',
-  'south africa': 'ZA',
-  kenya: 'KE',
-  ireland: 'IE',
-  germany: 'DE',
-  france: 'FR',
-};
-
 function countryCode(name: string | undefined): string | null {
-  if (!name) return null;
-  const trimmed = name.trim();
-  if (/^[A-Za-z]{2}$/.test(trimmed)) return trimmed.toUpperCase();
-  return COUNTRY_CODES[trimmed.toLowerCase()] ?? null;
+  return countryByName(name)?.iso ?? null;
 }
 
-/**
- * International dialling codes for the countries we ship to.
- *
- * Kept beside COUNTRY_CODES deliberately: a country we can ship to but cannot
- * dial is a country whose orders will fail validation at the supplier, so the
- * two lists must be added to together.
- */
-const DIAL_CODES: Record<string, string> = {
-  NG: '234',
-  US: '1',
-  GB: '44',
-  CA: '1',
-  GH: '233',
-  ZA: '27',
-  KE: '254',
-  IE: '353',
-  DE: '49',
-  FR: '33',
-};
+const DIAL_CODES: Record<string, string> = Object.fromEntries(
+  COUNTRIES.map((c) => [c.iso, c.dial])
+);
 
 /**
  * Split a phone number the way AliExpress wants it.
@@ -145,7 +116,7 @@ export async function placeWithSupplier(supplierOrderId: string): Promise<PlaceR
   if (!shipTo || !code) {
     return {
       ok: false,
-      detail: `Cannot place: the delivery country "${shipTo?.country ?? 'missing'}" has no ISO code mapped. Add it to COUNTRY_CODES rather than guessing.`,
+      detail: `Cannot place: the delivery country "${shipTo?.country ?? 'missing'}" has no ISO code mapped. Add it to src/lib/countries.ts rather than guessing.`,
     };
   }
 

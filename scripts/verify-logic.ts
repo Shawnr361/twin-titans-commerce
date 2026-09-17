@@ -27,6 +27,8 @@ import { provinceFor } from '../src/lib/dropship/address';
 import { findOrderNumber, refusalMessage } from '../src/lib/dropship/aliexpress-reply';
 import { stripInventedClaims } from '../src/lib/copywriter';
 import { isFaithfulTitle, tidyTitleAnswer } from '../src/lib/suppliers/shopTitle';
+import { shippingFor } from '../src/lib/shipping';
+import { countryByName } from '../src/lib/countries';
 import {
   announcementContradictsShipping,
   announcementMessages,
@@ -181,6 +183,17 @@ console.log(
 // A cheap item where the flat fee dominates.
 const cheap = computePrice(toMinor(1200, 'NGN'), DEFAULT_RULES);
 assert('cheap items stay profitable too', cheap.profitMinor > 0, formatMoney(cheap.profitMinor));
+
+// Delivery by destination — the same figures Merchant Center is given.
+const rates = { shippingFlatMinor: 350_000, freeShippingOverMinor: 3_000_000, intlShippingFlatMinor: 750_000, intlFreeShippingOverMinor: 7_500_000 };
+check('Nigeria below threshold pays ₦3,500', shippingFor(rates, 2_000_000, 'Nigeria'), 350_000);
+check('Nigeria over ₦30,000 is free', shippingFor(rates, 3_000_000, 'Nigeria'), 0);
+check('UK at ₦40,000 pays the international ₦7,500', shippingFor(rates, 4_000_000, 'United Kingdom'), 750_000);
+check('UK over ₦75,000 is free', shippingFor(rates, 7_500_000, 'United Kingdom'), 0);
+check('no country yet is priced as Nigeria', shippingFor(rates, 2_000_000, ''), 350_000);
+check('old "UK" orders still map to GB', countryByName('UK')?.iso, 'GB');
+check('a two-letter code resolves', countryByName('jp')?.name, 'Japan');
+check('an unknown country is refused, not guessed', countryByName('Atlantis'), null);
 
 // No invented "was" price, even when a saved setting still carries the old 1.45 multiplier.
 check('no generated compare-at price', computePrice(toMinor(1200, 'NGN'), { ...DEFAULT_RULES, compareAtMultiplier: 1.45 }).compareAtMinor, null);

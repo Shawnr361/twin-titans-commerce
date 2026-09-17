@@ -4,23 +4,8 @@ import { useState } from 'react';
 import type { HydratedCart } from '@/lib/cart';
 import { Magnetic } from '@/components/motion/Magnetic';
 import { Price } from './Price';
-
-const COUNTRIES = [
-  'Nigeria',
-  'Ghana',
-  'Kenya',
-  'South Africa',
-  'United Kingdom',
-  'United States',
-  'Canada',
-  'Ireland',
-  'Germany',
-  'France',
-  'Spain',
-  'Italy',
-  'Netherlands',
-  'Australia',
-];
+import { COUNTRIES } from '@/lib/countries';
+import { isDomestic } from '@/lib/shipping';
 
 export function CheckoutForm({
   cart,
@@ -35,8 +20,19 @@ export function CheckoutForm({
   const [pending, setPending] = useState<'FLUTTERWAVE' | 'PAYPAL' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [country, setCountry] = useState('Nigeria');
 
   const noPaymentConfigured = !flutterwaveEnabled && !paypalEnabled;
+
+  /*
+   * Delivery re-priced for the country picked, so an overseas shopper sees the
+   * charge they will actually pay before pressing Pay. Display only: the
+   * checkout route prices the submitted country again on the server.
+   */
+  const rate = isDomestic(country) ? cart.shippingRates.domestic : cart.shippingRates.international;
+  const shippingMinor =
+    rate.freeOverMinor > 0 && cart.subtotalMinor >= rate.freeOverMinor ? 0 : rate.flatMinor;
+  const totalMinor = cart.subtotalMinor + shippingMinor;
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -191,10 +187,16 @@ export function CheckoutForm({
               <label className="field-label" htmlFor="country">
                 Country
               </label>
-              <select id="country" name="country" defaultValue="Nigeria" className="field">
+              <select
+                id="country"
+                name="country"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                className="field"
+              >
                 {COUNTRIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                  <option key={c.iso} value={c.name}>
+                    {c.name}
                   </option>
                 ))}
               </select>
@@ -255,10 +257,10 @@ export function CheckoutForm({
           <div className="flex justify-between gap-4">
             <dt className="text-greige">Delivery</dt>
             <dd>
-              {cart.shippingMinor === 0 ? (
+              {shippingMinor === 0 ? (
                 <span className="text-verdigris">Complimentary</span>
               ) : (
-                <Price minor={cart.shippingMinor} currency={cart.currency} />
+                <Price minor={shippingMinor} currency={cart.currency} />
               )}
             </dd>
           </div>
@@ -266,7 +268,7 @@ export function CheckoutForm({
             <dt className="font-display text-d2 text-onyx">Total</dt>
             <dd>
               <Price
-                minor={cart.totalMinor}
+                minor={totalMinor}
                 currency={cart.currency}
                 className="font-display text-d2 text-onyx"
               />

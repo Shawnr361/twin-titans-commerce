@@ -18,6 +18,13 @@ export interface StoreSettings {
   /** Flat shipping charged to the customer, base minor units. 0 = free. */
   shippingFlatMinor: number;
   freeShippingOverMinor: number;
+  /**
+   * Delivery outside Nigeria. The store ships wherever the supplier delivers,
+   * and overseas parcels cost more and go wrong more often, so they carry their
+   * own rate. Same meaning as the two above; 0 = free / no threshold.
+   */
+  intlShippingFlatMinor: number;
+  intlFreeShippingOverMinor: number;
   /** Currencies offered in the storefront switcher. */
   displayCurrencies: string[];
   /** PayPal can never charge NGN — it always settles in this currency. */
@@ -50,6 +57,9 @@ export const DEFAULT_SETTINGS: StoreSettings = {
    */
   shippingFlatMinor: 350_000, // ₦3,500 in kobo
   freeShippingOverMinor: 3_000_000, // ₦30,000 in kobo
+  // Merchant's decision, 2026-09-17: a buffer for overseas delivery.
+  intlShippingFlatMinor: 750_000, // ₦7,500 in kobo
+  intlFreeShippingOverMinor: 7_500_000, // ₦75,000 in kobo
   displayCurrencies: ['NGN', 'USD', 'GBP', 'EUR', 'CAD', 'AUD'],
   paypalCurrency: 'USD',
   /*
