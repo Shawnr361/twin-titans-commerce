@@ -39,15 +39,24 @@ export function AddToCart({
   variants,
   currency,
   onVariantChange,
+  initialVariantId,
 }: {
   variants: VariantOption[];
   currency: string;
   onVariantChange?: (v: VariantOption) => void;
+  /**
+   * Opened from a link naming one option (?variant=), e.g. a Google Shopping
+   * listing. Rendered selected on the server, so the price shown is that
+   * option's price — the one Google was sent.
+   */
+  initialVariantId?: string;
 }) {
   const router = useRouter();
   const { showImage } = useVariantMedia();
   const [selectedId, setSelectedId] = useState(
-    variants.find((v) => v.available)?.id ?? variants[0]?.id
+    (initialVariantId && variants.some((v) => v.id === initialVariantId) ? initialVariantId : null) ??
+      variants.find((v) => v.available)?.id ??
+      variants[0]?.id
   );
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);

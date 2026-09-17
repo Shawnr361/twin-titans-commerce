@@ -147,10 +147,11 @@ export default async function ProductPage({
   searchParams,
 }: {
   params: Promise<{ handle: string }>;
-  searchParams: Promise<{ currency?: string }>;
+  searchParams: Promise<{ currency?: string; variant?: string }>;
 }) {
   const { handle } = await params;
   const settings = await getStoreSettings();
+  const requestedVariant = (await searchParams).variant;
 
   /*
    * A Google Shopping link names its currency (?currency=GBP). The structured
@@ -272,6 +273,11 @@ export default async function ProductPage({
   // Same text the meta tags carry, so the page and the structured data agree.
   const description = productDescription(product, settings.storeName);
 
+  // The option a link asked for, by SKU (what the feed uses) or variant id.
+  const linkedVariant = requestedVariant
+    ? product.variants.find((v) => v.sku === requestedVariant || v.id === requestedVariant) ?? null
+    : null;
+
   const jsonLd = {
     "@context": "https://schema.org/",
     "@type": "Product",
@@ -285,16 +291,35 @@ export default async function ProductPage({
       ? { "@type": "Brand", name: displayVendor(product.vendor) }
       : undefined,
     offers: {
-      "@type": "AggregateOffer",
-      priceCurrency: listingCurrency,
-      lowPrice: listingAmount(cheapest),
-      // Google wants both bounds once more than one offer is advertised.
-      highPrice: listingAmount(Math.max(dearest, cheapest)),
-      offerCount: product.variants.length,
-      url: productUrl,
-      availability: inStock
-        ? "https://schema.org/InStock"
-        : "https://schema.org/OutOfStock",
+      /*
+       * A Shopping link opens ONE option (?variant=), and Google checks that
+       * option's own price — so the markup then describes that single offer
+       * rather than the product's price range, which would not equal it.
+       */
+      ...(linkedVariant
+        ? {
+            "@type": "Offer",
+            priceCurrency: listingCurrency,
+            price: listingAmount(linkedVariant.priceMinor),
+            sku: linkedVariant.sku ?? undefined,
+            url: `${productUrl}?variant=${encodeURIComponent(linkedVariant.sku || linkedVariant.id)}`,
+            availability:
+              linkedVariant.inventory == null || linkedVariant.inventory > 0
+                ? "https://schema.org/InStock"
+                : "https://schema.org/OutOfStock",
+          }
+        : {
+            "@type": "AggregateOffer",
+            priceCurrency: listingCurrency,
+            lowPrice: listingAmount(cheapest),
+            // Google wants both bounds once more than one offer is advertised.
+            highPrice: listingAmount(Math.max(dearest, cheapest)),
+            offerCount: product.variants.length,
+            url: productUrl,
+            availability: inStock
+              ? "https://schema.org/InStock"
+              : "https://schema.org/OutOfStock",
+          }),
       shippingDetails: {
         "@type": "OfferShippingDetails",
         shippingRate: {
@@ -419,6 +444,7 @@ export default async function ProductPage({
                   options: (v.optionValues ?? {}) as Record<string, string>,
                 }))}
                 currency={settings.baseCurrency}
+                initialVariantId={linkedVariant?.id}
               />
             </div>
 

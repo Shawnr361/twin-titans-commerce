@@ -273,7 +273,12 @@ export async function GET(request: Request) {
           // platforms parse. Minor units here would list a ₦19,999 product at
           // ₦1,999,900 and quietly destroy every ROAS figure downstream.
           cell(priceText(variant.priceMinor)),
-          cell(`${link}?${linkQuery}`),
+          // Google checks each option's own price, so its link opens that option.
+          cell(
+            isGoogle
+              ? `${link}?${linkQuery}&variant=${encodeURIComponent(variant.sku || variant.id)}`
+              : `${link}?${linkQuery}`
+          ),
           cell(variant.imageUrl || image),
           cell(product.vendor || settings.storeName),
           // Groups a product's variants so the platforms show one listing with
