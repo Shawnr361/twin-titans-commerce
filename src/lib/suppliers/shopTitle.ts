@@ -88,6 +88,9 @@ export function tidyTitleAnswer(answer: string): string {
 
 function words(text: string): string[] {
   return text
+    // Supplier titles glue words together ("Makeup ToolsPortable Face Razor"),
+    // which would otherwise hide a word that is really there.
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
     .toLowerCase()
     .replace(/&/g, ' and ')
     .split(/[^a-z0-9%]+/)

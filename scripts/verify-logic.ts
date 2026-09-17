@@ -231,6 +231,7 @@ check('the supplier count is allowed', isFaithfulTitle('60-Piece Collagen Eye Ma
 check('a prefix is not a word family: water is not waterproof', isFaithfulTitle('Waterproof Water Bottle', 'Water Bottle Sports').ok, false);
 check('a grammatical ending is a word family', isFaithfulTitle('Washing Brush', 'Wash Brush Cleaning Tool').ok, true);
 check('over-long names are refused', isFaithfulTitle('Warm Soft Acrylic Washable Toilet Seat Cover Mat Decor', seat).ok, false);
+check('a word glued to the previous one still counts', isFaithfulTitle('Portable Eyebrow Trimmer', 'Eyebrow Trimmer Knives Makeup ToolsPortable Face Razor').ok, true);
 check('model answer is tidied', tidyTitleAnswer('Name: "Portable Fruit Juicer."\nextra'), 'Portable Fruit Juicer');
 
 // gemini-2.5-flash published "Recharges via USB for ease" for a clipper whose
