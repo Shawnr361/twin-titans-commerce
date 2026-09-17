@@ -106,7 +106,9 @@ export function HeroCarousel({
                 aria-selected={i === index}
                 aria-label={slide.title}
                 onClick={() => setIndex(i)}
-                className={`h-[3px] w-6 transition-colors duration-2 ${
+                // Narrower past six, so ten markers still leave the product
+                // name room on a phone-width hero.
+                className={`h-[3px] ${slides.length > 6 ? 'w-4' : 'w-6'} transition-colors duration-2 ${
                   i === index ? 'bg-bone' : 'bg-bone/35 hover:bg-bone/70'
                 }`}
               />

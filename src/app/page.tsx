@@ -63,10 +63,13 @@ export default async function HomePage() {
    * The merchant's featured picks lead. Newest-first is only the fallback when
    * nothing is featured — left to itself it put a toilet seat cover under the
    * headline, because that happened to be the latest import.
+   *
+   * Up to ten featured (the merchant's call, 2026-09-17); the unchosen
+   * fallback stays at six, since nobody picked those.
    */
   const heroSlides = (featured.length > 0 ? featured : newest)
     .filter((p) => p.images?.[0]?.url)
-    .slice(0, 6)
+    .slice(0, featured.length > 0 ? 10 : 6)
     .map((p) => ({ handle: p.handle, title: p.title, url: p.images[0].url }));
 
   const hasStock = newest.length > 0;
